@@ -1,0 +1,322 @@
+send_text:
+  name: Send Text
+  description: "shows text on the WeAct Display"
+  fields:
+    text:
+      description: "Text to show"
+      example: "Hallo Welt!"
+    color:
+      description: "Textfarbe [R,G,B]"
+      example: [255, 255, 255]
+    bgcolor:
+      description: "Hintergrundfarbe [R,G,B]"
+      example: [0, 0, 0]
+    width:
+      description: "Bildbreite (Default 160)"
+      example: 160
+    height:
+      description: "Bildhöhe (Default 80)"
+      example: 80
+    align:
+      description: "Ausrichtung (left, right, center)"
+      example: "center"
+    font_size:
+      description: "Schriftgröße"
+      example: 16
+    font:
+      description: "Pfad zur Schriftdatei (TTF)"
+      example: "/config/fonts/DejaVuSans-Bold.ttf"
+    x_position:
+      name: X-Position
+      description: "X-Position"
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 172
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    y_position:
+      name: Y-Position
+      description: "Y-Position"
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 72
+          step: 1
+          mode: box  # alternativ 'box' für Eingabefeld
+
+send_bitmap_raw:
+  name: raw RGB888 data
+  description: "shows a picture on the WeAct Display"
+  fields:
+    B64:
+      description: "Bilddaten als BASE64"
+      example: "/"
+    xpos:
+      description: "X-Positionierung"
+      example: 0
+    ypos:
+      description: "Y-Positionierung"
+      example: 0
+    bgcolor:
+      description: "Hintergrundfarbe [R,G,B]"
+      example: [0, 0, 0]
+
+send_bitmap_file:
+  name: transfer Bitmap
+  description: "shows an image from a file in the WeAct Display"
+  fields:
+    file:
+      description: "Pfad zum Bild"
+      example: "/"
+    xpos:
+      description: "X-Positionierung"
+      example: 0
+    ypos:
+      description: "Y-Positionierung"
+      example: 0
+    bgcolor:
+      description: "Hintergrundfarbe [R,G,B]"
+      example: [0, 0, 0]
+ 
+show_random:
+  name: Random Pixels
+  description: "shows a random coloured image on the WeAct Display"
+
+show_digital_clock:
+  name: Digital Clock
+  description: "shows the digital clock on the WeAct Display"
+  fields:
+    hm_color:
+      description: "clock color [R,G,B]"
+      example: [255, 255, 255]
+    bg_color:
+      description: "background color [R,G,B]"
+      example: [0, 0, 0]
+    offset:
+      description: "offset to other timezone in seconds"
+      example: 3600
+
+show_analog_clock:
+  name: Analog Clock
+  description: "shows the analog clock on the WeAct Display"
+  fields:
+    bg_color:
+      name: Background
+      description: "background color"
+      example: [0, 0, 0]
+      default: [0, 0, 0]                          # schwarz
+      selector:
+        color_rgb: {}
+    sc_color:
+      name: Scale
+      description: "color of scale"
+      example: [255, 255, 255]
+      default: [255, 255, 255]                         # weiss
+      selector:
+        color_rgb: {}
+    hh_color:
+      name: Hour
+      description: "color of hours"
+      example: [255, 0, 0]
+      default: [255, 0, 0]                        # rot
+      selector:
+        color_rgb: {}
+    mm_color:
+      name: Minutes
+      description: "color of minutes"
+      example: [64, 64, 64]                         # grau
+      default: [64, 64, 64]                         # grau
+      selector:
+        color_rgb: {}
+    offset:
+      name: "Time offset"
+      description: "offset to other timezone in hours"
+      default: 0
+      example: 1
+      selector:
+        number:
+          unit_of_measurement: "hours"
+          min: -23
+          max: 23
+          step: 0.5
+          mode: slider  # alternativ 'box' für Eingabefeld
+    position:
+      name: Position
+      description: "move clock from center (0) to left (-40) or right (+40)"
+      example: 0
+      default: 0
+      selector:
+        number:
+          unit_of_measurement: "pixels"
+          min: -40
+          max: 40
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    orientation:
+      name: Orientation
+      description: choose the desired orientation angle
+      required: true
+      default: "0"
+      selector:
+        select:
+          options:
+            - "0"
+            - "90"
+            - "180"
+            - "270"
+
+show_icon:
+  name: Icon
+  description: "shows an icon on the WeAct Display"
+  fields:
+    icon_name:
+      name: Icon
+      description: "Icon"
+      placeholder: mdi:home-assistant
+      default: mdi:home-assistant
+      selector:
+        icon: {}
+    icon_color:
+      name: Icon
+      description: "Icon color"
+      example: [255, 255, 255]
+      default: [255, 255, 255]                         # weiss
+      selector:
+        color_rgb: {}
+    bg_color:
+      name: Background
+      description: "background color"
+      example: [0, 0, 0]
+      default: [0, 0, 0]                          # schwarz
+      selector:
+        color_rgb: {}
+    x_position:
+      name: X-Position
+      description: "X-Position"
+      example: 0
+      default: 0
+      selector:
+        number:
+          unit_of_measurement: "pixels"
+          min: 0
+          max: 172
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    y_position:
+      name: Y-Position
+      description: "Y-Position"
+      example: 0
+      default: 0
+      selector:
+        number:
+          unit_of_measurement: "pixels"
+          min: 0
+          max: 72
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    size:
+      name: "Size"
+      description: "size"
+      default: 32
+      example: 32
+      selector:
+        number:
+          unit_of_measurement: "pixels"
+          min: 8
+          max: 80
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    orientation:
+      name: Orientation
+      description: choose the desired orientation angle
+      required: true
+      default: "0"
+      selector:
+        select:
+          options:
+            - "0"
+            - "90"
+            - "180"
+            - "270"
+
+set_full_color:
+  name: Full color
+  description: "fills the complete WeAct Display with one specific color"
+  fields:
+    color:
+      name: "Full Color"
+      description: "Color"
+      example: [0, 255, 255]
+      default: [0, 255, 255]                         # green
+      selector:
+        color_rgb: {}
+
+set_orientation:
+  name: Display Orientation
+  description: "sets the orientation for the WeAct Display"
+  fields:
+    orientation:
+      name: Orientation
+      description: choose the desired orientation
+#      example: "landscape"
+      required: true
+      default: "portrait"
+      selector:
+        select:
+          options:
+            - "portrait"
+            - "portrait_r"
+            - "landscape"
+            - "landscape_r"
+            - "0"
+            - "90"
+            - "180"
+            - "270"
+
+set_humiture_report:
+  description: "Temperatur und Luftfeuchtigkeit vom WeAct Display messen"
+  fields:
+    timer:
+      description: "Intervall in Sekunden [0=aus|500-65535]"
+      example: 60
+#      example: timer: 60
+
+set_brightness:
+  name: Brightness
+  description: "set brightness for the WeAct Display"
+  fields:
+    brightness:
+      description: "Lautstärke des Display [0-255]"
+      name: Brightness
+      required: true
+      example: 127
+      default: 127
+      selector:
+        number:
+          min: 0
+          max: 255
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+
+restart_display:
+  name: restart WeAct Display
+  description: "restarting the WeAct Display"
+
+show_init_screen:
+  name: Init Screen
+  description: "shows the initial WeAct Display screen"
+
+start_selftest:
+  name: Self Test
+  description: "displays R/G/B/W in a sequence"
+
+show_testbild:
+  name: Testbild
+  description: "shows the Testbild on the WeAct Display"
+
+

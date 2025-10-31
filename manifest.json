@@ -1,0 +1,15 @@
+{
+  "domain": "weact_display",
+  "name": "WeAct Display for HA",
+  "version": "0.2.1",
+  "documentation": "https://github.com/rossi75/weact_display",
+  "requirements": [
+    "pyserial>=3.5",
+    "Pillow>=10.0.0"
+  ],
+  "codeowners": ["@rossi75"],
+  "iot_class": "local_push",
+  "dependencies": [],
+  "after_dependencies": [],
+  "platforms": ["sensor"]
+}
