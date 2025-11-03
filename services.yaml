@@ -1,34 +1,49 @@
-send_text:
-  name: Send Text
-  description: "shows text on the WeAct Display"
+write_text:
+  name: Write Text
+  description: "write some text on the WeAct Display"
   fields:
     text:
-      description: "Text to show"
+      name: Text
+      required: true
       example: "Hallo Welt!"
-    color:
-      description: "Textfarbe [R,G,B]"
+      default: "test"
+      selector:
+        text: {}
+    t_color:
+      name: Text color
       example: [255, 255, 255]
-    bgcolor:
-      description: "Hintergrundfarbe [R,G,B]"
+      selector:
+        color_rgb: {}
+    bg_color:
+      name: Background color
       example: [0, 0, 0]
-    width:
-      description: "Bildbreite (Default 160)"
-      example: 160
-    height:
-      description: "Bildhöhe (Default 80)"
-      example: 80
-    align:
-      description: "Ausrichtung (left, right, center)"
-      example: "center"
+      selector:
+        color_rgb: {}
+#    width:
+#      description: "Bildbreite (Default 160)"
+#      example: 160
+#    height:
+#      description: "Bildhöhe (Default 80)"
+#      example: 80
+#    align:
+#      description: "Ausrichtung (left, right, center)"
+#      example: "center"
     font_size:
-      description: "Schriftgröße"
+      name: Font size
+      default: 16
       example: 16
-    font:
-      description: "Pfad zur Schriftdatei (TTF)"
-      example: "/config/fonts/DejaVuSans-Bold.ttf"
+      selector:
+        number:
+          unit_of_measurement: "pixels"
+          min: 5
+          max: 80
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+#    font:
+#      description: "Pfad zur Schriftdatei (TTF)"
+#      example: "/config/fonts/DejaVuSans-Bold.ttf"
     x_position:
       name: X-Position
-      description: "X-Position"
       example: 0
       default: 0
       selector:
@@ -39,7 +54,6 @@ send_text:
           mode: slider  # alternativ 'box' für Eingabefeld
     y_position:
       name: Y-Position
-      description: "Y-Position"
       example: 0
       default: 0
       selector:
@@ -47,11 +61,329 @@ send_text:
           min: 0
           max: 72
           step: 1
-          mode: box  # alternativ 'box' für Eingabefeld
+          mode: slider  # alternativ 'box' für Eingabefeld
+    rotation:
+      name: Rotation angle
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 270
+          step: 90
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "degree"
+
+
+draw_circle:
+  name: Circle
+  description: "draw a circle on the WeAct Display"
+  fields:
+    x_position:
+      name: Circles Center X-Position
+      example: 30
+      default: 30
+      selector:
+        number:
+          min: 0
+          max: 179
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    y_position:
+      name: Circles Center Y-Position
+      example: 40
+      default: 40
+      selector:
+        number:
+          min: 0
+          max: 72
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    radius:
+      name: Circle radius
+      example: 20
+      default: 20
+      selector:
+        number:
+          min: 1
+          max: 179
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "pixels"
+    ellipse:
+      name: Circle ellipse
+      description: "If not given, we only use the radius for Y-direction"
+      example: 35
+      default: 35
+      selector:
+        number:
+          min: 1
+          max: 78
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "pixels"
+    cf_width:
+      name: Circle Frame Width
+      description: "how fat the circles frame should be"
+      example: 1
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 40
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "pixels"
+    bg_color:
+      name: Background
+      description: "color outside the circle"
+      example: [0, 0, 0]
+      default: [0, 0, 0]                          # schwarz
+      selector:
+        color_rgb: {}
+    c_color:
+      name: Frame color
+      example: [255, 255, 255]
+      default: [255, 255, 255]                         # weiss
+      selector:
+        color_rgb: {}
+    f_color:
+      name: Fill color
+      description: "same as background if not given"
+      example: [255, 255, 255]
+      default: [255, 255, 255]                         # weiss
+      selector:
+        color_rgb: {}
+
+
+draw_rectangle:
+  name: Rectangle
+  description: "draw a rectangle on the WeAct Display"
+  fields:
+    x_start:
+      name: X-Start
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 159
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    y_start:
+      name: Y-Start
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 79
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    x_end:
+      name: X-End
+      example: 20
+      default: 20
+      selector:
+        number:
+          min: 0
+          max: 159
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    y_end:
+      name: Y-End
+      example: 20
+      default: 20
+      selector:
+        number:
+          min: 0
+          max: 79
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    rf_width:
+      name: Rectangle Frame Width
+      description: "how fat should the rectangle be?"
+      example: 1
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 40
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "pixels"
+    bg_color:
+      name: Background color
+      example: [0, 0, 0]
+      default: [0, 0, 0]                          # schwarz
+      selector:
+        color_rgb: {}
+    r_color:
+      name: Rectangle color
+      example: [255, 255, 255]
+      default: [255, 255, 255]                         # weiss
+      selector:
+        color_rgb: {}
+    f_color:
+      name: Fill color
+      description: "same as background if not given"
+      example: [255, 255, 255]
+      default: [255, 255, 255]                         # weiss
+      selector:
+        color_rgb: {}
+
+
+draw_line:
+  name: Line
+  description: "draw a line on the WeAct Display"
+  fields:
+    xs_position:
+      name: Start X-Position
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 159
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    ys_position:
+      name: Start Y-Position
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 79
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    xe_position:
+      name: End X-Position
+      example: 23
+      default: 35
+      selector:
+        number:
+          min: 0
+          max: 159
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    ye_position:
+      name: End Y-Position
+      example: 65
+      default: 61
+      selector:
+        number:
+          min: 0
+          max: 79
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    l_color:
+      name: Line color
+      example: [255, 255, 255]
+      default: [255, 255, 255]                         # weiss
+      selector:
+        color_rgb: {}
+    l_width:
+      name: Line Width
+      description: "how fat should the line be?"
+      example: 1
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 160
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "pixels"
+
+
+draw_triangle:
+  name: Triangle
+  description: "draw a triangle on the WeAct Display"
+  fields:
+    xa_position:
+      name: Point A X-Position
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 159
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    ya_position:
+      name: Point A Y-Position
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 79
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    xb_position:
+      name: Point B X-Position
+      example: 80
+      default: 80
+      selector:
+        number:
+          min: 0
+          max: 159
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    yb_position:
+      name: Point B Y-Position
+      example: 79
+      default: 79
+      selector:
+        number:
+          min: 0
+          max: 79
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    xc_position:
+      name: Point C X-Position
+      example: 159
+      default: 159
+      selector:
+        number:
+          min: 0
+          max: 159
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    yc_position:
+      name: Point C Y-Position
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 79
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    l_color:
+      name: Line
+      description: "line color"
+      example: [255, 255, 255]
+      default: [255, 255, 255]                         # weiss
+      selector:
+        color_rgb: {}
+    l_width:
+      name: Triangle Frame Width
+      example: 1
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 160
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "pixels"
+
 
 send_bitmap_raw:
   name: raw RGB888 data
-  description: "shows a picture on the WeAct Display"
+  description: "does not work but later should transfer a picture on the WeAct Display"
   fields:
     B64:
       description: "Bilddaten als BASE64"
@@ -68,7 +400,7 @@ send_bitmap_raw:
 
 send_bitmap_file:
   name: transfer Bitmap
-  description: "shows an image from a file in the WeAct Display"
+  description: "does not work but later should transfer an image from a file in the WeAct Display"
   fields:
     file:
       description: "Pfad zum Bild"
@@ -83,13 +415,17 @@ send_bitmap_file:
       description: "Hintergrundfarbe [R,G,B]"
       example: [0, 0, 0]
  
+stop_clock:
+  name: Stop the clock
+  description: "stops any running clock (Analog|Digital|Rheinturm)"
+
 show_random:
   name: Random Pixels
   description: "shows a random coloured image on the WeAct Display"
 
-show_digital_clock:
-  name: Digital Clock
-  description: "shows the digital clock on the WeAct Display"
+start_digital_clock:
+  name: Digital Clock - anytime
+  description: "does not work but later should show the digital clock on the WeAct Display"
   fields:
     hm_color:
       description: "clock color [R,G,B]"
@@ -101,7 +437,7 @@ show_digital_clock:
       description: "offset to other timezone in seconds"
       example: 3600
 
-show_analog_clock:
+start_analog_clock:
   name: Analog Clock
   description: "shows the analog clock on the WeAct Display"
   fields:
@@ -133,20 +469,20 @@ show_analog_clock:
       default: [64, 64, 64]                         # grau
       selector:
         color_rgb: {}
-    offset:
-      name: "Time offset"
-      description: "offset to other timezone in hours"
+    rotation:
+      name: Rotation
+      description: choose the desired rotation angle
+      example: 0
       default: 0
-      example: 1
       selector:
         number:
-          unit_of_measurement: "hours"
-          min: -23
-          max: 23
-          step: 0.5
+          unit_of_measurement: "degree"
+          min: 0
+          max: 270
+          step: 90
           mode: slider  # alternativ 'box' für Eingabefeld
-    position:
-      name: Position
+    shift:
+      name: shift position from center
       description: "move clock from center (0) to left (-40) or right (+40)"
       example: 0
       default: 0
@@ -157,18 +493,18 @@ show_analog_clock:
           max: 40
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
-    orientation:
-      name: Orientation
-      description: choose the desired orientation angle
-      required: true
-      default: "0"
+    offset:
+      name: Time offset
+      description: "offset to other timezone in hours"
+      default: 0
+      example: 1
       selector:
-        select:
-          options:
-            - "0"
-            - "90"
-            - "180"
-            - "270"
+        number:
+          unit_of_measurement: "hours"
+          min: -23
+          max: 23
+          step: 0.5
+          mode: slider  # alternativ 'box' für Eingabefeld
 
 show_icon:
   name: Icon
@@ -231,18 +567,18 @@ show_icon:
           max: 80
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
-    orientation:
-      name: Orientation
-      description: choose the desired orientation angle
-      required: true
-      default: "0"
+    rotation:
+      name: Rotation
+      description: choose the desired rotation angle
+      example: 0
+      default: 0
       selector:
-        select:
-          options:
-            - "0"
-            - "90"
-            - "180"
-            - "270"
+        number:
+          unit_of_measurement: "degree"
+          min: 0
+          max: 270
+          step: 90
+          mode: slider  # alternativ 'box' für Eingabefeld
 
 set_full_color:
   name: Full color
@@ -251,14 +587,15 @@ set_full_color:
     color:
       name: "Full Color"
       description: "Color"
+      required: true
       example: [0, 255, 255]
       default: [0, 255, 255]                         # green
       selector:
         color_rgb: {}
 
 set_orientation:
-  name: Display Orientation
-  description: "sets the orientation for the WeAct Display"
+  name: Display Orientation - do NEVER use !
+  description: "NEVER EVER use this !! sets the orientation for the WeAct Display"
   fields:
     orientation:
       name: Orientation
@@ -279,7 +616,7 @@ set_orientation:
             - "270"
 
 set_humiture_report:
-  description: "Temperatur und Luftfeuchtigkeit vom WeAct Display messen"
+  description: "do not use ! no sensor no value ! Temperatur und Luftfeuchtigkeit vom WeAct Display messen"
   fields:
     timer:
       description: "Intervall in Sekunden [0=aus|500-65535]"
@@ -304,8 +641,8 @@ set_brightness:
           mode: slider  # alternativ 'box' für Eingabefeld
 
 restart_display:
-  name: restart WeAct Display
-  description: "restarting the WeAct Display"
+  name: Restart
+  description: "restarts the WeAct Display"
 
 show_init_screen:
   name: Init Screen
@@ -316,7 +653,7 @@ start_selftest:
   description: "displays R/G/B/W in a sequence"
 
 show_testbild:
-  name: Testbild
-  description: "shows the Testbild on the WeAct Display"
+  name: Testbild - do not use !
+  description: "do not use ! - shows the Testbild on the WeAct Display"
 
 

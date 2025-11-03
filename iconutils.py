@@ -130,6 +130,7 @@ async def load_icon(icon_name: str, icon_color = (255, 255, 255), icon_size = (3
     _LOGGER.debug("resized")
 
     tinted = tinted.rotate(rotation, expand=True)
+    img = img.rotate(rotation, expand=True)
     _LOGGER.debug("rotated")
 
     # --- Einfärben ---
