@@ -97,36 +97,42 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     # Service: Text anzeigen
     # --------------------------------------------------------
     async def handle_send_text(call: ServiceCall):
+        _LOGGER.debug("called service to scribble some text")
         """Render Text und sende als Bitmap."""
-        if not SERIAL:
-            _LOGGER.warning(f"[{DOMAIN}] Display nicht verbunden")
-            return
 
-        text = call.data.get("text", "")
-        color = tuple(call.data.get("color", [255, 255, 255]))
-        bgcolor = tuple(call.data.get("bgcolor", [0, 0, 0]))
-        width = int(call.data.get("width", 160))
-        height = int(call.data.get("height", 80))
-        align = call.data.get("align", "left")
-        font_size = int(call.data.get("font_size", 16))
-        font = call.data.get("font", None)
+        text = call.data.get("text", None)
+        xs = call.data.get("x_start", None)
+        ys = call.data.get("y_start", None)
+        xe = call.data.get("x_end", None)
+        ye = call.data.get("y_end", None)
+#        font_size = int(call.data.get("font_size", None))
+        font_size = call.data.get("font_size", None)
+        t_color = call.data.get("t_color", None)
+        bg_color = call.data.get("bg_color", None)
+#        rotation = int(call.data.get("rotation", None))
+        rotation = call.data.get("rotation", None)
 
-        try:
-            bmp = text_to_bitmap_bytes(
-                text,
-                width=width,
-                height=height,
-                color=color,
-                bgcolor=bgcolor,
-                align=align,
-                font_size=font_size,
-                font=font
-            )
-            await send_bitmap(SERIAL, 0, 0, width - 1, height - 1, bmp)
-            _LOGGER.warning("Text angezeigt: '%s' (%dx%d, fg=%s, bg=%s, align=%s)",
-                         text, width, height, color, bgcolor, align)
-        except Exception as e:
-            _LOGGER.error("Fehler beim Rendern/Senden des Textes: %s", e)
+        _LOGGER.debug(f"values given: text={text}, xs={xs}, ys={ys}, xe={xe}, ye={ye}, font_size={font_size}, t_color={t_color}, bg_color={bg_color}, rotation={rotation}")
+
+        await write_text(hass, SERIAL, text, xs, ys, xe, ye, font_size = font_size, t_color = t_color, bg_color = bg_color, rotation = rotation)
+
+
+#        try:
+#            bmp = text_to_bitmap_bytes(
+#                text,
+#                width=width,
+#                height=height,
+#                color=color,
+#                bgcolor=bgcolor,
+#                align=align,
+#                font_size=font_size,
+#                font=font
+#            )
+#            await send_bitmap(SERIAL, 0, 0, width - 1, height - 1, bmp)
+#            _LOGGER.warning("Text angezeigt: '%s' (%dx%d, fg=%s, bg=%s, align=%s)",
+#                         text, width, height, color, bgcolor, align)
+#        except Exception as e:
+#            _LOGGER.error("Fehler beim Rendern/Senden des Textes: %s", e)
 
     hass.services.async_register(DOMAIN, "write_text", handle_send_text)
 
@@ -137,12 +143,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     async def handle_show_random(call: ServiceCall):
         """Erzeugt ein zufälliges Bitmap und sendet es an das Display."""
         _LOGGER.debug("called service for random bmp")
-
-        if not SERIAL:
-            _LOGGER.warning("Display not connected")
-            return
         
-#        await generate_random(hass, call, SERIAL)
         await generate_random(hass, SERIAL)
 
     hass.services.async_register(DOMAIN, "show_random", handle_show_random)
@@ -154,10 +155,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     async def handle_start_selftest(call: ServiceCall):
         """startet den Selbsttest wie bei der Initialisierung"""
         _LOGGER.debug("called service for display selftest")
-
-        if not SERIAL:
-            _LOGGER.warning("Display not connected")
-            return
         
         await display_selftest(hass, SERIAL)
 
@@ -170,9 +167,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     async def handle_restart_display(call: ServiceCall):
         """startet das Display neu"""
         _LOGGER.debug("called service for display restart")
-        if not SERIAL:
-            _LOGGER.warning("Display not connected")
-            return
         
         await display_restart(hass, SERIAL)
 
@@ -184,9 +178,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     # --------------------------------------------------------
     async def handle_show_init_screen(call: ServiceCall):
         _LOGGER.debug("called service for initial screen")
-        if not SERIAL:
-            _LOGGER.warning("Display not connected")
-            return
         
         await show_init_screen(hass, SERIAL)
 
@@ -252,6 +243,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
             raise ValueError(f"invalid orientation: {orientation_value}")
 
         _LOGGER.debug(f"final opcode: {opcode}")
+
         await set_orientation(hass, SERIAL, opcode)
 
     # das setzen wir erst einmal hart aus !
@@ -262,15 +254,15 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     # --------------------------------------------------------
     async def handle_set_brightness(call: ServiceCall):
         _LOGGER.debug("called service for brightness")
-        if not SERIAL:
-            _LOGGER.warning("Display not connected")
-            return
         
         brightness_value = call.data.get("brightness")
+
         _LOGGER.debug(f"value given: brightness={brightness_value}")
+
         await set_brightness(hass, SERIAL, brightness_value)
 
     hass.services.async_register(DOMAIN, "set_brightness", handle_set_brightness)
+
 
     # --------------------------------------------------------
     # Service: Full color
@@ -278,15 +270,15 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     async def handle_set_full_color(call: ServiceCall):
         """display in ONE color"""
         _LOGGER.debug("called service for one color")
-        if not SERIAL:
-            _LOGGER.warning("Display not connected")
-            return
         
         color_value = call.data.get("color")
+
         _LOGGER.debug(f"value given: color={color_value}")
+
         await send_full_color(hass, SERIAL, color_value)
 
     hass.services.async_register(DOMAIN, "set_full_color", handle_set_full_color)
+
 
     # --------------------------------------------------------
     # Service: Testbild
@@ -294,24 +286,17 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     async def handle_show_testbild(call: ServiceCall):
         """display in ONE color"""
         _LOGGER.debug("called service for testbild")
-
-#        if not SERIAL:
-#            _LOGGER.warning("Display not connected")
-#            return
         
         await show_testbild(hass, SERIAL)
 
     hass.services.async_register(DOMAIN, "show_testbild", handle_show_testbild)
+
 
     # --------------------------------------------------------
     # Service: Stop clock
     # --------------------------------------------------------
     async def handle_stop_clock(call: ServiceCall):
         _LOGGER.debug("called service for stopping any running clock")
-
-        if not SERIAL:
-            _LOGGER.warning("Display not connected")
-            return
         
 #        await stop_clock(hass, SERIAL)
         await stop_clock(hass)
@@ -320,17 +305,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
 
     # --------------------------------------------------------
-    # Service: Analoguhr
+    # Service: Analog clock
     # --------------------------------------------------------
-#    async def handle_show_analog_clock(call: ServiceCall):
     async def handle_start_analog_clock(call: ServiceCall):
         _LOGGER.debug("called service for analog clock")
  
-        if not SERIAL:
-            _LOGGER.warning("Display not connected")
-            return
-
-
         sc_color = call.data.get("sc_color", None)
         bg_color = call.data.get("bg_color", None)
         h_color = call.data.get("hh_color", None)
@@ -342,57 +321,45 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
         _LOGGER.debug(f"values given: scale-color = {sc_color}, background-color = {bg_color}, hour-color = {h_color}, minute-color = {m_color}, offset = {offset_hours}, shift = {shift},  rotation = {rotation}")
 
-#        if orientation_value is None:
-#            raise ValueError(f"missing mandatory rotation value")
-           
-        # Falls string: in lowercase und Leerzeichen entfernen
- #       if isinstance(orientation_value, str):
- #           v = orientation_value.strip().lower()
- #           _LOGGER.debug("mapping text to opcode")
-
-            # Texte
-  #          mapping = {
-  #              "portrait": 0,
-  #              "landscape": 2,
-  #              "portrait_r": 1,
-  #              "landscape_r": 3,
-  #          }
-  #          if v in mapping:
-  #              opcode = mapping[v]
-   #             _LOGGER.debug(f"mapping set orientation to [{opcode}]")
-
-        # Falls Zahl:
-#        elif isinstance(orientation_value, (int, float)):
-#            _LOGGER.debug("found any integer")
-#            val = int(orientation_value) % 360
-#            angle_to_opcode = {
-#                0: 0,   # portrait
-#                90: 2,  # landscape
-#                180: 1, # reverse portrait
-#                270: 3, # reverse landscape
-#            }
-
-            # Direkter Opcode (0–3)
- #           if orientation_value in (0, 1, 2, 3):
- #               opcode = int(orientation_value)
- #           # Winkel (0|90|180|270)
- #           elif val in angle_to_opcode:
- #               opcode = angle_to_opcode[val]
- #               _LOGGER.debug("mapping angle to opcode")
- #           else:
- #               raise ValueError(f"invalid orientation: {orientation_value}")
- #       else:
- #           raise ValueError(f"invalid orientation: {orientation_value}")
-
- #       _LOGGER.debug(f"final opcode: {opcode}")
-
-#        await show_analog_clock(hass, SERIAL, scale_color, hour_color, minute_color, background_color, offset_hours, position_value, orientation_value)
         await start_analog_clock(hass, SERIAL, sc_color = sc_color, h_color = h_color, m_color = m_color, bg_color = bg_color, offset_hours = offset_hours, shift = shift, rotation = rotation)
-#async def show_analog_clock(hass, serial_port,  sc_color = (255, 255, 255), h_color = (255, 0, 0), m_color = (127, 127, 127), bg_color = (0, 0, 0), offset_hours = 0, position_shift = 0, rotation = 0):
 
-#    hass.services.async_register(DOMAIN, "show_analog_clock", handle_show_analog_clock)
     hass.services.async_register(DOMAIN, "start_analog_clock", handle_start_analog_clock)
 
+
+    # --------------------------------------------------------
+    # Service: Digital clock
+    # --------------------------------------------------------
+    async def handle_start_digital_clock(call: ServiceCall):
+        _LOGGER.debug("called service for digital clock")
+ 
+        x_position = call.data.get("x_position")
+        y_position = call.data.get("y_position")
+        hm_color = call.data.get("hm_color", None)
+        bg_color = call.data.get("bg_color", None)
+        offset_hours = call.data.get("offset", None)
+        digit_size = call.data.get("digit_size", None)
+        rotation = call.data.get("rotation", None)
+
+        _LOGGER.debug(f"values given: x={x_position}, y={y_position}, background-color={bg_color}, hour-minute-color = {hm_color}, offset = {offset_hours}, digit-size = {digit_size},  rotation = {rotation}")
+
+        await start_digital_clock(hass, SERIAL, x_position, y_position, bg_color = bg_color, hm_color = hm_color, offset_hours = offset_hours, digit_size = digit_size, rotation = rotation)
+
+#    hass.services.async_register(DOMAIN, "start_digital_clock", handle_start_digital_clock)
+
+
+    # --------------------------------------------------------
+    # Service: Rheinturm
+    # --------------------------------------------------------
+    async def handle_start_rheinturm(call: ServiceCall):
+        _LOGGER.debug("called service for rheinturm")
+ 
+        rotation = call.data.get("rotation", None)
+
+        _LOGGER.debug(f"values given: rotation = {rotation}")
+
+        await start_rheinturm(hass, SERIAL, rotation = rotation)
+
+#    hass.services.async_register(DOMAIN, "start_rheinturm", handle_start_rheinturm)
 
     # --------------------------------------------------------
     # Service: Show Icon
@@ -400,9 +367,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     async def handle_show_icon(call: ServiceCall):
         """display in ONE color"""
         _LOGGER.debug("called service for icon")
-        if not SERIAL:
-            _LOGGER.warning("Display not connected")
-            return
         
         icon_name = call.data.get("icon_name")
         bg_color = call.data.get("bg_color")
@@ -436,10 +400,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
         _LOGGER.debug(f"values given: X-pos={xp}, Y-pos={yp}, radius={r}, bg-color={bg_color}, circle-color={c_color}, fill-color={f_color}, circle-frame-width={cf_width}, ellipse={e}")
 
-#        if not SERIAL:
-#            _LOGGER.warning("Display not connected")
-#            return
-
         await draw_circle(hass, SERIAL, xp, yp, r, bg_color, c_color, f_color, cf_width, e)
 
     hass.services.async_register(DOMAIN, "draw_circle", handle_draw_circle)
@@ -456,12 +416,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
         xe = call.data.get("x_end")
         ye = call.data.get("y_end")
         rf_width = call.data.get("rf_width", None)
-        r_color = call.data.get("r_color", None)
+        rf_color = call.data.get("rf_color", None)
         f_color = call.data.get("f_color", None)
 
-        _LOGGER.debug(f"values given: X-start={xs}, Y-Start={ys}, X-End={xe}, Y-End={ye}, rectangle-frame-width={rf_width}, rectangle-color={r_color}, fill-color={f_color}")
+        _LOGGER.debug(f"values given: X-start={xs}, Y-Start={ys}, X-End={xe}, Y-End={ye}, rectangle-frame-width={rf_width}, rectangle-frame-color={r_color}, fill-color={f_color}")
 
-        await draw_rectangle(hass, SERIAL, xs, ys, xe, ye, rf_width, r_color, f_color,)
+        await draw_rectangle(hass, SERIAL, xs, ys, xe, ye, rf_width, rf_color, f_color,)
 
     hass.services.async_register(DOMAIN, "draw_rectangle", handle_draw_rectangle)
 
@@ -472,22 +432,18 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     async def handle_draw_triangle(call: ServiceCall):
         _LOGGER.debug("called service to draw a triangle")
  
-        bg_color = call.data.get("bg_color")
-        t_color = call.data.get("t_color")
-        f_color = call.data.get("f_color")
-        tf_width = call.data.get("tf_width")
         xa = call.data.get("x_a")
         ya = call.data.get("y_a")
         xb = call.data.get("x_b")
         yb = call.data.get("y_b")
         xc = call.data.get("x_c")
         yc = call.data.get("y_c")
+        bg_color = call.data.get("bg_color")
+        t_color = call.data.get("t_color")
+        f_color = call.data.get("f_color")
+        tf_width = call.data.get("tf_width")
 
-        _LOGGER.debug(f"values given: bg-color={bg_color}, triangle-color={r_color}, fill-color={f_color}, triangle-frame-width={rf-width}, X-A={xa}, Y-A={ya}, X-B={xb}, Y-B={yb}, X-C={xc}, Y-C={yc}")
-
-        if not SERIAL:
-            _LOGGER.warning("Display not connected")
-            return
+        _LOGGER.debug(f"values given: bg-color={bg_color}, triangle-color={t_color}, fill-color={f_color}, triangle-frame-width={rf-width}, X-A={xa}, Y-A={ya}, X-B={xb}, Y-B={yb}, X-C={xc}, Y-C={yc}")
 
         await draw_triangle(hass, SERIAL, bg_color, t_color, f_color, tf_width, xa, ya, xb, yb, xc, yc)
 
@@ -509,16 +465,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
         _LOGGER.debug(f"values given: X-Start={xs}, Y-Start={ys}, X-End={xe}, Y-End={ye}, line-color={l_color}, line-width={l_width}")
 
-        if not SERIAL:
-            _LOGGER.warning("Display not connected")
-            return
-
         await draw_line(hass, SERIAL, xs, ys, xe, ye, l_color, l_width)
 
     hass.services.async_register(DOMAIN, "draw_line", handle_draw_line)
 
 
-
+    # --------------------------------------------------------
+    #   T H E   E N D  !
+    # --------------------------------------------------------
     return True
 
 

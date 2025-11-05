@@ -1,13 +1,14 @@
-# protocol wird nachher umbenannt in commands
 # open_serial wird nach tools verschoben
+# normalize wird nach tools verschoben
+# neue fkt send_command für einfache direkte Kommandos
 
 # +------------------------------+
-# +80                            + 
-# +y                             + ###########
-# +y                             + ########
-# +y                             + ########
-# +y                             + ###########
 # +0 xxxxxxxxxxxxxxxxxxxxxxxx 160+
+# +y                             + ###########
+# +y                             + ########
+# +y                             + ########
+# +y                             + ###########
+# +80                            + 
 # +------------------------------+
 
 import asyncio, struct, logging
@@ -29,6 +30,13 @@ DOMAIN = "weact_display"
 SERIAL = None
 CLOCK_REMOVE_HANDLE = None
 
+#************************************************************************
+#        O P E N  S E R I A L
+#************************************************************************
+# initializes the serial port via STTY and opens it
+#************************************************************************
+# m: port
+#************************************************************************
 def open_serial(port: str):
     """Initialisiert den seriellen Port mit stty und öffnet ihn."""
     _LOGGER.debug(f"[{DOMAIN}] initializing serial port {port} ...")
@@ -79,6 +87,15 @@ def open_serial(port: str):
         return None
 
 
+#************************************************************************
+#        B R I G H T N E S S
+#************************************************************************
+# changes the brightness of the display
+#************************************************************************
+# m: hass
+# m: serial_port
+# m: brightness
+#************************************************************************
 async def set_brightness(hass, serial_port, brightness):
     """setzt die Lautstärke"""
     _LOGGER.debug("setting volume [brightness]...")
@@ -88,8 +105,6 @@ async def set_brightness(hass, serial_port, brightness):
         return
 
     packet = struct.pack(
-#        "<BBB",
-#        0x10, brightness, 0x0A
         "<BBHB",
         0x03, brightness, 0x3500, 0x0A
     )
@@ -103,7 +118,19 @@ async def set_brightness(hass, serial_port, brightness):
     _LOGGER.debug("orientation done")
 
 
-
+#************************************************************************
+#        B I T M A P
+#************************************************************************
+# sends out a bitmap
+#************************************************************************
+# m: hass
+# m: serial_port
+# m: X start
+# m: Y start
+# m: X end
+# m: Y end
+# m: data_888, RGB888-data
+#************************************************************************
 async def send_bitmap(hass, serial_port, xs, ys, xe, ye, data_888: bytes):
     """Sendet ein Bitmap an das Display (CMD 0x05)."""
     _LOGGER.debug("finally sending bitmap...")
@@ -162,94 +189,14 @@ async def send_bitmap(hass, serial_port, xs, ys, xe, ye, data_888: bytes):
     _LOGGER.debug(f"Sent {len(data_565)} bytes in chunks of {CHUNK_SIZE} bytes")
 
 
-#async def write_text(hass, serial_port, text, xs, ys, font_size = 15, font = None, align = "left", t_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
-async def write_text(hass, serial_port, text, xs, ys, xe, ye, font_size = 15, t_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
-    _LOGGER.debug(f"writing some text")
-    _LOGGER.debug(f"given values: text={text}, xs={xs}, ys={ys}, xe={xe}, ye={ye}, font_size={font_size}, text-color={t_color}, background-color={bg_color}, rotation={rotation}")
-
-    await set_orientation(hass, serial_port, 2)
-
-    # 
-#    font = ImageFont.load_default()
-#    draw.text((10, 30), "Hallo Welt", fill=(255, 255, 255), font=font)
-
-
-    # Textgröße berechnen
-#    lines = text.splitlines() or [text]
-#    line_heights = []
-#    max_width = 0
-#    for line in lines:
-#        w, h = draw.textsize(line, font=fnt)
-#        line_heights.append(h)
-#        max_width = max(max_width, w)
-
-#    total_height = sum(line_heights)
-#    y = (height - total_height) // 2 if align == "center" else 0
-
-#    for i, line in enumerate(lines):
-#        w, h = draw.textsize(line, font=fnt)
-#        if align == "right":
-#            x = width - w
-#        elif align == "center":
-#            x = (width - w) // 2
-#        else:
-#            x = 0
-#        draw.text((x, y), line, font=fnt, fill=color)
-#        y += h
-
-    width = xe - xs + 1
-    height = ye - ys + 1
-
-    # Neues 80x80 Displaybild erstellen
-#    img = Image.new("RGB", (80, 80), bg_color)
-    img = Image.new("RGB", (width, height), bg_color)
-    draw = ImageDraw.Draw(img)
-    i_width, i_height = img.size
-
-    _LOGGER.debug("defined new image")
-
-    # ggf das Datum, den WT oder die CPU Temp einpflanzen
-    # Text
-    font = ImageFont.load_default()
-    draw.text((xs, ys), text, fill = t_color, font = font)
-    _LOGGER.debug("wrote into the image")
-
-    # bild ggf drehen
-    img = img.rotate(rotation, expand=True)
-    
-    # Bild extrahieren
-    img_bytes = img.tobytes()  # ergibt z.B. 160 * 80 * 3 = 38400 Bytes (RGB888)
-
-    _LOGGER.debug(f"text {width}x{height} pixels")
-    px = i_width * i_height
-    rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
-    _LOGGER.debug(f"expected text size from coordinates should be {i_width}x{i_height} = {px} px. RGB888 = {rgb888} bytes")
-    hex_str = " ".join(f"{b:02X}" for b in img_bytes[:40])
-    _LOGGER.debug(f"prepared {len(img_bytes)} text bytes for {serial_port}: {hex_str} [...]")
-
-    try:
-        await send_bitmap(hass, serial_port, xs, ys, xe, ye, bytes(img_bytes))
-    except Exception as e:
-        _LOGGER.error(f"[{DOMAIN}] error while sending the text: {e}")
-
-
-#    try:
-#        bmp = text_to_bitmap_bytes(
-#            text,
-#            width=width,
-#            height=height,
-#            t_color=t_color,
-#            bg_color=bgcolor,
-#            align=align,
-#            font_size=font_size,
-#            font=font
-#        )
-#        await send_bitmap(SERIAL, x, y, width - 1, height - 1, bmp)
-#        _LOGGER.debug(f"text received: '%s' (%dx%d, fg=%s, bg=%s, align=%s)",                     text, width, height, color, bgcolor, align)
-#    except Exception as e:
-#        _LOGGER.error(f"[{DOMAIN}] error while sending or rendering the image: {e}")
-
-
+#************************************************************************
+#        T E S T B I L D
+#************************************************************************
+# shows the testbild.bmp
+#************************************************************************
+# m: hass
+# m: serial_port
+#************************************************************************
 async def show_testbild(hass, serial_port):
     """Liest eine 160x80 BMP-Datei und sendet sie an das WeAct Display."""
     bmp_path = "testbild.bmp"
@@ -285,6 +232,17 @@ async def show_testbild(hass, serial_port):
     
 
 
+#************************************************************************
+#        F U L L  C O L O R
+#************************************************************************
+# shows a section ot the complete screen in one color
+#************************************************************************
+# m: hass
+# m: serial_port
+# m: color
+# o: width
+# o: height
+#************************************************************************
 async def send_full_color(hass, serial_port, color, width = 80, height = 160):
     """Füllt das Display komplett mit einer Farbe."""
     _LOGGER.debug("filling display with one-color...")
@@ -307,15 +265,21 @@ async def send_full_color(hass, serial_port, color, width = 80, height = 160):
         0x04, 0x0000, 0x0000, width - 1, height - 1, rgb565, 0x0A
     )
 
-    # das hier nachher in send_data verschieben
+    # das hier nachher in send_command verschieben
     hex_str = " ".join(f"{b:02X}" for b in packet)
     _LOGGER.debug(f"having {len(packet)} Bytes for {serial_port}: {hex_str}")
 
     await hass.async_add_executor_job(serial_port.write, packet)
 
-
+#************************************************************************
+#        S E L F  T E S T
+#************************************************************************
+# shows all native colors, white and black
+#************************************************************************
+# m: hass
+# m: serial_port
+#************************************************************************
 async def display_selftest(hass, serial_port):
-    """Kurzer Farbtest zur Initialisierung."""
     _LOGGER.debug("Starting display self test")
 
     colors = [
@@ -327,15 +291,25 @@ async def display_selftest(hass, serial_port):
         (0, 0, 0)         # Schwarz (Ende)
     ]
 
+#    await set_orientation(hass, serial_port, 0)
     await set_orientation(hass, serial_port, 0)
 
     for color in colors:
-        await send_full_color(hass, serial_port, color, width=80, height=160)
+#        await send_full_color(hass, serial_port, color, width=80, height=160)
+        await send_full_color(hass, serial_port, color, width=160, height=80)
         await asyncio.sleep(0.6)
 
     _LOGGER.debug("display selftest done")
 
 
+#************************************************************************
+#        R A N D O M  S C R E E N
+#************************************************************************
+# shows a picture with full of random pixels
+#************************************************************************
+# m: hass
+# m: serial_port
+#************************************************************************
 async def generate_random(hass, serial_port):
     """show random pixels"""
     _LOGGER.debug("raising random bitmap")
@@ -367,8 +341,16 @@ async def generate_random(hass, serial_port):
         _LOGGER.error(f"[{DOMAIN}] error while sending (or generating?) the image: {e}")
 
 
+#************************************************************************
+#        I N I T  S C R E E N
+#************************************************************************
+# shows the initial screen
+#************************************************************************
+# m: hass
+# m: serial_port
+# after issuing the command, display does not respond for 1 second
+#************************************************************************
 async def show_init_screen(hass, serial_port):
-    """initialen Bildschirm anzeigen"""
     _LOGGER.debug("show up initial screen")
 
     if not serial_port:
@@ -389,8 +371,22 @@ async def show_init_screen(hass, serial_port):
     _LOGGER.debug("initial screen done")
 
 
-async def set_orientation(hass, serial_port, orientation = 0):
-    """sets the orienation of the display"""
+#************************************************************************
+#        O R I E N T A T I O N
+#************************************************************************
+# sets the orientation
+#************************************************************************
+# m: hass
+# m: serial_port
+# m: X start
+# m: Y start
+# m: X end
+# m: Y end
+# o: line-color, default = white (255, 255, 255)
+# o: line width, default = 1
+#************************************************************************
+#async def set_orientation(hass, serial_port, orientation = 0):
+async def set_orientation(hass, serial_port, orientation = 2):
     _LOGGER.debug("setting orientation")
 
     if not serial_port:
@@ -414,28 +410,47 @@ async def set_orientation(hass, serial_port, orientation = 0):
     _LOGGER.debug("orientation done")
 
 
+#************************************************************************
+#        N O R M A L I Z E
+#************************************************************************
+# converts a string or a list or a tupel into a tupel
+#************************************************************************
+# m: value
+# expamples
+# - #FF7F00
+# - [255, 127, 0]
+# - (255, 127, 0)
+# return format is always
+# - (x, y, z)
+#************************************************************************
 def normalize_color(value):
     """Wandelt Strings, Listen oder Tupel in ein RGB-Tupel um"""
-    if isinstance(value, str):
-        # z. B. "#FF0000"
+    if isinstance(value, str):                                        # "#FF0000"
         return ImageColor.getrgb(value)
-    elif isinstance(value, (list, tuple)) and len(value) == 3:
-        # z. B. [255, 0, 0] oder (255, 0, 0)
+    elif isinstance(value, (list, tuple)) and len(value) == 3:        # [255, 0, 0] oder (255, 0, 0)
         return tuple(value)
     else:
         raise ValueError(f"Unsupported color format: {value}")
 
 
+#************************************************************************
+#        I C O N
+#************************************************************************
+# loads an MDI-Icon and renders as RGB888-Bitmap
+#************************************************************************
+# m: hass
+# m: serial_port
+# m: icon name
+# m: X start
+# m: Y start
+# o: size, 32 px if no value given
+# o: icon-color, default = white (255, 255, 255)
+# o: background-color, default = black (0, 0, 0)
+# o: rotation
+#************************************************************************
 #async def show_icon(icon_name: str, color="#FFFFFF", size=(48, 48), bg_color="#000000"):
-async def show_icon(hass, serial_port, icon_name: str, icon_color = (255, 255, 255), bg_color = (0, 0, 0), x_position = 0, y_position = 0, size = 32, rotation = 0):
-    """
-    Lädt ein MDI-Icon, rendert es als RGB888-Bitmap und gibt Bytes zurück.
-    """
+async def show_icon(hass, serial_port, icon_name: str, xp, yp, size = 32, i_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
     _LOGGER.debug("show icon...")
-
-    if not serial_port:
-        _LOGGER.warning("Display not connected")
-        return
 
     await set_orientation(hass, serial_port, 2)
 
@@ -476,13 +491,22 @@ async def show_icon(hass, serial_port, icon_name: str, icon_color = (255, 255, 2
     except Exception as e:
         _LOGGER.error(f"[{DOMAIN}] error while sending the icon: {e}")
 
-
+#************************************************************************
+#        L I N E
+#************************************************************************
+# draws a line
+#************************************************************************
+# m: hass
+# m: serial_port
+# m: X start
+# m: Y start
+# m: X end
+# m: Y end
+# o: line-color, default = white (255, 255, 255)
+# o: line width, default = 1
+#************************************************************************
 async def draw_line(hass, serial_port, xs, ys, xe, ye, l_color = (255, 255, 255), l_width = 1):
     _LOGGER.debug("draw a line ...")
-
-    if not serial_port:
-        _LOGGER.warning("Display not connected")
-        return
 
     await set_orientation(hass, serial_port, 2)
 
@@ -577,6 +601,22 @@ async def draw_line(hass, serial_port, xs, ys, xe, ye, l_color = (255, 255, 255)
 #        _LOGGER.error(f"[{DOMAIN}] error while sending the line: {e}")
 
 
+#************************************************************************
+#        C I R C L E
+#************************************************************************
+# draws a circle or an ellipse
+#************************************************************************
+# m: hass
+# m: serial_port
+# m: X center point
+# m: Y center point
+# m: radius
+# o: background-color, default = black (0, 0, 0)
+# o: circle-color, default = white (255, 255, 255)
+# o: fill-color, default = red (255, 0, 0)
+# o: circle-frame width, default = 1
+# o: ellipse, set to radius if not given
+#************************************************************************
 async def draw_circle(hass, serial_port, xp, yp, r, bg_color = (0, 0, 0), c_color = (255, 255, 255), f_color = (255, 0, 0), cf_width = 1, e = None):
     _LOGGER.debug("draw a circle ...")
 
@@ -638,23 +678,40 @@ async def draw_circle(hass, serial_port, xp, yp, r, bg_color = (0, 0, 0), c_colo
         _LOGGER.error(f"[{DOMAIN}] error while sending the circle: {e}")
 
 
-async def draw_rectangle(hass, serial_port, xs, ys, xe, ye, rf_width = 1, r_color = (0, 0, 0), f_color = None):
+#************************************************************************
+#        R E C T A N G L E
+#************************************************************************
+# draws a rectangle
+#************************************************************************
+# m: hass
+# m: serial_port
+# m: X start
+# m: Y start
+# m: X end
+# m: Y end
+# o: rectangle-frame width, default = 1
+# o: rectangle-frame-color, default = white (255, 255, 255)
+# o: fill-color, default = None, if no value given, same as the frame color
+#************************************************************************
+async def draw_rectangle(hass, serial_port, xs, ys, xe, ye, rf_width = 1, rf_color = (255, 255, 255), f_color = None):
     _LOGGER.debug("draw a rectangle ...")
 
     await set_orientation(hass, serial_port, 2)
 
     if f_color is None:
-        f_color = r_color
-        _LOGGER.debug("no value given for f-color, taking r-color for filling")
+        f_color = rf_color
+        _LOGGER.debug("no value given for f-color, taking rf-color for filling")
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
-    r_color = normalize_color(r_color)                     
+    rf_color = normalize_color(rf_color)                     
     f_color = normalize_color(f_color)
 
-    _LOGGER.debug(f"colors after normalize: rectangle-color={r_color}, frame-color={f_color}")
+    _LOGGER.debug(f"colors after normalize: rectangle-frame-color={r_color}, frame-color={f_color}")
 
-    width = xe - xs + 1
-    height = ye - ys + 1
+#    width = xe - xs + 1
+#    height = ye - ys + 1
+    width = abs(xe - xs + 1)
+    height = abs(ye - ys + 1)
 
     _LOGGER.debug(f"calculated width x height = {width}x{height}")
 
@@ -666,7 +723,9 @@ async def draw_rectangle(hass, serial_port, xs, ys, xe, ye, rf_width = 1, r_colo
     _LOGGER.debug("defined new image")
 
     # Rahmen & Füllung zeichnen
-    draw.rectangle(xs, ys, xe, ye, width = rf_width, outline = r_color)
+#    draw.rectangle(xs, ys, xe, ye, width = rf_width, outline = r_color)
+#    draw.rectangle((xs, ys, xe, ye), width = rf_width, outline = r_color)
+    draw.rectangle((xs, ys, xe, ye), width = rf_width, outline = rf_color, fill=f_color)
 
     # Bild extrahieren
     img_bytes = img.tobytes()  # ergibt z.B. 160 * 80 * 3 = 38400 Bytes (RGB888)
@@ -685,9 +744,26 @@ async def draw_rectangle(hass, serial_port, xs, ys, xe, ye, rf_width = 1, r_colo
         _LOGGER.error(f"[{DOMAIN}] error while sending the rectangle: {e}")
 
 
+#************************************************************************
+#        T R I A N G L E
+#************************************************************************
+# draws a triangle
+#************************************************************************
+# m: hass
+# m: serial_port
+# m: X1
+# m: Y1
+# m: X2
+# m: Y2
+# m: X3
+# m: Y3
+# o: background-color, default = black (0, 0, 0)
+# o: triangle-color, default = white (255, 255, 255)
+# o: fill-color, default = None, if no value given, same as the border
+# o: triangle-frame width, default = 1
+#************************************************************************
 #def draw_triangle(draw, xa, ya, xb, yb, xc, yc, outline_color=(255,255,255), fill_color=None, width=1):
 #        await draw_triangle( bg_color, t_color, f_color, tf_width, xa, ya, xb, yb, xc, yc)
-
 #def draw_triangle(hass, SERIAL, xa, ya, xb, yb, xc, yc, outline_color=(255,255,255), fill_color=None, width=1):
 async def draw_triangle(hass, SERIAL, xa, ya, xb, yb, xc, yc, bg_color = (0, 0, 0), t_color = (255,255,255), f_color = None, tf_width = 1):
     """
@@ -702,10 +778,6 @@ async def draw_triangle(hass, SERIAL, xa, ya, xb, yb, xc, yc, bg_color = (0, 0, 
     """
     _LOGGER.debug("draw a triangle ...")
 
-    if not serial_port:
-        _LOGGER.warning("Display not connected")
-        return
-
     await set_orientation(hass, serial_port, 2)
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
@@ -713,7 +785,7 @@ async def draw_triangle(hass, SERIAL, xa, ya, xb, yb, xc, yc, bg_color = (0, 0, 
     t_color = normalize_color(t_color)
     f_width = normalize_color(f_width)
 
-    _LOGGER.debug(f"colors after normalize: background-color={r_color}, triangle-color={t_color}, frame-color={f_color}, triangle-frame-width={tf_width}")
+    _LOGGER.debug(f"colors after normalize: background-color={bg_color}, triangle-color={t_color}, frame-color={f_color} + triangle-frame-width={tf_width}")
 
 #    points = [(xa, ya), (xb, yb), (xc, yc)]
 #    draw.polygon(points, outline=outline_color, fill=fill_color)
@@ -751,6 +823,8 @@ async def draw_triangle(hass, SERIAL, xa, ya, xb, yb, xc, yc, bg_color = (0, 0, 
                   (xc - min_x, yc - min_y)]
     draw.polygon(adj_points, outline = t_color, fill = f_color)
 
+    _LOGGER.debug(f"polygon points: {adj_points}")
+
 #    # Rahmen mehrfach zeichnen für breiteren Rand
 #    if width > 1:
 #        for i in range(1, width):
@@ -759,7 +833,7 @@ async def draw_triangle(hass, SERIAL, xa, ya, xb, yb, xc, yc, bg_color = (0, 0, 
     # RGB-Daten erzeugen
     img_bytes = img.tobytes()
 
-    _LOGGER.debug(f"circle has a radius of {radius} pixels")
+#    _LOGGER.debug(f"triangle has a size of {width}x{height} pixels")
     px = width * height
     rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
     _LOGGER.debug(f"expected triangle size from coordinates should be {width}x{height} = {px} px. RGB888 = {rgb888} bytes")
@@ -770,7 +844,116 @@ async def draw_triangle(hass, SERIAL, xa, ya, xb, yb, xc, yc, bg_color = (0, 0, 
     await send_bitmap(hass, serial_port, min_x, min_y, max_x, max_y, img_bytes)
 
 
+#************************************************************************
+#        T E X T
+#************************************************************************
+# writes a text
+#************************************************************************
+# m: hass
+# m: serial_port
+# m: X start
+# m: Y start
+# m: X end
+# m: Y end
+# end to optional if calculated
+# o: font size
+# o: background-color, default = black (0, 0, 0)
+# o: text-color, default = white (255, 255, 255)
+# o: rotation
+#************************************************************************
+#async def write_text(hass, serial_port, text, xs, ys, font_size = 15, font = None, align = "left", t_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
+async def write_text(hass, serial_port, text, xs, ys, xe, ye, font_size = 15, t_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
+    _LOGGER.debug(f"writing some text")
+    _LOGGER.debug(f"given values: text={text}, xs={xs}, ys={ys}, xe={xe}, ye={ye}, font-size={font_size}, text-color={t_color}, background-color={bg_color}, rotation={rotation}")
+
+    await set_orientation(hass, serial_port, 2)
+
+    # Konvertiere mögliche Stringfarben in RGB-Tupel
+    bg_color = normalize_color(bg_color)                     
+    t_color = normalize_color(t_color)
+
+    _LOGGER.debug(f"colors after normalize: background-color={bg_color}, text-color={t_color}")
+
+    # 
+#    font = ImageFont.load_default()
+#    draw.text((10, 30), "Hallo Welt", fill=(255, 255, 255), font=font)
 
 
+    # Textgröße berechnen
+#    lines = text.splitlines() or [text]
+#    line_heights = []
+#    max_width = 0
+#    for line in lines:
+#        w, h = draw.textsize(line, font=fnt)
+#        line_heights.append(h)
+#        max_width = max(max_width, w)
 
+#    total_height = sum(line_heights)
+#    y = (height - total_height) // 2 if align == "center" else 0
+
+#    for i, line in enumerate(lines):
+#        w, h = draw.textsize(line, font=fnt)
+#        if align == "right":
+#            x = width - w
+#        elif align == "center":
+#            x = (width - w) // 2
+#        else:
+#            x = 0
+#        draw.text((x, y), line, font=fnt, fill=color)
+#        y += h
+
+#    width = xe - xs + 1
+#    height = ye - ys + 1
+    width = abs(xe - xs + 1)
+    height = abs(ye - ys + 1)
+
+    # Neues 80x80 Displaybild erstellen
+#    img = Image.new("RGB", (80, 80), bg_color)
+    img = Image.new("RGB", (width, height), bg_color)
+    draw = ImageDraw.Draw(img)
+    i_width, i_height = img.size
+
+#    _LOGGER.debug(f"defined new image with {i_width}x{i_height} px")
+    _LOGGER.debug("defined new image")
+
+    # ggf das Datum, den WT oder die CPU Temp einpflanzen
+    # Text
+    font = ImageFont.load_default()
+    draw.text((xs, ys), text, fill = t_color, font = font)
+    _LOGGER.debug("wrote into the image")
+
+    # bild ggf drehen
+    img = img.rotate(rotation, expand=True)
+    
+    # Bild extrahieren
+    img_bytes = img.tobytes()  # ergibt z.B. 160 * 80 * 3 = 38400 Bytes (RGB888)
+
+    _LOGGER.debug(f"text {width}x{height} pixels")
+    px = i_width * i_height
+    rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
+    _LOGGER.debug(f"expected text size from coordinates should be {i_width}x{i_height} = {px} px. RGB888 = {rgb888} bytes")
+    hex_str = " ".join(f"{b:02X}" for b in img_bytes[:40])
+    _LOGGER.debug(f"prepared {len(img_bytes)} text bytes for {serial_port}: {hex_str} [...]")
+
+    try:
+        await send_bitmap(hass, serial_port, xs, ys, xe, ye, bytes(img_bytes))
+    except Exception as e:
+        _LOGGER.error(f"[{DOMAIN}] error while sending the text: {e}")
+
+
+#    try:
+#        bmp = text_to_bitmap_bytes(
+#            text,
+#            width=width,
+#            height=height,
+#            t_color=t_color,
+#            bg_color=bgcolor,
+#            align=align,
+#            font_size=font_size,
+#            font=font
+#        )
+#        await send_bitmap(SERIAL, x, y, width - 1, height - 1, bmp)
+#        _LOGGER.debug(f"text received: '%s' (%dx%d, fg=%s, bg=%s, align=%s)",                     text, width, height, color, bgcolor, align)
+#    except Exception as e:
+#        _LOGGER.error(f"[{DOMAIN}] error while sending or rendering the image: {e}")
 

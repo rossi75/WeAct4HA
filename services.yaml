@@ -1,22 +1,24 @@
 write_text:
   name: Write Text
-  description: "write some text on the WeAct Display"
+  description: "write some text on the WeAct Display, only scrambled pixels !"
   fields:
     text:
       name: Text
       required: true
-      example: "Hallo Welt!"
+#      example: "Hallo Welt!"
       default: "test"
       selector:
         text: {}
     t_color:
       name: Text color
-      example: [255, 255, 255]
+#      example: [255, 255, 255]
+      default: [255, 255, 255]
       selector:
         color_rgb: {}
     bg_color:
       name: Background color
-      example: [0, 0, 0]
+#      example: [0, 0, 0]
+      default: [0, 0, 0]
       selector:
         color_rgb: {}
 #    width:
@@ -42,8 +44,8 @@ write_text:
 #    font:
 #      description: "Pfad zur Schriftdatei (TTF)"
 #      example: "/config/fonts/DejaVuSans-Bold.ttf"
-    x_position:
-      name: X-Position
+    x_start:
+      name: X-start
       example: 0
       default: 0
       selector:
@@ -52,14 +54,34 @@ write_text:
           max: 172
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
-    y_position:
-      name: Y-Position
+    y_start:
+      name: Y-start
       example: 0
       default: 0
       selector:
         number:
           min: 0
-          max: 72
+          max: 79
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    x_end:
+      name: X-end
+      example: 10
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 172
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    y_end:
+      name: Y-end
+      example: 10
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 79
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     rotation:
@@ -73,7 +95,6 @@ write_text:
           step: 90
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "degree"
-
 
 draw_circle:
   name: Circle
@@ -155,7 +176,6 @@ draw_circle:
       selector:
         color_rgb: {}
 
-
 draw_rectangle:
   name: Rectangle
   description: "draw a rectangle on the WeAct Display"
@@ -200,6 +220,12 @@ draw_rectangle:
           max: 79
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
+#    bg_color:
+#      name: Background color
+#      example: [0, 0, 0]
+#      default: [0, 0, 0]                          # schwarz
+#      selector:
+#        color_rgb: {}
     rf_width:
       name: Rectangle Frame Width
       description: "how fat should the rectangle be?"
@@ -212,26 +238,19 @@ draw_rectangle:
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "pixels"
-    bg_color:
-      name: Background color
-      example: [0, 0, 0]
-      default: [0, 0, 0]                          # schwarz
-      selector:
-        color_rgb: {}
-    r_color:
-      name: Rectangle color
-      example: [255, 255, 255]
-      default: [255, 255, 255]                         # weiss
+    rf_color:
+      name: Frame color
+      example: [255, 0, 255]
+      default: [255, 0, 255]                         # lila
       selector:
         color_rgb: {}
     f_color:
       name: Fill color
-      description: "same as background if not given"
-      example: [255, 255, 255]
-      default: [255, 255, 255]                         # weiss
+      description: "same as frame color if not given"
+      example: [0, 255, 255]
+      default: [0, 255, 255]                         # gelb
       selector:
         color_rgb: {}
-
 
 draw_line:
   name: Line
@@ -361,14 +380,13 @@ draw_triangle:
           max: 79
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
-    l_color:
-      name: Line
-      description: "line color"
+    t_color:
+      name: Triangle color
       example: [255, 255, 255]
       default: [255, 255, 255]                         # weiss
       selector:
         color_rgb: {}
-    l_width:
+    tf_width:
       name: Triangle Frame Width
       example: 1
       default: 1
@@ -379,7 +397,18 @@ draw_triangle:
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "pixels"
-
+    bg_color:
+      name: Background color
+      example: [255, 255, 255]
+      default: [255, 255, 255]                         # weiss
+      selector:
+        color_rgb: {}
+    f_color:
+      name: Fill color
+      example: [255, 255, 255]
+      default: [255, 255, 255]                         # weiss
+      selector:
+        color_rgb: {}
 
 send_bitmap_raw:
   name: raw RGB888 data
@@ -425,8 +454,38 @@ show_random:
 
 start_digital_clock:
   name: Digital Clock - anytime
-  description: "does not work but later should show the digital clock on the WeAct Display"
+  description: "start the digital clock on the WeAct Display"
   fields:
+    xs_position:
+      name: Start X-Position
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 159
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    ys_position:
+      name: Start Y-Position
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 79
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    digit_size:
+      name: Digit size
+      example: 24
+      default: 24
+      selector:
+        number:
+          min: 5
+          max: 79
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
     hm_color:
       description: "clock color [R,G,B]"
       example: [255, 255, 255]
@@ -436,6 +495,18 @@ start_digital_clock:
     offset:
       description: "offset to other timezone in seconds"
       example: 3600
+    rotation:
+      name: Rotation
+      description: choose the desired rotation angle
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 270
+          step: 90
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "degree"
 
 start_analog_clock:
   name: Analog Clock
@@ -476,11 +547,11 @@ start_analog_clock:
       default: 0
       selector:
         number:
-          unit_of_measurement: "degree"
           min: 0
           max: 270
           step: 90
           mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "degree"
     shift:
       name: shift position from center
       description: "move clock from center (0) to left (-40) or right (+40)"

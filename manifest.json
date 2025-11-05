@@ -1,8 +1,8 @@
 {
   "domain": "weact_display",
   "name": "WeAct Display for HA",
-  "version": "0.2.1",
-  "documentation": "https://github.com/rossi75/weact_display",
+  "version": "0.2.5",
+  "documentation": "https://github.com/rossi75/WeAct4HA",
   "requirements": [
     "pyserial>=3.5",
     "Pillow>=10.0.0"
