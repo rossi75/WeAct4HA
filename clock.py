@@ -7,10 +7,11 @@ import math
 from datetime import datetime, timedelta
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.core import HomeAssistant
+from .const import CLOCK_REMOVE_HANDLE
 
 _LOGGER = logging.getLogger(__name__)
 
-CLOCK_REMOVE_HANDLE = None
+#CLOCK_REMOVE_HANDLE = None
 CLOCK_MODE = "idle"
 
 async def show_analog_clock(hass, serial_port, sc_color = (255, 255, 255), h_color = (255, 0, 0), m_color = (127, 127, 127), bg_color = (0, 0, 0), offset_hours = 0, shift = 0, rotation = 0):
@@ -24,6 +25,10 @@ async def show_analog_clock(hass, serial_port, sc_color = (255, 255, 255), h_col
     # check rotation
 
     # check position_shift
+    if shift > 39 or shift < -39:
+        shift = 0
+        _LOGGER.debug("position shift out of expected range. Changed to 0.")
+        
     
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     sc_color = normalize_color(sc_color)
@@ -101,17 +106,9 @@ async def show_analog_clock(hass, serial_port, sc_color = (255, 255, 255), h_col
 
     # Bild ans display schicken, hier auch noch mal den Versatz prüfen
     try:
-#        await send_bitmap(hass, serial_port, 39 + position_shift, 0, 119 + position_shift, 79, bytes(img_bytes))
         await send_bitmap(hass, serial_port, xs, 0, xe, 79, bytes(img_bytes))
     except Exception as e:
-        _LOGGER.error(f"[{DOMAIN}] error while sending the analog clock: {e}")
-
-    # entsprechend versetzten Ausschnitt "befreien", ggf noch 1 px r/l mehr
-
-
-    # timer setzen auf 60 Sekunden
-
-    # Timer wird unterbrochen durch...?
+        _LOGGER.error(f"[{const.DOMAIN}] error while sending the analog clock: {e}")
 
 
 #async def show_digital_clock(hass, serial_port, xs, ys, font_size = 30, rotation = 0, h_color = (0, 255, 255), p_color = (0, 255, 255), m_color = (0, 255, 255), bg_color = (0, 0, 0), offset_hours = 0, frame = 0, font = None):
@@ -130,9 +127,6 @@ async def show_digital_clock(hass, serial_port, xs, ys, font_size = 30, rotation
     
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     d_color = normalize_color(d_color)
-#    h_color = normalize_color(h_color)
-#    p_color = normalize_color(p_color)
-#    m_color = normalize_color(m_color)
     bg_color = normalize_color(bg_color)
 
 #    _LOGGER.debug(f"colors after normalize: hours = {h_color}, pointer = {p_color}, minutes = {m_color}, background = {bg_color}")
@@ -212,7 +206,7 @@ async def show_digital_clock(hass, serial_port, xs, ys, font_size = 30, rotation
 #        await send_bitmap(hass, serial_port, 39 + position_shift, 0, 119 + position_shift, 79, bytes(img_bytes))
         await send_bitmap(hass, serial_port, xs, 0, xe, 79, bytes(img_bytes))
     except Exception as e:
-        _LOGGER.error(f"[{DOMAIN}] error while sending the digital clock: {e}")
+        _LOGGER.error(f"[{const.DOMAIN}] error while sending the digital clock: {e}")
 
     # entsprechend versetzten Ausschnitt "befreien", ggf noch 1 px r/l mehr
 
@@ -324,7 +318,7 @@ async def show_rheinturm(hass, serial_port, rotation = 0):
 #        await send_bitmap(hass, serial_port, 39 + position_shift, 0, 119 + position_shift, 79, bytes(img_bytes))
         await send_bitmap(hass, serial_port, xs, 0, xe, 79, bytes(img_bytes))
     except Exception as e:
-        _LOGGER.error(f"[{DOMAIN}] error while sending the digital clock: {e}")
+        _LOGGER.error(f"[{const.DOMAIN}] error while sending the digital clock: {e}")
 
     # entsprechend versetzten Ausschnitt "befreien", ggf noch 1 px r/l mehr
 
@@ -335,7 +329,7 @@ async def show_rheinturm(hass, serial_port, rotation = 0):
 
 
 async def stop_clock(hass):
-    """Beendet die Analoguhr-Routine."""
+    """Beendet alle Uhr-Routinen"""
     _LOGGER.debug("stopping any running clock ...")
 
     global CLOCK_REMOVE_HANDLE, CLOCK_MODE
@@ -352,7 +346,7 @@ async def stop_clock(hass):
 #        _LOGGER.warning(f"Clock mode set to {CLOCK_MODE}")
 #    _LOGGER.warning("disabled any running clocks '{}'")
     else:
-        _LOGGER.debug(f"unplanned, as no clock was active")
+        _LOGGER.debug(f"unplanned call as no clock was active or planned while startup")
 
 async def start_analog_clock(hass, serial_port, **kwargs):
     """Startet die Analoguhr über den HA-Timer."""

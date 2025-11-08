@@ -1,37 +1,31 @@
 write_text:
   name: Write Text
-  description: "write some text on the WeAct Display, only scrambled pixels !"
+  description: "write some text on the WeAct Display"
   fields:
     text:
       name: Text
       required: true
-#      example: "Hallo Welt!"
       default: "test"
       selector:
         text: {}
     t_color:
       name: Text color
-#      example: [255, 255, 255]
+      description: not mandatory
       default: [255, 255, 255]
       selector:
         color_rgb: {}
     bg_color:
       name: Background color
-#      example: [0, 0, 0]
+      description: not mandatory
       default: [0, 0, 0]
       selector:
         color_rgb: {}
-#    width:
-#      description: "Bildbreite (Default 160)"
-#      example: 160
-#    height:
-#      description: "Bildhöhe (Default 80)"
-#      example: 80
 #    align:
 #      description: "Ausrichtung (left, right, center)"
 #      example: "center"
     font_size:
       name: Font size
+      description: not mandatory
       default: 16
       example: 16
       selector:
@@ -76,6 +70,7 @@ write_text:
           mode: slider  # alternativ 'box' für Eingabefeld
     y_end:
       name: Y-end
+      description: not mandatory
       example: 10
       default: 10
       selector:
@@ -86,6 +81,7 @@ write_text:
           mode: slider  # alternativ 'box' für Eingabefeld
     rotation:
       name: Rotation angle
+      description: not mandatory
       example: 0
       default: 0
       selector:
@@ -95,6 +91,148 @@ write_text:
           step: 90
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "degree"
+
+draw_progress_bar:
+  name: Progress Bar
+  description: "draw a progress bar on the WeAct Display"
+  fields:
+    bar_min:
+      name: Min value
+#      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 65535
+          step: 1
+          mode: box  # alternativ 'box' für Eingabefeld
+    bar_value:
+      name: Bar value
+      default: 337                          # Grüße vom Gigaset-Reset
+      selector:
+        number:
+          min: 0
+          max: 65535
+          step: 1
+          mode: box  # alternativ 'box' für Eingabefeld
+    bar_max:
+      name: Max value
+#      example: 0
+      default: 775
+      selector:
+        number:
+          min: 0
+          max: 65535
+          step: 1
+          mode: box  # alternativ 'box' für Eingabefeld
+    show_value:
+      name: Show Value in bar?
+#      example: 0
+      default: false
+      selector:
+        boolean: {}
+    x_start:
+      name: X-start
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 172
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    y_start:
+      name: Y-start
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 79
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    x_end:
+      name: X-end
+      description: or width
+      example: 10
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 172
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    y_end:
+      name: Y-end
+      description: or height
+      example: 10
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 79
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    width:
+      name: Width
+      description: or x-end
+      example: 10
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 172
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    height:
+      name: Height
+      description: or y-end
+      example: 10
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 79
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    rotation:
+      name: Rotation angle
+      description: not mandatory
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 270
+          step: 90
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "degree"
+    bf_width:
+      name: Bar Frame Width
+      description: not mandatory
+      default: 2
+      selector:
+        number:
+          min: 0
+          max: 160
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "px"
+    b_color:
+      name: Bar color
+      default: [255, 255, 255]
+      selector:
+        color_rgb: {}
+    bf_color:
+      name: Bar Frame color
+      default: [255, 0, 0]
+      selector:
+        color_rgb: {}
+    bg_color:
+      name: Background color
+      default: [0, 0, 0]
+      selector:
+        color_rgb: {}
 
 draw_circle:
   name: Circle
@@ -220,12 +358,6 @@ draw_rectangle:
           max: 79
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
-#    bg_color:
-#      name: Background color
-#      example: [0, 0, 0]
-#      default: [0, 0, 0]                          # schwarz
-#      selector:
-#        color_rgb: {}
     rf_width:
       name: Rectangle Frame Width
       description: "how fat should the rectangle be?"

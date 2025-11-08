@@ -41,10 +41,17 @@ from .commands import send_bitmap, send_full_color, write_text, generate_random,
 from .bitmap import text_to_bitmap_bytes
 #from .clock import stop_clock, start_analog_clock, start_digital_clock, start_rheinturm
 from .clock import stop_clock, start_analog_clock, start_digital_clock
+from pathlib import Path
+#from .const import DOMAIN, IMG_PATH, CLOCK_REMOVE_HANDLE
+from .const import CLOCK_REMOVE_HANDLE
+import pathlib
+import custom_components.weact_display.const as const
 
-DOMAIN = "weact_display"
+#DOMAIN = "weact_display"
 _LOGGER = logging.getLogger(__name__)
-SERIAL = None
+SERIAL = None  # = const.SERIAL
+#IMG_PATH = None
+#CLOCK_REMOVE_HANDLE = None
 
 # ------------------------------------------------------------
 # Initialisierung
@@ -54,10 +61,18 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     _LOGGER.debug(f"starting up weact display FS V1")
 
     global SERIAL
+    global CLOCK_REMOVE_HANDLE
+#    global IMG_PATH
+
+    const.IMG_PATH = pathlib.Path(hass.config.path()) / "custom_components" / "weact_display" / "bmp"
+    const.IMG_PATH.mkdir(parents=True, exist_ok=True)
+    #IMG_PATH.parent.mkdir(parents=True, exist_ok=True)
+#    IMG_PATH = Path(hass.config.path()) / "custom_components" / "weact_display"
+    _LOGGER.debug(f"image path set to: {const.IMG_PATH}")
 
     # Sensor-Plattform laden
-    await async_load_platform(hass, "sensor", DOMAIN, {}, config)
-    hass.data[DOMAIN] = {
+    await async_load_platform(hass, "sensor", const.DOMAIN, {}, config)
+    hass.data[const.DOMAIN] = {
         "ready": False,
         "start_time": datetime.datetime.now().isoformat(),
         "device_id": None,
@@ -71,27 +86,37 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
     _LOGGER.debug(f"found {paths}, shoud be equal to {port}")
 
-    hass.data[DOMAIN]["device_id"] = os.path.basename(port)
+    hass.data[const.DOMAIN]["device_id"] = os.path.basename(port)
 
     try:
         _LOGGER.debug(f"opening serial port {port}")
 
         SERIAL = await hass.async_add_executor_job(open_serial, port)
         if SERIAL is None:
-            _LOGGER.warning(f"[{DOMAIN}] Abbruch: Serial port konnte nicht geöffnet werden!")
+            _LOGGER.warning(f"[{const.DOMAIN}] Abbruch: Serial port konnte nicht geöffnet werden!")
             return False
 
-        _LOGGER.debug(f"[{DOMAIN}] selftest...")
+        _LOGGER.debug(f"[{const.DOMAIN}] selftest...")
 
         await display_selftest(hass, SERIAL)
-        hass.data[DOMAIN]["ready"] = True
-        hass.bus.async_fire("weact_display_ready", {"timestamp": hass.data[DOMAIN]["start_time"]})          # das Event auf welches abgefragt werden kann
+        hass.data[const.DOMAIN]["ready"] = True
+        hass.bus.async_fire("weact_display_ready", {"timestamp": hass.data[const.DOMAIN]["start_time"]})          # das Event auf welches abgefragt werden kann
 
-        _LOGGER.warning(f"[{DOMAIN}] Display at {port} is now ready")
+#        _LOGGER.warning(f"[{const.DOMAIN}] Display at {port} is now ready")
 
     except Exception as e:
-        _LOGGER.error(f"[{DOMAIN}] Error while initializing display: %s", e)
+        _LOGGER.error(f"[{const.DOMAIN}] Error while initializing display: %s", e)
         return False
+
+    """Setup for WeAct Display Integration."""
+
+    # Beim Start sicherstellen, dass keine alte Uhr mehr läuft
+    if CLOCK_REMOVE_HANDLE:
+        _LOGGER.debug("Stopping leftover clock task from previous session...")
+        await stop_clock(hass)
+
+    _LOGGER.warning(f"[{const.DOMAIN}] Display at {port} is now ready")
+
 
     # --------------------------------------------------------
     # Service: Text anzeigen
@@ -134,7 +159,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 #        except Exception as e:
 #            _LOGGER.error("Fehler beim Rendern/Senden des Textes: %s", e)
 
-    hass.services.async_register(DOMAIN, "write_text", handle_send_text)
+    hass.services.async_register(const.DOMAIN, "write_text", handle_send_text)
 
 
     # --------------------------------------------------------
@@ -146,7 +171,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
         
         await generate_random(hass, SERIAL)
 
-    hass.services.async_register(DOMAIN, "show_random", handle_show_random)
+    hass.services.async_register(const.DOMAIN, "show_random", handle_show_random)
 
 
     # --------------------------------------------------------
@@ -158,7 +183,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
         
         await display_selftest(hass, SERIAL)
 
-    hass.services.async_register(DOMAIN, "start_selftest", handle_start_selftest)
+    hass.services.async_register(const.DOMAIN, "start_selftest", handle_start_selftest)
 
 
     # --------------------------------------------------------
@@ -170,7 +195,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
         
         await display_restart(hass, SERIAL)
 
-    hass.services.async_register(DOMAIN, "restart_display", handle_restart_display)
+    hass.services.async_register(const.DOMAIN, "restart_display", handle_restart_display)
 
 
     # --------------------------------------------------------
@@ -181,7 +206,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
         
         await show_init_screen(hass, SERIAL)
 
-    hass.services.async_register(DOMAIN, "show_init_screen", handle_show_init_screen)
+    hass.services.async_register(const.DOMAIN, "show_init_screen", handle_show_init_screen)
 
 
     # --------------------------------------------------------
@@ -247,7 +272,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
         await set_orientation(hass, SERIAL, opcode)
 
     # das setzen wir erst einmal hart aus !
-#    hass.services.async_register(DOMAIN, "set_orientation", handle_set_orientation)
+#    hass.services.async_register(const.DOMAIN, "set_orientation", handle_set_orientation)
 
     # --------------------------------------------------------
     # Service: Lautstärke festlegen
@@ -261,7 +286,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
         await set_brightness(hass, SERIAL, brightness_value)
 
-    hass.services.async_register(DOMAIN, "set_brightness", handle_set_brightness)
+    hass.services.async_register(const.DOMAIN, "set_brightness", handle_set_brightness)
 
 
     # --------------------------------------------------------
@@ -277,7 +302,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
         await send_full_color(hass, SERIAL, color_value)
 
-    hass.services.async_register(DOMAIN, "set_full_color", handle_set_full_color)
+    hass.services.async_register(const.DOMAIN, "set_full_color", handle_set_full_color)
 
 
     # --------------------------------------------------------
@@ -289,7 +314,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
         
         await show_testbild(hass, SERIAL)
 
-    hass.services.async_register(DOMAIN, "show_testbild", handle_show_testbild)
+    hass.services.async_register(const.DOMAIN, "show_testbild", handle_show_testbild)
 
 
     # --------------------------------------------------------
@@ -301,7 +326,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 #        await stop_clock(hass, SERIAL)
         await stop_clock(hass)
 
-    hass.services.async_register(DOMAIN, "stop_clock", handle_stop_clock)
+    hass.services.async_register(const.DOMAIN, "stop_clock", handle_stop_clock)
 
 
     # --------------------------------------------------------
@@ -323,7 +348,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
         await start_analog_clock(hass, SERIAL, sc_color = sc_color, h_color = h_color, m_color = m_color, bg_color = bg_color, offset_hours = offset_hours, shift = shift, rotation = rotation)
 
-    hass.services.async_register(DOMAIN, "start_analog_clock", handle_start_analog_clock)
+    hass.services.async_register(const.DOMAIN, "start_analog_clock", handle_start_analog_clock)
 
 
     # --------------------------------------------------------
@@ -344,7 +369,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
         await start_digital_clock(hass, SERIAL, x_position, y_position, bg_color = bg_color, hm_color = hm_color, offset_hours = offset_hours, digit_size = digit_size, rotation = rotation)
 
-#    hass.services.async_register(DOMAIN, "start_digital_clock", handle_start_digital_clock)
+#    hass.services.async_register(const.DOMAIN, "start_digital_clock", handle_start_digital_clock)
 
 
     # --------------------------------------------------------
@@ -359,7 +384,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
         await start_rheinturm(hass, SERIAL, rotation = rotation)
 
-#    hass.services.async_register(DOMAIN, "start_rheinturm", handle_start_rheinturm)
+#    hass.services.async_register(const.DOMAIN, "start_rheinturm", handle_start_rheinturm)
 
     # --------------------------------------------------------
     # Service: Show Icon
@@ -380,7 +405,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
         await show_icon(hass, SERIAL, icon_name = icon_name, bg_color = bg_color, icon_color = icon_color, x_position = x_position, y_position = y_position, size = size, rotation = rotation)
 
-    hass.services.async_register(DOMAIN, "show_icon", handle_show_icon)
+    hass.services.async_register(const.DOMAIN, "show_icon", handle_show_icon)
 
 
     # --------------------------------------------------------
@@ -402,7 +427,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
         await draw_circle(hass, SERIAL, xp, yp, r, bg_color, c_color, f_color, cf_width, e)
 
-    hass.services.async_register(DOMAIN, "draw_circle", handle_draw_circle)
+    hass.services.async_register(const.DOMAIN, "draw_circle", handle_draw_circle)
 
 
     # --------------------------------------------------------
@@ -419,11 +444,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
         rf_color = call.data.get("rf_color", None)
         f_color = call.data.get("f_color", None)
 
-        _LOGGER.debug(f"values given: X-start={xs}, Y-Start={ys}, X-End={xe}, Y-End={ye}, rectangle-frame-width={rf_width}, rectangle-frame-color={r_color}, fill-color={f_color}")
+        _LOGGER.debug(f"values given: X-start={xs}, Y-Start={ys}, X-End={xe}, Y-End={ye}, rectangle-frame-width={rf_width}, rectangle-frame-color={rf_color}, fill-color={f_color}")
 
         await draw_rectangle(hass, SERIAL, xs, ys, xe, ye, rf_width, rf_color, f_color,)
 
-    hass.services.async_register(DOMAIN, "draw_rectangle", handle_draw_rectangle)
+    hass.services.async_register(const.DOMAIN, "draw_rectangle", handle_draw_rectangle)
 
 
     # --------------------------------------------------------
@@ -447,7 +472,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
         await draw_triangle(hass, SERIAL, bg_color, t_color, f_color, tf_width, xa, ya, xb, yb, xc, yc)
 
-    hass.services.async_register(DOMAIN, "draw_triangle", handle_draw_triangle)
+    hass.services.async_register(const.DOMAIN, "draw_triangle", handle_draw_triangle)
 
 
     # --------------------------------------------------------
@@ -467,7 +492,36 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 
         await draw_line(hass, SERIAL, xs, ys, xe, ye, l_color, l_width)
 
-    hass.services.async_register(DOMAIN, "draw_line", handle_draw_line)
+    hass.services.async_register(const.DOMAIN, "draw_line", handle_draw_line)
+
+
+    # --------------------------------------------------------
+    # Service: draw progress bar
+    # --------------------------------------------------------
+    async def handle_draw_progress_bar(call: ServiceCall):
+        _LOGGER.debug("called service to draw a progress bar")
+ 
+        bar_min = call.data.get("bar_min")
+        bar_value = call.data.get("bar_value")
+        bar_max = call.data.get("bar_max")
+        xs = call.data.get("x_start")
+        ys = call.data.get("y_start")
+        xe = call.data.get("x_end", None)
+        ye = call.data.get("y_end", None)
+        width = call.data.get("width", None)
+        height = call.data.get("height", None)
+        bf_width = call.data.get("bf_width", None)
+        b_color = call.data.get("b_color", None)
+        bf_color = call.data.get("bf_color", None)
+        bg_color = call.data.get("bg_color", None)
+        rotation = call.data.get("rotation", None)
+        show_value = call.data.get("show_value", None)
+
+        _LOGGER.debug(f"values given: X-start={xs}, Y-Start={ys}, X-End={xe}, Y-End={ye}, width={width}, height={height}, bar-frame-width={bf_width}, bar-frame-color={bf_color}, bar-color={b_color}, background-color={bg_color}, rotation={rotation}, show_value={show_value}")
+
+        await draw_progress_bar(hass, SERIAL, xs, ys, xe=xe, ye=ye, width=width, height=height, bf_width=bf_width, b_color=b_color, bf_color=bf_color, bg_color=bg_color, rotation=rotation, show_value=show_value)
+
+    hass.services.async_register(const.DOMAIN, "draw_progress_bar", handle_draw_progress_bar)
 
 
     # --------------------------------------------------------

@@ -1,15 +1,21 @@
 # open_serial wird nach tools verschoben
-# normalize wird nach tools verschoben
+# normalize und wird nach tools verschoben
 # neue fkt send_command für einfache direkte Kommandos
+# erst in den speicher schreiben, dann das komplette bild übertragen
+#     await asyncio.sleep(4)                   # kleine Pause um direkt auf einmal verschiedene Funktionen zu testen
 
-# +------------------------------+
-# +0 xxxxxxxxxxxxxxxxxxxxxxxx 160+
-# +y                             + ###########
-# +y                             + ########
-# +y                             + ########
-# +y                             + ###########
-# +80                            + 
-# +------------------------------+
+# https://pillow.readthedocs.io/en/stable/reference/ImageDraw.html
+
+# +----------------------------------------------------------------+
+# +0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx 160+
+# +y                                                               + 
+# +y                                                               + ###########
+# +y                                                               + ########
+# +y                                                               + ########
+# +y                                                               + ###########
+# +y                                                               + 
+# +80                                                              + 
+# +----------------------------------------------------------------+
 
 import asyncio, struct, logging
 import subprocess
@@ -23,12 +29,19 @@ from .iconutils import load_icon
 import math
 from datetime import datetime, timedelta
 from homeassistant.helpers.event import async_track_time_interval
+from pathlib import Path
+#from .const import DOMAIN, CLOCK_REMOVE_HANDLE, IMG_PATH
+#from .const import DOMAIN, IMG_PATH
+#from . import const
+import custom_components.weact_display.const as const
+
 
 _LOGGER = logging.getLogger(__name__)
 
-DOMAIN = "weact_display"
+#DOMAIN = "weact_display"
 SERIAL = None
-CLOCK_REMOVE_HANDLE = None
+#CLOCK_REMOVE_HANDLE = None
+#IMG_PATH = Path(hass.config.path()) / "custom_components" / "weact_display"
 
 #************************************************************************
 #        O P E N  S E R I A L
@@ -39,10 +52,10 @@ CLOCK_REMOVE_HANDLE = None
 #************************************************************************
 def open_serial(port: str):
     """Initialisiert den seriellen Port mit stty und öffnet ihn."""
-    _LOGGER.debug(f"[{DOMAIN}] initializing serial port {port} ...")
+    _LOGGER.debug(f"[{const.DOMAIN}] initializing serial port {port} ...")
 
     if not os.path.exists(port):
-        _LOGGER.error(f"[{DOMAIN}] Port {port} does not exist")
+        _LOGGER.error(f"[{const.DOMAIN}] Port {port} does not exist")
         return None
 
     # ---- STTY-Setup ----
@@ -52,9 +65,9 @@ def open_serial(port: str):
             "115200", "cs8", "-cstopb", "-parenb",
             "-crtscts", "-hupcl", "min", "1", "time", "1"
         ], check=True)
-        _LOGGER.debug(f"[{DOMAIN}] STTY Setup successfully done")
+        _LOGGER.debug(f"[{const.DOMAIN}] STTY Setup successfully done")
     except subprocess.CalledProcessError as e:
-        _LOGGER.warning(f"[{DOMAIN}] STTY Setup has some issue: {e}")
+        _LOGGER.warning(f"[{const.DOMAIN}] STTY Setup has some issue: {e}")
 
     # ---- Seriellen Port öffnen ----
     try:
@@ -69,21 +82,21 @@ def open_serial(port: str):
         )
 
         if serial_port.is_open:
-            _LOGGER.debug(f"[{DOMAIN}] opened port: {port}")
+            _LOGGER.debug(f"[{const.DOMAIN}] opened port: {port}")
         else:
-            _LOGGER.warning(f"[{DOMAIN}] could not open port {port}")
+            _LOGGER.warning(f"[{const.DOMAIN}] could not open port {port}")
             return None
 
-        _LOGGER.debug(f"[{DOMAIN}] successfully opened and initialized serial port {port}")
+        _LOGGER.debug(f"[{const.DOMAIN}] successfully opened and initialized serial port {port}")
 
         return serial_port
 
     except serial.SerialException as e:
-        _LOGGER.error(f"[{DOMAIN}] error while opening port {port}: {e}")
+        _LOGGER.error(f"[{const.DOMAIN}] error while opening port {port}: {e}")
         return None
 
     except Exception as e:
-        _LOGGER.error(f"[{DOMAIN}] Unexpected error initializing port {port}: {e}")
+        _LOGGER.error(f"[{const.DOMAIN}] Unexpected error initializing port {port}: {e}")
         return None
 
 
@@ -226,10 +239,9 @@ async def show_testbild(hass, serial_port):
 
         await send_bitmap(hass, SERIAL, 0, 0, width, height, bytes(img))
     except Exception as e:
-        _LOGGER.error(f"[{DOMAIN}] error while sending the testbild: {e}")
+        _LOGGER.error(f"[{const.DOMAIN}] error while sending the testbild: {e}")
 
     _LOGGER.debug(f"Testbild sent with {len(img)} Bytes")
-    
 
 
 #************************************************************************
@@ -271,6 +283,7 @@ async def send_full_color(hass, serial_port, color, width = 80, height = 160):
 
     await hass.async_add_executor_job(serial_port.write, packet)
 
+
 #************************************************************************
 #        S E L F  T E S T
 #************************************************************************
@@ -291,16 +304,13 @@ async def display_selftest(hass, serial_port):
         (0, 0, 0)         # Schwarz (Ende)
     ]
 
-#    await set_orientation(hass, serial_port, 0)
-    await set_orientation(hass, serial_port, 0)
+    await set_orientation(hass, serial_port, 2)                   # o=2, w=160, h=80 --> komplettes Display wird getestet
 
     for color in colors:
-#        await send_full_color(hass, serial_port, color, width=80, height=160)
         await send_full_color(hass, serial_port, color, width=160, height=80)
         await asyncio.sleep(0.6)
 
     _LOGGER.debug("display selftest done")
-
 
 #************************************************************************
 #        R A N D O M  S C R E E N
@@ -338,7 +348,7 @@ async def generate_random(hass, serial_port):
 
         await send_bitmap(hass, serial_port, 0, 0, width, height, bytes(buf))
     except Exception as e:
-        _LOGGER.error(f"[{DOMAIN}] error while sending (or generating?) the image: {e}")
+        _LOGGER.error(f"[{const.DOMAIN}] error while sending (or generating?) the image: {e}")
 
 
 #************************************************************************
@@ -411,9 +421,9 @@ async def set_orientation(hass, serial_port, orientation = 2):
 
 
 #************************************************************************
-#        N O R M A L I Z E
+#        N O R M A L I Z E  C O L O R
 #************************************************************************
-# converts a string or a list or a tupel into a tupel
+# converts a string or a list or a tupel of colors into a tupel of colors
 #************************************************************************
 # m: value
 # expamples
@@ -424,7 +434,6 @@ async def set_orientation(hass, serial_port, orientation = 2):
 # - (x, y, z)
 #************************************************************************
 def normalize_color(value):
-    """Wandelt Strings, Listen oder Tupel in ein RGB-Tupel um"""
     if isinstance(value, str):                                        # "#FF0000"
         return ImageColor.getrgb(value)
     elif isinstance(value, (list, tuple)) and len(value) == 3:        # [255, 0, 0] oder (255, 0, 0)
@@ -480,6 +489,19 @@ async def show_icon(hass, serial_port, icon_name: str, xp, yp, size = 32, i_colo
 #    rgb_data = bg.tobytes()  # → R, G, B Bytefolge (RGB888)                     # RGB888 Bytes extrahieren
     
 
+    # Save the image
+    try:
+        _LOGGER.debug(f"Saving icon to {const.IMG_PATH}")
+        await asyncio.to_thread(lambda: img.save(const.IMG_PATH / "icon.bmp"))
+    except Exception as e:
+        _LOGGER.error(f"[{const.DOMAIN}] error while saving the icon to {const.IMG_PATH}: {e}")
+
+    # Save the modified image
+    try:
+        img.save("icon.bmp")
+    except Exception as e:
+        _LOGGER.error(f"[{const.DOMAIN}] error while saving the icon: {e}")
+
     px = size * size
     rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
     _LOGGER.debug(f"expected icon size from coordinates should be {size}x{size} = {px} px. RGB888 = {rgb888} bytes")
@@ -489,7 +511,8 @@ async def show_icon(hass, serial_port, icon_name: str, xp, yp, size = 32, i_colo
     try:
         await send_bitmap(hass, serial_port, x_position, y_position, x_position + size, y_position + size, bytes(rgb_data))
     except Exception as e:
-        _LOGGER.error(f"[{DOMAIN}] error while sending the icon: {e}")
+        _LOGGER.error(f"[{const.DOMAIN}] error while sending the icon: {e}")
+
 
 #************************************************************************
 #        L I N E
@@ -557,6 +580,19 @@ async def draw_line(hass, serial_port, xs, ys, xe, ye, l_color = (255, 255, 255)
     hex_str = " ".join(f"{b:02X}" for b in img_bytes[:40])
     _LOGGER.debug(f"prepared {len(img_bytes)} line bytes for {serial_port}: {hex_str} [...]")
 
+    # Save the image
+    try:
+        _LOGGER.debug(f"Saving line to {const.IMG_PATH}")
+        await asyncio.to_thread(lambda: img.save(const.IMG_PATH / "line.bmp"))
+    except Exception as e:
+        _LOGGER.error(f"[{const.DOMAIN}] error while saving the line to {const.IMG_PATH}: {e}")
+
+    # Save the image
+    try:
+        img.save("line.bmp")
+    except Exception as e:
+        _LOGGER.error(f"[{const.DOMAIN}] error while saving the line: {e}")
+
     # Zeilenweise senden
     pixels = img.load()
     for y in range(height):
@@ -572,7 +608,7 @@ async def draw_line(hass, serial_port, xs, ys, xe, ye, l_color = (255, 255, 255)
             await send_bitmap(hass, serial_port, min_x, min_y_shift, max_x, max_y_shift, line_bytes)
 #        await send_bitmap(hass, serial_port, 0, 0, width, height, bytes(buf))
         except Exception as e:
-            _LOGGER.error(f"[{DOMAIN}] error while sending the line: {e}")
+            _LOGGER.error(f"[{const.DOMAIN}] error while sending the line: {e}")
 
 
 
@@ -598,7 +634,7 @@ async def draw_line(hass, serial_port, xs, ys, xe, ye, l_color = (255, 255, 255)
 #    try:
 #        await send_bitmap(hass, serial_port, xs, ys, xe, ye, bytes(img_bytes))
 #    except Exception as e:
-#        _LOGGER.error(f"[{DOMAIN}] error while sending the line: {e}")
+#        _LOGGER.error(f"[{const.DOMAIN}] error while sending the line: {e}")
 
 
 #************************************************************************
@@ -665,6 +701,13 @@ async def draw_circle(hass, serial_port, xp, yp, r, bg_color = (0, 0, 0), c_colo
     # Bild extrahieren
     img_bytes = img.tobytes()  # ergibt z.B. 160 * 80 * 3 = 38400 Bytes (RGB888)
 
+    # Save the image
+    try:
+        _LOGGER.debug(f"Saving circle to {const.IMG_PATH}")
+        await asyncio.to_thread(lambda: img.save(const.IMG_PATH / "circle.bmp"))
+    except Exception as e:
+        _LOGGER.error(f"[{const.DOMAIN}] error while saving the circle to {const.IMG_PATH}: {e}")
+
     _LOGGER.debug(f"circle has a radius of {r} pixels (with an ellipse of {e} pixels)")
     px = r * 2 * r * 2
     rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
@@ -675,7 +718,7 @@ async def draw_circle(hass, serial_port, xp, yp, r, bg_color = (0, 0, 0), c_colo
     try:
         await send_bitmap(hass, serial_port, xs, ys, xe, ye, bytes(img_bytes))
     except Exception as e:
-        _LOGGER.error(f"[{DOMAIN}] error while sending the circle: {e}")
+        _LOGGER.error(f"[{const.DOMAIN}] error while sending the circle: {e}")
 
 
 #************************************************************************
@@ -706,10 +749,15 @@ async def draw_rectangle(hass, serial_port, xs, ys, xe, ye, rf_width = 1, rf_col
     rf_color = normalize_color(rf_color)                     
     f_color = normalize_color(f_color)
 
-    _LOGGER.debug(f"colors after normalize: rectangle-frame-color={r_color}, frame-color={f_color}")
+    _LOGGER.debug(f"colors after normalize: rectangle-frame-color={rf_color}, fill-color={f_color}")
 
-#    width = xe - xs + 1
-#    height = ye - ys + 1
+    if xe < xs:
+        xs, xe = xe, xs
+        _LOGGER.debug(f"needed to swap x-coordinates to x-start={xs}, x-end={xe}")
+    if ye < ys:
+        ys, ye = ye, ys
+        _LOGGER.debug(f"needed to swap y-coordinates to y-start={ys}, y-end={ye}")
+
     width = abs(xe - xs + 1)
     height = abs(ye - ys + 1)
 
@@ -718,19 +766,25 @@ async def draw_rectangle(hass, serial_port, xs, ys, xe, ye, rf_width = 1, rf_col
     # Bild erzeugen
     img = Image.new("RGB", (width, height), f_color)
     draw = ImageDraw.Draw(img)
-    i_width, i_height = img.size
 
-    _LOGGER.debug("defined new image")
+    _LOGGER.debug(f"defined new image")
 
     # Rahmen & Füllung zeichnen
-#    draw.rectangle(xs, ys, xe, ye, width = rf_width, outline = r_color)
-#    draw.rectangle((xs, ys, xe, ye), width = rf_width, outline = r_color)
-    draw.rectangle((xs, ys, xe, ye), width = rf_width, outline = rf_color, fill=f_color)
+    draw.rectangle((0, 0, width, height), width = rf_width, outline = rf_color, fill = f_color)
 
     # Bild extrahieren
     img_bytes = img.tobytes()  # ergibt z.B. 160 * 80 * 3 = 38400 Bytes (RGB888)
+    i_width, i_height = img.size
+
+    # Save the image
+    try:
+        _LOGGER.debug(f"Saving rectangle to {const.IMG_PATH}")
+        await asyncio.to_thread(lambda: img.save(const.IMG_PATH / "rectangle.bmp"))
+    except Exception as e:
+        _LOGGER.error(f"[{const.DOMAIN}] error while saving the rectangle to {const.IMG_PATH}: {e}")
 
     _LOGGER.debug(f"rectangle has square of {width}x{height} px")
+    _LOGGER.debug(f"image has square of {i_width}x{i_height} px")
     px = width * height
     rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
     _LOGGER.debug(f"expected rectangle size from coordinates should be {i_width}x{i_height} = {px} px. RGB888 = {rgb888} bytes")
@@ -739,9 +793,9 @@ async def draw_rectangle(hass, serial_port, xs, ys, xe, ye, rf_width = 1, rf_col
 
     # Bitmap an Display senden
     try:
-        await send_bitmap(hass, serial_port, xs, ys, xe, ye, bytes(img_bytes))
+        await send_bitmap(hass, serial_port, xs, ys, xs + i_width, ys + i_height, bytes(img_bytes))
     except Exception as e:
-        _LOGGER.error(f"[{DOMAIN}] error while sending the rectangle: {e}")
+        _LOGGER.error(f"[{const.DOMAIN}] error while sending the rectangle: {e}")
 
 
 #************************************************************************
@@ -833,6 +887,13 @@ async def draw_triangle(hass, SERIAL, xa, ya, xb, yb, xc, yc, bg_color = (0, 0, 
     # RGB-Daten erzeugen
     img_bytes = img.tobytes()
 
+    # Save the image
+    try:
+        _LOGGER.debug(f"Saving triangle to {const.IMG_PATH}")
+        await asyncio.to_thread(lambda: img.save(const.IMG_PATH / "triangle.bmp"))
+    except Exception as e:
+        _LOGGER.error(f"[{const.DOMAIN}] error while saving the triangle to {const.IMG_PATH}: {e}")
+
 #    _LOGGER.debug(f"triangle has a size of {width}x{height} pixels")
     px = width * height
     rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
@@ -862,7 +923,7 @@ async def draw_triangle(hass, SERIAL, xa, ya, xb, yb, xc, yc, bg_color = (0, 0, 
 # o: rotation
 #************************************************************************
 #async def write_text(hass, serial_port, text, xs, ys, font_size = 15, font = None, align = "left", t_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
-async def write_text(hass, serial_port, text, xs, ys, xe, ye, font_size = 15, t_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
+async def write_text(hass, serial_port, text, xs, ys, xe, ye = None, font_size = 15, t_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
     _LOGGER.debug(f"writing some text")
     _LOGGER.debug(f"given values: text={text}, xs={xs}, ys={ys}, xe={xe}, ye={ye}, font-size={font_size}, text-color={t_color}, background-color={bg_color}, rotation={rotation}")
 
@@ -874,10 +935,15 @@ async def write_text(hass, serial_port, text, xs, ys, xe, ye, font_size = 15, t_
 
     _LOGGER.debug(f"colors after normalize: background-color={bg_color}, text-color={t_color}")
 
-    # 
-#    font = ImageFont.load_default()
-#    draw.text((10, 30), "Hallo Welt", fill=(255, 255, 255), font=font)
-
+    if ye is None:
+        ye = ys + font_size + 2
+        _LOGGER.debug(f"no value given for y-end, calculated from font-size: y-end={ye}")
+    if xe < xs:
+        xs, xe = xe, xs
+        _LOGGER.debug(f"needed to swap x-coordinates to x-start={xs}, x-end={xe}")
+    if ye < ys:
+        ys, ye = ye, ys
+        _LOGGER.debug(f"needed to swap y-coordinates to y-start={ys}, y-end={ye}")
 
     # Textgröße berechnen
 #    lines = text.splitlines() or [text]
@@ -902,31 +968,33 @@ async def write_text(hass, serial_port, text, xs, ys, xe, ye, font_size = 15, t_
 #        draw.text((x, y), line, font=fnt, fill=color)
 #        y += h
 
-#    width = xe - xs + 1
-#    height = ye - ys + 1
     width = abs(xe - xs + 1)
     height = abs(ye - ys + 1)
 
     # Neues 80x80 Displaybild erstellen
-#    img = Image.new("RGB", (80, 80), bg_color)
     img = Image.new("RGB", (width, height), bg_color)
     draw = ImageDraw.Draw(img)
-    i_width, i_height = img.size
 
-#    _LOGGER.debug(f"defined new image with {i_width}x{i_height} px")
     _LOGGER.debug("defined new image")
 
-    # ggf das Datum, den WT oder die CPU Temp einpflanzen
     # Text
-    font = ImageFont.load_default()
-    draw.text((xs, ys), text, fill = t_color, font = font)
-    _LOGGER.debug("wrote into the image")
+    font = ImageFont.load_default(size = font_size)
+    draw.text((0, 0), text, fill = t_color, font = font)
+    _LOGGER.debug("wrote text into the image")
 
     # bild ggf drehen
     img = img.rotate(rotation, expand=True)
+    i_width, i_height = img.size
     
     # Bild extrahieren
     img_bytes = img.tobytes()  # ergibt z.B. 160 * 80 * 3 = 38400 Bytes (RGB888)
+
+    # Save the image
+    try:
+        _LOGGER.debug(f"Saving text to {const.IMG_PATH}")
+        await asyncio.to_thread(lambda: img.save(const.IMG_PATH / "text.bmp"))
+    except Exception as e:
+        _LOGGER.error(f"[{const.DOMAIN}] error while saving the text to {const.IMG_PATH}: {e}")
 
     _LOGGER.debug(f"text {width}x{height} pixels")
     px = i_width * i_height
@@ -936,24 +1004,156 @@ async def write_text(hass, serial_port, text, xs, ys, xe, ye, font_size = 15, t_
     _LOGGER.debug(f"prepared {len(img_bytes)} text bytes for {serial_port}: {hex_str} [...]")
 
     try:
-        await send_bitmap(hass, serial_port, xs, ys, xe, ye, bytes(img_bytes))
+        await send_bitmap(hass, serial_port, xs, ys, xs + i_width, ys + i_height, bytes(img_bytes))  # original
     except Exception as e:
-        _LOGGER.error(f"[{DOMAIN}] error while sending the text: {e}")
+        _LOGGER.error(f"[{const.DOMAIN}] error while sending the text: {e}")
 
 
-#    try:
-#        bmp = text_to_bitmap_bytes(
-#            text,
-#            width=width,
-#            height=height,
-#            t_color=t_color,
-#            bg_color=bgcolor,
-#            align=align,
-#            font_size=font_size,
-#            font=font
-#        )
-#        await send_bitmap(SERIAL, x, y, width - 1, height - 1, bmp)
-#        _LOGGER.debug(f"text received: '%s' (%dx%d, fg=%s, bg=%s, align=%s)",                     text, width, height, color, bgcolor, align)
-#    except Exception as e:
-#        _LOGGER.error(f"[{DOMAIN}] error while sending or rendering the image: {e}")
+#************************************************************************
+#        P R O G R E S S  B A R
+#************************************************************************
+# shows a progress bar
+# idea from: https://github.com/mathoudebine/turing-smart-screen-python/wiki/Control-screen-from-your-own-code
+#************************************************************************
+# m: hass
+# m: serial_port
+# m: X start
+# m: Y start
+# o: X end
+# o: Y end
+# o: width
+# o: height
+# o: bar-value
+# o: min-value, default = 0
+# o: max-value, default = 100
+# o: bar-color, default = white (255, 255, 255)
+# o: bar-outline, default = True
+# o: background-color, default = black (0, 0, 0)
+# o: rotation, default = 90
+#************************************************************************
+# Progress bar with solid background and outline
+# lcd_comm.DisplayProgressBar(x=10, y=40, width=140, height=30, min_value=0, max_value=100, value=bar_value, bar_color=(255, 255, 0), bar_outline=True, background_image=background)
+# Progress bar with transparent background and no outline
+# lcd_comm.DisplayProgressBar(x=160, y=40, width=140, height=30, min_value=0, max_value=19, value=bar_value, bar_color=(0, 255, 0), bar_outline=False, background_image=background)
+#************************************************************************
+async def draw_progress_bar(hass, serial_port, xs, ys, xe=None, ye=None, width=None, height=None, bar_value=0, min_value=0, max_value=100, bf_width=1, b_color=(255, 255, 255), bg_color=(0, 0, 0), rotation = 90):
+    _LOGGER.debug(f"doing a progress")
+    _LOGGER.debug(f"given values: xs={xs}, ys={ys}, xe={xe}, ye={ye}, width={width}, height={height}, bar-value={bar_value}, min-value={min_value}, max-value={max_value}, bar-frame-width={bf_width}, bar-color={b_color}, background-color={bg_color}, rotation={rotation}")
+
+    await set_orientation(hass, serial_port, 2)
+
+    # Konvertiere mögliche Stringfarben in RGB-Tupel
+    b_color = normalize_color(t_color)
+    bg_color = normalize_color(bg_color)                     
+
+    _LOGGER.debug(f"colors after normalize: bar-color={b_color}, background-color={bg_color}")
+
+    # check for dimensions out-of-range
+    # check for bar-value out-of-range
+    # calculate bar width
+    # draw rectangle?
+    # draw bar
+    # send bar
+
+
+    # Save the image
+    try:
+        _LOGGER.debug(f"Saving progress bar to {const.IMG_PATH}")
+        await asyncio.to_thread(lambda: img.save(const.IMG_PATH / "progress.bmp"))
+    except Exception as e:
+        _LOGGER.error(f"[{const.DOMAIN}] error while saving the progress bar to {const.IMG_PATH}: {e}")
+
+    # --- Geometrie bestimmen ---
+    if xe is None and width is not None:
+        xe = xs + width
+        _LOGGER.debug(f"calculated xe from xs + width to {xe} px")
+    if ye is None and height is not None:
+        ye = ys + height
+        _LOGGER.debug(f"calculated ye from ys + height to {ye} px")
+
+    if xe is None or ye is None:
+        raise ValueError("Either (xe, ye) or (width, height) must be provided")
+
+    # Falls beides angegeben wurde, prüfen
+    if width is not None and abs((xe - xs) - width) > 1:
+        _LOGGER.info(f"Width mismatch: xe-x ({xe - xs}) != width ({width}), using xe/ye")
+
+    bar_w = xe - xs
+    bar_h = ye - ys
+
+    _LOGGER.debug(f"final bar dimensions: width={bar_w}, height={bar_h}")
+
+    # --- Prozentwert clampen ---
+    if bar_value < min_value:
+        bar_value = min_value
+    if bar_value > max_value:
+        bar_value = max_value
+
+    # --- Balken berechnen ---
+    fill_ratio = (bar_value - min_value) / (max_value - min_value)
+    fill_w = int(bar_w * fill_ratio)
+
+    _LOGGER.debug(f"fill-ratio={fill_ratio}, fill-width={fill_w}")
+
+    # --- Bild vorbereiten ---
+    img = Image.new("RGB", (bar_w, bar_h), bg_color)
+    draw = ImageDraw.Draw(img)
+
+    # --- Rahmen zeichnen ---
+    for i in range(bf_width):
+        draw.rectangle([i, i, bar_w - 1 - i, bar_h - 1 - i], outline=b_color)
+
+    # --- Füllung zeichnen ---
+    draw.rectangle([bf_width, bf_width, fill_w, bar_h - 1 - bf_width], fill=b_color)
+
+    # --- Wert einzeichnen (optional) ---
+    if show_value:
+        value_str = f"{int(bar_value)}%"
+        try:
+            font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(bar_h * 0.5))
+        except Exception:
+            font = ImageFont.load_default()
+
+        text_w, text_h = draw.textsize(value_str, font=font)
+        tx = (bar_w - text_w) // 2
+        ty = (bar_h - text_h) // 2
+
+        # Overlay: Wir schreiben zwei Versionen — überlagert, getrennt
+        # Erst die invertierte (über gefülltem Teil)
+        if fill_w > 0:
+            mask_img = Image.new("L", (bar_w, bar_h), 0)
+            mask_draw = ImageDraw.Draw(mask_img)
+            mask_draw.rectangle([0, 0, fill_w, bar_h], fill=255)
+            draw.text((tx, ty), value_str, font=font, fill=bg_color)
+        # Dann der Rest (noch nicht gefüllt)
+        if fill_w < bar_w:
+            draw.text((tx, ty), value_str, font=font, fill=b_color)
+
+    # --- Rotation (optional) ---
+#    if rotation != 0:
+#        img = img.rotate(rotation, expand=True)
+    img = img.rotate(rotation, expand=True)
+    i_width, i_height = img.size
+
+    # Bild extrahieren
+    img_bytes = img.tobytes()  # ergibt z.B. 160 * 80 * 3 = 38400 Bytes (RGB888)
+
+    # Save the image
+    try:
+        _LOGGER.debug(f"Saving progress bar to {const.IMG_PATH}")
+        await asyncio.to_thread(lambda: img.save(const.IMG_PATH / "progress.bmp"))
+    except Exception as e:
+        _LOGGER.error(f"[{const.DOMAIN}] error while saving the progress bar to {const.IMG_PATH}: {e}")
+
+    _LOGGER.debug(f"text {width}x{height} pixels")
+    px = i_width * i_height
+    rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
+    _LOGGER.debug(f"expected progress bar size from coordinates should be {i_width}x{i_height} = {px} px. RGB888 = {rgb888} bytes")
+    hex_str = " ".join(f"{b:02X}" for b in img_bytes[:40])
+    _LOGGER.debug(f"prepared {len(img_bytes)} progress bytes for {serial_port}: {hex_str} [...]")
+
+    try:
+        await send_bitmap(hass, serial_port, xs, ys, xs + i_width, ys + i_height, bytes(img_bytes))  # original
+    except Exception as e:
+        _LOGGER.error(f"[{const.DOMAIN}] error while sending the progress bar: {e}")
 
