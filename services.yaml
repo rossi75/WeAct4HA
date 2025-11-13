@@ -668,13 +668,13 @@ start_analog_clock:
     mm_color:
       name: Minutes
       description: "color of minutes"
-      example: [64, 64, 64]                         # grau
-      default: [64, 64, 64]                         # grau
+      example: [192, 192, 192]                         # grau
+      default: [192, 192, 192]                         # grau
       selector:
         color_rgb: {}
     rotation:
       name: Rotation
-      description: choose the desired rotation angle
+      description: choose the desired rotation angle, anti-clockwise
       example: 0
       default: 0
       selector:
@@ -686,14 +686,14 @@ start_analog_clock:
           unit_of_measurement: "degree"
     shift:
       name: shift position from center
-      description: "move clock from center (0) to left (-40) or right (+40)"
+      description: "move clock from center (0) to left (-40) or right (+39)"
       example: 0
       default: 0
       selector:
         number:
           unit_of_measurement: "pixels"
           min: -40
-          max: 40
+          max: 39
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     offset:

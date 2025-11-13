@@ -1,7 +1,7 @@
 {
   "domain": "weact_display",
   "name": "WeAct Display for HA",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "documentation": "https://github.com/rossi75/WeAct4HA",
   "requirements": [
     "pyserial>=3.5",
@@ -11,5 +11,6 @@
   "iot_class": "local_push",
   "dependencies": [],
   "after_dependencies": [],
-  "platforms": ["sensor"]
+  "platforms": ["sensor"],
+  "icon": "mdi:monitor-vertical"
 }

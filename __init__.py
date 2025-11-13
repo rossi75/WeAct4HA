@@ -37,7 +37,7 @@ from homeassistant.helpers.discovery import async_load_platform
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.typing import ConfigType
 #from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, start_analog_clock, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, stop_clock
-from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle
+from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar
 from .bitmap import text_to_bitmap_bytes
 #from .clock import stop_clock, start_analog_clock, start_digital_clock, start_rheinturm
 from .clock import stop_clock, start_analog_clock, start_digital_clock
@@ -61,7 +61,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     _LOGGER.debug(f"starting up weact display FS V1")
 
     global SERIAL
-    global CLOCK_REMOVE_HANDLE
+    global CLOCK_REMOVE_HANDLE, CLOCK_MODE
 #    global IMG_PATH
 
     const.IMG_PATH = pathlib.Path(hass.config.path()) / "custom_components" / "weact_display" / "bmp"
@@ -71,12 +71,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     _LOGGER.debug(f"image path set to: {const.IMG_PATH}")
 
     # Sensor-Plattform laden
-    await async_load_platform(hass, "sensor", const.DOMAIN, {}, config)
     hass.data[const.DOMAIN] = {
         "ready": False,
         "start_time": datetime.datetime.now().isoformat(),
         "device_id": None,
+        "clock_mode": "idle"
     }
+    await async_load_platform(hass, "sensor", const.DOMAIN, {}, config)
 
     _LOGGER.debug(f"Sensor platform loaded")
 
@@ -517,9 +518,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
         rotation = call.data.get("rotation", None)
         show_value = call.data.get("show_value", None)
 
-        _LOGGER.debug(f"values given: X-start={xs}, Y-Start={ys}, X-End={xe}, Y-End={ye}, width={width}, height={height}, bar-frame-width={bf_width}, bar-frame-color={bf_color}, bar-color={b_color}, background-color={bg_color}, rotation={rotation}, show_value={show_value}")
+        _LOGGER.debug(f"values given: X-start={xs}, Y-Start={ys}, X-End={xe}, Y-End={ye}, width={width}, height={height}, bar-min={bar_min}, bar-value={bar_value}, bar-max={bar_max}, bar-frame-width={bf_width}, bar-frame-color={bf_color}, bar-color={b_color}, background-color={bg_color}, rotation={rotation}, show_value={show_value}")
 
-        await draw_progress_bar(hass, SERIAL, xs, ys, xe=xe, ye=ye, width=width, height=height, bf_width=bf_width, b_color=b_color, bf_color=bf_color, bg_color=bg_color, rotation=rotation, show_value=show_value)
+        await draw_progress_bar(hass, SERIAL, xs, ys, xe=xe, ye=ye, width=width, height=height, min_value=bar_min, bar_value=bar_value, max_value=bar_max, bf_width=bf_width, b_color=b_color, bf_color=bf_color, bg_color=bg_color, rotation=rotation, show_value=show_value)
 
     hass.services.async_register(const.DOMAIN, "draw_progress_bar", handle_draw_progress_bar)
 

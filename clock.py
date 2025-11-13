@@ -25,11 +25,10 @@ async def show_analog_clock(hass, serial_port, sc_color = (255, 255, 255), h_col
     # check rotation
 
     # check position_shift
-    if shift > 39 or shift < -39:
+    if shift > 39 or shift < -40:
         shift = 0
         _LOGGER.debug("position shift out of expected range. Changed to 0.")
-        
-    
+            
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     sc_color = normalize_color(sc_color)
     h_color = normalize_color(h_color)
@@ -46,7 +45,7 @@ async def show_analog_clock(hass, serial_port, sc_color = (255, 255, 255), h_col
     _LOGGER.debug("defined new image")
 
     # Kreis und 4 Striche malen
-    draw.ellipse((0, 0, 79, 79), outline = sc_color, width = 2)                                   # Äußerer Kreis
+    draw.ellipse((0, 0, 79, 78), outline = sc_color, width = 2)                                   # Äußerer Kreis
     draw.ellipse((39, 39, 41, 41), outline = sc_color, width = 4)    # punkt in der Mitte
     draw.line((39, 2, 39, 6), fill = sc_color, width = 1)         # 12
     draw.line((79, 39, 75, 39), fill = sc_color, width = 1)    # 3
@@ -113,7 +112,7 @@ async def show_analog_clock(hass, serial_port, sc_color = (255, 255, 255), h_col
 
 #async def show_digital_clock(hass, serial_port, xs, ys, font_size = 30, rotation = 0, h_color = (0, 255, 255), p_color = (0, 255, 255), m_color = (0, 255, 255), bg_color = (0, 0, 0), offset_hours = 0, frame = 0, font = None):
 #async def show_digital_clock(hass, serial_port, xs, ys, font_size = 30, rotation = 0, h_color = (0, 255, 255), p_color = (0, 255, 255), m_color = (0, 255, 255), bg_color = (0, 0, 0)):
-async def show_digital_clock(hass, serial_port, xs, ys, font_size = 30, rotation = 0, d_color = (0, 255, 255), bg_color = (0, 0, 0)):
+async def show_digital_clock(hass, serial_port, xs, ys, font_size = 30, rotation = 0, d_color = (0, 255, 255), bg_color = (0, 0, 0), cf_color = (0, 255, 255), cf_width = 1):
     """zeigt die digitale Uhr an"""
     _LOGGER.debug("digital clock...")
 
@@ -127,41 +126,28 @@ async def show_digital_clock(hass, serial_port, xs, ys, font_size = 30, rotation
     
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     d_color = normalize_color(d_color)
+    cf_color = normalize_color(cf_color)
     bg_color = normalize_color(bg_color)
 
-#    _LOGGER.debug(f"colors after normalize: hours = {h_color}, pointer = {p_color}, minutes = {m_color}, background = {bg_color}")
-    _LOGGER.debug(f"colors after normalize: digits = {d_color}, background = {bg_color}")
+    _LOGGER.debug(f"colors after normalize: digits = {d_color}, clock-frame-color= {cf_color}, clock-frame-width= {cf_width}, background = {bg_color}")
 
     # calculate need dimensions
     
 
     # Neues 80x80 Displaybild erstellen
-    img = Image.new("RGB", (80, 80), bg_color)
+    img = Image.new("RGB", (80, font_size + 2), bg_color)
     draw = ImageDraw.Draw(img)
     i_width, i_height = img.size
 
     _LOGGER.debug("defined new image")
 
-    # Kreis und 4 Striche malen
-    draw.ellipse((0, 0, 79, 79), outline = sc_color, width = 2)                                   # Äußerer Kreis
-    draw.ellipse((39, 39, 41, 41), outline = sc_color, width = 4)    # punkt in der Mitte
-    draw.line((39, 2, 39, 6), fill = sc_color, width = 1)         # 12
-    draw.line((79, 39, 75, 39), fill = sc_color, width = 1)    # 3
-    draw.line((39, 79, 39, 75), fill = sc_color, width = 1)      # 6
-    draw.line((2, 39, 6, 39), fill = sc_color, width = 1)      # 9
-
-    _LOGGER.debug("drew the scale")
-
-    # Zeiger malen
-    cx = 39        # Mittelpunkt (Displaymitte)
-    cy = 39
-    hour_length = 22
-    minute_length = 35
-
     # aktuelle Zeit holen (oder fest vorgeben)
     now = datetime.now()
     hour = now.hour
     minute = now.minute
+
+
+    _LOGGER.debug(f"wrote hour as {hour} and minute as {minute}")
 
     # Winkel berechnen (12 Uhr = -90°)
     hour_angle = (hour % 12) * 30 + (minute / 60) * 30 - 90
@@ -255,7 +241,7 @@ async def show_rheinturm(hass, serial_port, rotation = 0):
     _LOGGER.debug("defined new image")
 
     # Kreis und 4 Striche malen
-    draw.ellipse((0, 0, 79, 79), outline = sc_color, width = 2)                                   # Äußerer Kreis
+    draw.ellipse((0, 0, 79, 78), outline = sc_color, width = 2)                                   # Äußerer Kreis
     draw.ellipse((39, 39, 41, 41), outline = sc_color, width = 4)    # punkt in der Mitte
     draw.line((39, 2, 39, 6), fill = sc_color, width = 1)         # 12
     draw.line((79, 39, 75, 39), fill = sc_color, width = 1)    # 3
@@ -334,19 +320,24 @@ async def stop_clock(hass):
 
     global CLOCK_REMOVE_HANDLE, CLOCK_MODE
 
+    _LOGGER.debug(f"actually running clock: '{CLOCK_MODE}'")
+
     if CLOCK_REMOVE_HANDLE is not None:
-        _LOGGER.debug(f"actually running clock: '{CLOCK_MODE}'")
         CLOCK_REMOVE_HANDLE()
         CLOCK_REMOVE_HANDLE = None
-        CLOCK_MODE = "idle"
-#        hass.states.async_set("weact_display.clock_status", state)
-#        hass.states.async_set("weact_display.clock_status", CLOCK_MODE)
-        _LOGGER.debug("clock schedule stopped")
-#    await update_clock_sensor(hass, CLOCK_MODE)
-#        _LOGGER.warning(f"Clock mode set to {CLOCK_MODE}")
-#    _LOGGER.warning("disabled any running clocks '{}'")
+        _LOGGER.debug("deleted CLOCK_HANDLE")
     else:
-        _LOGGER.debug(f"unplanned call as no clock was active or planned while startup")
+        _LOGGER.debug(f"unplanned call as no clock was active or planned call while startup")
+
+#    if CLOCK_MODE is not "idle":
+    if CLOCK_MODE != "idle":
+        CLOCK_MODE = "idle"
+        _LOGGER.debug("clock schedule stopped")
+
+#    hass.states.async_set("weact_display.clock_status", CLOCK_MODE)
+    info_entity = hass.data[DOMAIN].get("info_entity")
+    if info_entity:
+        info_entity.set_clock_status(CLOCK_MODE)
 
 async def start_analog_clock(hass, serial_port, **kwargs):
     """Startet die Analoguhr über den HA-Timer."""
@@ -356,12 +347,22 @@ async def start_analog_clock(hass, serial_port, **kwargs):
         await show_analog_clock(hass, serial_port, **kwargs)
 
     if CLOCK_REMOVE_HANDLE:
-        _LOGGER.warning(f"Clock already running: {CLOCK_MODE}")
-        return
+#        _LOGGER.debug(f"Clock already running: {CLOCK_MODE}")
+#        return
+#    if CLOCK_REMOVE_HANDLE is not None and CLOCK_MODE is not "analog":
+        _LOGGER.debug(f"Clock already running: {CLOCK_MODE}, stopping first")
+        await stop_clock
+
+    await show_analog_clock(hass, serial_port, **kwargs)
 
     CLOCK_REMOVE_HANDLE = async_track_time_interval(hass, _update_analog, timedelta(minutes=1))
     CLOCK_MODE = "analog"
 #    hass.states.async_set("weact_display.clock_status", CLOCK_MODE)
+    info_entity = hass.data[DOMAIN].get("info_entity")
+    if info_entity:
+        info_entity.set_clock_status(CLOCK_MODE)
+
+    _LOGGER.debug(f"set status to {CLOCK_MODE}")
 
     _LOGGER.warning("Analog clock update scheduled every minute")
 
@@ -375,12 +376,21 @@ async def start_digital_clock(hass, serial_port, **kwargs):
         await show_digital_clock(hass, serial_port, **kwargs)
 
     if CLOCK_REMOVE_HANDLE:
-        _LOGGER.warning(f"Clock already running: {CLOCK_MODE}")
-        return
+#        _LOGGER.warning(f"Clock already running: {CLOCK_MODE}")
+#        return
+#    if CLOCK_REMOVE_HANDLE is not None and CLOCK_MODE is not "analog":
+        _LOGGER.debug(f"Clock already running: {CLOCK_MODE}, stopping first")
+        await stop_clock
+
+    await show_digital_clock(hass, serial_port, **kwargs)
 
     CLOCK_REMOVE_HANDLE = async_track_time_interval(hass, _update_digital, timedelta(minutes=1))
     CLOCK_MODE = "digital"
 #    hass.states.async_set("weact_display.clock_status", CLOCK_MODE)
+#    hass.states.async_set("weact_display.clock_status", CLOCK_MODE)
+    info_entity = hass.data[DOMAIN].get("info_entity")
+    if info_entity:
+        info_entity.set_clock_status(CLOCK_MODE)
 
     _LOGGER.warning("Digital clock update scheduled every minute")
 

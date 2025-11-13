@@ -23,6 +23,12 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 
 # changelog
 
+## V0.2.9 - 14.11.2025
+- progress bar works 
+- more details in attributes (humiture/width/height), preparations for multiple displays and rotate
+- clock state now in attribute, not anymore as an additional entity. Reason is, if you have multiple displays,
+  the will become _2, _3 etc, but the clock_state will start counting from the 1st you start the clock...
+
 ## V0.2.8 - 08.11.2025
 - rectangle is now without the line, found the issue for the line (double xe)
 - prepared call for progress bar

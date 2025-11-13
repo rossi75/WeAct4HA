@@ -743,7 +743,7 @@ async def draw_rectangle(hass, serial_port, xs, ys, xe, ye, rf_width = 1, rf_col
 
     if f_color is None:
         f_color = rf_color
-        _LOGGER.debug("no value given for f-color, taking rf-color for filling")
+        _LOGGER.debug("no value given for fill-color, taking rectangle-frame-color for filling")
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     rf_color = normalize_color(rf_color)                     
@@ -1036,32 +1036,24 @@ async def write_text(hass, serial_port, text, xs, ys, xe, ye = None, font_size =
 # Progress bar with transparent background and no outline
 # lcd_comm.DisplayProgressBar(x=160, y=40, width=140, height=30, min_value=0, max_value=19, value=bar_value, bar_color=(0, 255, 0), bar_outline=False, background_image=background)
 #************************************************************************
-async def draw_progress_bar(hass, serial_port, xs, ys, xe=None, ye=None, width=None, height=None, bar_value=0, min_value=0, max_value=100, bf_width=1, b_color=(255, 255, 255), bg_color=(0, 0, 0), rotation = 90):
+async def draw_progress_bar(hass, serial_port, xs, ys, xe=None, ye=None, width=None, height=None, bar_value=0, min_value=0, max_value=100, bf_width=1, bf_color=None, b_color=(255, 255, 255), bg_color=(0, 0, 0), rotation = 90, show_value=False):
     _LOGGER.debug(f"doing a progress")
-    _LOGGER.debug(f"given values: xs={xs}, ys={ys}, xe={xe}, ye={ye}, width={width}, height={height}, bar-value={bar_value}, min-value={min_value}, max-value={max_value}, bar-frame-width={bf_width}, bar-color={b_color}, background-color={bg_color}, rotation={rotation}")
+    _LOGGER.debug(f"given values: xs={xs}, ys={ys}, xe={xe}, ye={ye}, width={width}, height={height}, bar-value={bar_value}, min-value={min_value}, max-value={max_value}, bar-frame-width={bf_width}, bar-color={b_color}, bar-frame-color={bf_color}, background-color={bg_color}, rotation={rotation}, show_value={show_value}")
 
     await set_orientation(hass, serial_port, 2)
 
+    if bf_color is None:
+        bf_color = b_color
+        _LOGGER.debug("no value given for bar-frame-color, taking bar-color for frame")
+
     # Konvertiere mögliche Stringfarben in RGB-Tupel
-    b_color = normalize_color(t_color)
+    b_color = normalize_color(b_color)
+    bf_color = normalize_color(bf_color)
     bg_color = normalize_color(bg_color)                     
 
-    _LOGGER.debug(f"colors after normalize: bar-color={b_color}, background-color={bg_color}")
+    _LOGGER.debug(f"colors after normalize: bar-color={b_color}, bar-frame-color={bf_color}, background-color={bg_color}")
 
     # check for dimensions out-of-range
-    # check for bar-value out-of-range
-    # calculate bar width
-    # draw rectangle?
-    # draw bar
-    # send bar
-
-
-    # Save the image
-    try:
-        _LOGGER.debug(f"Saving progress bar to {const.IMG_PATH}")
-        await asyncio.to_thread(lambda: img.save(const.IMG_PATH / "progress.bmp"))
-    except Exception as e:
-        _LOGGER.error(f"[{const.DOMAIN}] error while saving the progress bar to {const.IMG_PATH}: {e}")
 
     # --- Geometrie bestimmen ---
     if xe is None and width is not None:
@@ -1075,13 +1067,15 @@ async def draw_progress_bar(hass, serial_port, xs, ys, xe=None, ye=None, width=N
         raise ValueError("Either (xe, ye) or (width, height) must be provided")
 
     # Falls beides angegeben wurde, prüfen
+    # --> fehlt hier nicht die Hälfte der Prüfung und das ausführen?
     if width is not None and abs((xe - xs) - width) > 1:
-        _LOGGER.info(f"Width mismatch: xe-x ({xe - xs}) != width ({width}), using xe/ye")
+        _LOGGER.info(f"Width mismatch: xe-xs ({xe - xs}) != width ({width}), using xe/ye")
 
     bar_w = xe - xs
     bar_h = ye - ys
+    p_bar_w = bar_w - bf_width - bf_width
 
-    _LOGGER.debug(f"final bar dimensions: width={bar_w}, height={bar_h}")
+    _LOGGER.debug(f"final bar dimensions: width={bar_w}, height={bar_h}, progress-bar-width={p_bar_w}")
 
     # --- Prozentwert clampen ---
     if bar_value < min_value:
@@ -1089,22 +1083,36 @@ async def draw_progress_bar(hass, serial_port, xs, ys, xe=None, ye=None, width=N
     if bar_value > max_value:
         bar_value = max_value
 
+    _LOGGER.debug(f"bar-value after min/max range check: {bar_value}")
+
     # --- Balken berechnen ---
     fill_ratio = (bar_value - min_value) / (max_value - min_value)
-    fill_w = int(bar_w * fill_ratio)
+#    fill_ratio = (bar_value - min_value - bf_width - bf_width) / (max_value - min_value - bf_width - bf_width)
+    fill_w = int(p_bar_w * fill_ratio)
 
     _LOGGER.debug(f"fill-ratio={fill_ratio}, fill-width={fill_w}")
 
     # --- Bild vorbereiten ---
+#    img = Image.new("RGB", (bar_w, bar_h), bg_color)
     img = Image.new("RGB", (bar_w, bar_h), bg_color)
     draw = ImageDraw.Draw(img)
 
+    _LOGGER.debug(f"defined new image")
+
     # --- Rahmen zeichnen ---
-    for i in range(bf_width):
-        draw.rectangle([i, i, bar_w - 1 - i, bar_h - 1 - i], outline=b_color)
+#    for i in range(bf_width):
+#        draw.rectangle([i, i, bar_w - 1 - i, bar_h - 1 - i], outline=b_color)
+#    _LOGGER.debug(f"drew the frame in {i} rounds")
+    draw.rectangle((0, 0, bar_w, bar_h), width = bf_width, outline = bf_color, fill = bg_color)
+
+    _LOGGER.debug(f"drew the frame")
 
     # --- Füllung zeichnen ---
-    draw.rectangle([bf_width, bf_width, fill_w, bar_h - 1 - bf_width], fill=b_color)
+#    draw.rectangle([bf_width, bf_width, fill_w, bar_h - 1 - bf_width], fill=b_color)
+#    draw.rectangle([bf_width, bf_width, fill_w - bf_width - bf_width, bar_h - 1 - bf_width], fill=b_color)
+    draw.rectangle([bf_width, bf_width, fill_w, bar_h - bf_width - bf_width], fill=b_color)
+
+    _LOGGER.debug(f"drew the bar")
 
     # --- Wert einzeichnen (optional) ---
     if show_value:
@@ -1118,6 +1126,8 @@ async def draw_progress_bar(hass, serial_port, xs, ys, xe=None, ye=None, width=N
         tx = (bar_w - text_w) // 2
         ty = (bar_h - text_h) // 2
 
+        _LOGGER.debug(f"value's text size: width={tx} px, height={ty} px")
+
         # Overlay: Wir schreiben zwei Versionen — überlagert, getrennt
         # Erst die invertierte (über gefülltem Teil)
         if fill_w > 0:
@@ -1125,15 +1135,19 @@ async def draw_progress_bar(hass, serial_port, xs, ys, xe=None, ye=None, width=N
             mask_draw = ImageDraw.Draw(mask_img)
             mask_draw.rectangle([0, 0, fill_w, bar_h], fill=255)
             draw.text((tx, ty), value_str, font=font, fill=bg_color)
+            _LOGGER.debug(f"drew the filled bar text")
         # Dann der Rest (noch nicht gefüllt)
         if fill_w < bar_w:
             draw.text((tx, ty), value_str, font=font, fill=b_color)
+            _LOGGER.debug(f"drew the unfilled bar text")
 
     # --- Rotation (optional) ---
 #    if rotation != 0:
 #        img = img.rotate(rotation, expand=True)
     img = img.rotate(rotation, expand=True)
     i_width, i_height = img.size
+
+    _LOGGER.debug(f"rotated the image for {rotation} degrees")
 
     # Bild extrahieren
     img_bytes = img.tobytes()  # ergibt z.B. 160 * 80 * 3 = 38400 Bytes (RGB888)
@@ -1145,7 +1159,7 @@ async def draw_progress_bar(hass, serial_port, xs, ys, xe=None, ye=None, width=N
     except Exception as e:
         _LOGGER.error(f"[{const.DOMAIN}] error while saving the progress bar to {const.IMG_PATH}: {e}")
 
-    _LOGGER.debug(f"text {width}x{height} pixels")
+    _LOGGER.debug(f"progress bar has {i_width}x{i_height} pixels")
     px = i_width * i_height
     rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
     _LOGGER.debug(f"expected progress bar size from coordinates should be {i_width}x{i_height} = {px} px. RGB888 = {rgb888} bytes")
