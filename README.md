@@ -30,6 +30,7 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 ## V0.4.0 - 20.-25.11.2025
 - multiple display support, need to mandatory select the display entity for every command
 - display entity ends now with serial number
+- serial_number is the unique entity id
 - display name is now with model and serial_number
 - new structure for ONE sensor for each display with all attributes
 - internal shadow picture in RGB888 for each display
@@ -111,7 +112,6 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 
 ### ToDo
 - function for send simple commands
-- color test finishes with Testbild
 - start digital clock (later with offset +- for hours)
 - send_picture from file (pos, size, orientation, shift, ...)
 - send icon
@@ -121,7 +121,6 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 - Rheinturm-Uhr
 - detect-loop every 20 sec
 - do not crash at startup with no display detected
-- write into memory first, hence upload the whole memory onto the display
 - parameter for supressing direct upload the whole memory for all draw functions
 - enable temperature and humidity reading
 
@@ -130,23 +129,23 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 
 hass.data[weact_display][serial_number]
 
-| Instance      | Data Type | Default Value | Sensor/Attribute | Description                             |
-|---------------|-----------|---------------|------------------|-----------------------------------------|
-| << state >>   | boolean   | false         |                  | [false\|initializing\|ready]            |
-| serial_port   | string    |               |                  | Serial Port description from HA         |
-| port          | string    |               | port**           | friendly name from serial port          |
-| model         | string    |               | model            |                                         |
-| serial_number | string    |               | serial_number    | part of the sensors name and unique ID  |
-| start_time    | Date Time | init D/T      | start_time**     |                                         |
-| width         | integer   | None          | width            |                                         |
-| height        | integer   | None          | height           |                                         |
-| orientation   | integer   | None          | orientation      | [0\|1\|2\|3]                            |
-| humiture      | boolean   | false         | humiture**       | Humiture Sensor available? [false|true] |
-| temperature   | integer   | None          | temperature*     |                                         |
-| humidity      | integer   | None          | humidity*        |                                         |
-| clock_handle  | ???       | None          |                  |                                         |
-| clock_mode    | string    | idle          | clock_mode       | [idle\|analog\|digital\|rheinturm]      |
-| shadow        | Image()   | 0x000000...   |                  | width * height * 3, the BMP itself      |
+| Instance      | Data Type | Default Value | Sensor/Attribute | Description                              |
+|---------------|-----------|---------------|------------------|------------------------------------------|
+| << state >>   | boolean   | false         |                  | [false\|initializing\|ready]             |
+| serial_port   | string    |               |                  | Serial Port description from HA          |
+| port          | string    |               | port**           | friendly name from serial port           |
+| model         | string    |               | model            |                                          |
+| serial_number | string    |               | serial_number    | part of the sensors name and unique ID   |
+| start_time    | Date Time | init D/T      | start_time**     |                                          |
+| width         | integer   | None          | width            |                                          |
+| height        | integer   | None          | height           |                                          |
+| orientation   | integer   | None          | orientation      | [0\|1\|2\|3]                             |
+| humiture      | boolean   | false         | humiture**       | Humiture Sensor available? [false\|true] |
+| temperature   | integer   | None          | temperature*     |                                          |
+| humidity      | integer   | None          | humidity*        |                                          |
+| clock_handle  | ???       | None          |                  |                                          |
+| clock_mode    | string    | idle          | clock_mode       | [idle\|analog\|digital\|rheinturm]       |
+| shadow        | Image()   | 0x000000...   |                  | width * height * 3, the BMP itself       |
 
 \* only available if humiture sensor is also available
 ** later only in debug mode
