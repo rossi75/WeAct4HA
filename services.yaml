@@ -2,6 +2,13 @@ write_text:
   name: Write Text
   description: "write some text on the WeAct Display"
   fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
     text:
       name: Text
       required: true
@@ -32,7 +39,7 @@ write_text:
         number:
           unit_of_measurement: "pixels"
           min: 5
-          max: 80
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
 #    font:
@@ -45,7 +52,7 @@ write_text:
       selector:
         number:
           min: 0
-          max: 172
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     y_start:
@@ -55,7 +62,7 @@ write_text:
       selector:
         number:
           min: 0
-          max: 79
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     x_end:
@@ -65,7 +72,7 @@ write_text:
       selector:
         number:
           min: 0
-          max: 172
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     y_end:
@@ -76,7 +83,7 @@ write_text:
       selector:
         number:
           min: 0
-          max: 79
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     rotation:
@@ -96,6 +103,13 @@ draw_progress_bar:
   name: Progress Bar
   description: "draw a progress bar on the WeAct Display"
   fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
     bar_min:
       name: Min value
 #      example: 0
@@ -138,7 +152,7 @@ draw_progress_bar:
       selector:
         number:
           min: 0
-          max: 172
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     y_start:
@@ -148,7 +162,7 @@ draw_progress_bar:
       selector:
         number:
           min: 0
-          max: 79
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     x_end:
@@ -159,7 +173,7 @@ draw_progress_bar:
       selector:
         number:
           min: 0
-          max: 172
+          max: 419
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     y_end:
@@ -170,7 +184,7 @@ draw_progress_bar:
       selector:
         number:
           min: 0
-          max: 79
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     width:
@@ -181,7 +195,7 @@ draw_progress_bar:
       selector:
         number:
           min: 0
-          max: 172
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     height:
@@ -192,7 +206,7 @@ draw_progress_bar:
       selector:
         number:
           min: 0
-          max: 79
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     rotation:
@@ -214,7 +228,7 @@ draw_progress_bar:
       selector:
         number:
           min: 0
-          max: 160
+          max: 480
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "px"
@@ -238,6 +252,13 @@ draw_circle:
   name: Circle
   description: "draw a circle on the WeAct Display"
   fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
     x_position:
       name: Circles Center X-Position
       example: 30
@@ -245,7 +266,7 @@ draw_circle:
       selector:
         number:
           min: 0
-          max: 179
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     y_position:
@@ -255,7 +276,7 @@ draw_circle:
       selector:
         number:
           min: 0
-          max: 72
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     radius:
@@ -265,7 +286,7 @@ draw_circle:
       selector:
         number:
           min: 1
-          max: 179
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "pixels"
@@ -277,7 +298,7 @@ draw_circle:
       selector:
         number:
           min: 1
-          max: 78
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "pixels"
@@ -289,17 +310,10 @@ draw_circle:
       selector:
         number:
           min: 1
-          max: 40
+          max: 100
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "pixels"
-    bg_color:
-      name: Background
-      description: "color outside the circle"
-      example: [0, 0, 0]
-      default: [0, 0, 0]                          # schwarz
-      selector:
-        color_rgb: {}
     c_color:
       name: Frame color
       example: [255, 255, 255]
@@ -318,6 +332,13 @@ draw_rectangle:
   name: Rectangle
   description: "draw a rectangle on the WeAct Display"
   fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
     x_start:
       name: X-Start
       example: 0
@@ -325,7 +346,7 @@ draw_rectangle:
       selector:
         number:
           min: 0
-          max: 159
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     y_start:
@@ -335,7 +356,7 @@ draw_rectangle:
       selector:
         number:
           min: 0
-          max: 79
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     x_end:
@@ -345,7 +366,7 @@ draw_rectangle:
       selector:
         number:
           min: 0
-          max: 159
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     y_end:
@@ -355,7 +376,7 @@ draw_rectangle:
       selector:
         number:
           min: 0
-          max: 79
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     rf_width:
@@ -366,7 +387,7 @@ draw_rectangle:
       selector:
         number:
           min: 1
-          max: 40
+          max: 100
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "pixels"
@@ -388,6 +409,13 @@ draw_line:
   name: Line
   description: "draw a line on the WeAct Display"
   fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
     xs_position:
       name: Start X-Position
       example: 0
@@ -395,7 +423,7 @@ draw_line:
       selector:
         number:
           min: 0
-          max: 159
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     ys_position:
@@ -405,7 +433,7 @@ draw_line:
       selector:
         number:
           min: 0
-          max: 79
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     xe_position:
@@ -415,7 +443,7 @@ draw_line:
       selector:
         number:
           min: 0
-          max: 159
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     ye_position:
@@ -425,7 +453,7 @@ draw_line:
       selector:
         number:
           min: 0
-          max: 79
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     l_color:
@@ -442,16 +470,22 @@ draw_line:
       selector:
         number:
           min: 1
-          max: 160
+          max: 100
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "pixels"
-
 
 draw_triangle:
   name: Triangle
   description: "draw a triangle on the WeAct Display"
   fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
     xa_position:
       name: Point A X-Position
       example: 0
@@ -459,7 +493,7 @@ draw_triangle:
       selector:
         number:
           min: 0
-          max: 159
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     ya_position:
@@ -469,7 +503,7 @@ draw_triangle:
       selector:
         number:
           min: 0
-          max: 79
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     xb_position:
@@ -479,7 +513,7 @@ draw_triangle:
       selector:
         number:
           min: 0
-          max: 159
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     yb_position:
@@ -489,7 +523,7 @@ draw_triangle:
       selector:
         number:
           min: 0
-          max: 79
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     xc_position:
@@ -499,7 +533,7 @@ draw_triangle:
       selector:
         number:
           min: 0
-          max: 159
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     yc_position:
@@ -509,7 +543,7 @@ draw_triangle:
       selector:
         number:
           min: 0
-          max: 79
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     t_color:
@@ -525,7 +559,7 @@ draw_triangle:
       selector:
         number:
           min: 1
-          max: 160
+          max: 480
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "pixels"
@@ -546,6 +580,13 @@ send_bitmap_raw:
   name: raw RGB888 data
   description: "does not work but later should transfer a picture on the WeAct Display"
   fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
     B64:
       description: "Bilddaten als BASE64"
       example: "/"
@@ -563,6 +604,13 @@ send_bitmap_file:
   name: transfer Bitmap
   description: "does not work but later should transfer an image from a file in the WeAct Display"
   fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
     file:
       description: "Pfad zum Bild"
       example: "/"
@@ -579,33 +627,56 @@ send_bitmap_file:
 stop_clock:
   name: Stop the clock
   description: "stops any running clock (Analog|Digital|Rheinturm)"
+  fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
 
 show_random:
   name: Random Pixels
   description: "shows a random coloured image on the WeAct Display"
+  fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
 
 start_digital_clock:
-  name: Digital Clock - anytime
+  name: Digital Clock
   description: "start the digital clock on the WeAct Display"
   fields:
-    xs_position:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
+    xs:
       name: Start X-Position
       example: 0
       default: 0
       selector:
         number:
           min: 0
-          max: 159
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
-    ys_position:
+    ys:
       name: Start Y-Position
       example: 0
       default: 0
       selector:
         number:
           min: 0
-          max: 79
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     digit_size:
@@ -615,18 +686,34 @@ start_digital_clock:
       selector:
         number:
           min: 5
-          max: 79
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
-    hm_color:
-      description: "clock color [R,G,B]"
+    d_color:
+      name: Digits
       example: [255, 255, 255]
+      default: [255, 255, 255]                         # weiss
+      selector:
+        color_rgb: {}
     bg_color:
-      description: "background color [R,G,B]"
+      name: Background
+      description: "background color"
       example: [0, 0, 0]
+      default: [0, 0, 0]                          # schwarz
+      selector:
+        color_rgb: {}
     offset:
-      description: "offset to other timezone in seconds"
-      example: 3600
+      name: Time offset
+      description: "offset to other timezone in hours"
+      default: 0
+      example: 1
+      selector:
+        number:
+          unit_of_measurement: "hours"
+          min: -23
+          max: 23
+          step: 0.5
+          mode: slider  # alternativ 'box' für Eingabefeld
     rotation:
       name: Rotation
       description: choose the desired rotation angle
@@ -644,9 +731,16 @@ start_analog_clock:
   name: Analog Clock
   description: "shows the analog clock on the WeAct Display"
   fields:
-    bg_color:
-      name: Background
-      description: "background color"
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
+    scf_color:
+      name: Scale Frame
+      description: "Scale Frame color"
       example: [0, 0, 0]
       default: [0, 0, 0]                          # schwarz
       selector:
@@ -684,16 +778,28 @@ start_analog_clock:
           step: 90
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "degree"
-    shift:
-      name: shift position from center
-      description: "move clock from center (0) to left (-40) or right (+39)"
+    h_shift:
+      name: horizontal shift from center
+      description: "move clock from center (0) to left (-) or right (+)"
       example: 0
       default: 0
       selector:
         number:
           unit_of_measurement: "pixels"
-          min: -40
-          max: 39
+          min: -240
+          max: 239
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    v_shift:
+      name: vertical shift from center
+      description: "move clock from center (0) to up (-) or down (+)"
+      example: 0
+      default: 0
+      selector:
+        number:
+          unit_of_measurement: "pixels"
+          min: -240
+          max: 239
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     offset:
@@ -708,11 +814,78 @@ start_analog_clock:
           max: 23
           step: 0.5
           mode: slider  # alternativ 'box' für Eingabefeld
+#scale_size = None
+
+generate_qr:
+  name: Generate QR Code
+  description: Displays a QR code on the WeAct display.
+  fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
+    data:
+      name: Data
+      description: Text or data to encode
+      required: true
+      default: "https://homeassistant.local:8080"
+      example: "https://homeassistant.local:8080"
+      selector:
+        text: {}
+    xs:
+      name: X start
+      description: X coordinate where QR starts
+      required: true
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 479
+          mode: slider  # alternativ 'box' für Eingabefeld
+    ys:
+      name: Y start
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 319
+          mode: slider  # alternativ 'box' für Eingabefeld
+    show_data:
+      name: Show data under QR
+      required: false
+      default: false
+      selector:
+        boolean: {}
+    qr_color:
+      name: QR color
+      example: [255, 255, 255]
+      default: [255, 255, 255]                         # weiss
+      selector:
+        color_rgb: {}
+    bg_color:
+      name: Background
+      description: "background color"
+      example: [0, 0, 0]
+      default: [0, 0, 0]                          # schwarz
+      selector:
+        color_rgb: {}
 
 show_icon:
   name: Icon
   description: "shows an icon on the WeAct Display"
   fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
     icon_name:
       name: Icon
       description: "Icon"
@@ -743,7 +916,7 @@ show_icon:
         number:
           unit_of_measurement: "pixels"
           min: 0
-          max: 172
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     y_position:
@@ -755,7 +928,7 @@ show_icon:
         number:
           unit_of_measurement: "pixels"
           min: 0
-          max: 72
+          max: 319
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     size:
@@ -767,7 +940,7 @@ show_icon:
         number:
           unit_of_measurement: "pixels"
           min: 8
-          max: 80
+          max: 320
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     rotation:
@@ -787,6 +960,13 @@ set_full_color:
   name: Full color
   description: "fills the complete WeAct Display with one specific color"
   fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
     color:
       name: "Full Color"
       description: "Color"
@@ -800,6 +980,13 @@ set_orientation:
   name: Display Orientation - do NEVER use !
   description: "NEVER EVER use this !! sets the orientation for the WeAct Display"
   fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
     orientation:
       name: Orientation
       description: choose the desired orientation
@@ -821,6 +1008,13 @@ set_orientation:
 set_humiture_report:
   description: "do not use ! no sensor no value ! Temperatur und Luftfeuchtigkeit vom WeAct Display messen"
   fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
     timer:
       description: "Intervall in Sekunden [0=aus|500-65535]"
       example: 60
@@ -830,6 +1024,13 @@ set_brightness:
   name: Brightness
   description: "set brightness for the WeAct Display"
   fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
     brightness:
       description: "Lautstärke des Display [0-255]"
       name: Brightness
@@ -846,17 +1047,49 @@ set_brightness:
 restart_display:
   name: Restart
   description: "restarts the WeAct Display"
-
+  fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
+  
 show_init_screen:
   name: Init Screen
   description: "shows the initial WeAct Display screen"
+  fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
 
 start_selftest:
   name: Self Test
   description: "displays R/G/B/W in a sequence"
+  fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
 
 show_testbild:
   name: Testbild - do not use !
   description: "do not use ! - shows the Testbild on the WeAct Display"
+  fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
 
 
