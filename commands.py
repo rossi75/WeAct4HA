@@ -18,30 +18,42 @@
 # +80                                                              + 
 # +----------------------------------------------------------------+
 
+# +----------------------------------------------+
+# +0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx 480+
+# +y                                             + 
+# +y                                             + 
+# +y                                             + 
+# +y                                             + 
+# +y                                             + 
+# +y                                             + 
+# +y                                             + 
+# +y                                             + 
+# +y                                             + 
+# +y                                             + 
+# +320                                           + 
+# +----------------------------------------------+
+
 import asyncio, struct, logging
 import subprocess
 import serial
 import time
 import os
 import random
-from PIL import Image, ImageDraw, ImageFont, ImageColor
 import io
-from .iconutils import load_icon
 import math
 import qrcode
+import custom_components.weact_display.const as const
+from PIL import Image, ImageDraw, ImageFont, ImageColor
 from datetime import datetime, timedelta
 from homeassistant.helpers.event import async_track_time_interval
 from pathlib import Path
-#from .const import DOMAIN, CLOCK_REMOVE_HANDLE, IMG_PATH
-#from .const import DOMAIN, IMG_PATH
-#from . import const
-import custom_components.weact_display.const as const
-
+from .iconutils import load_icon
+from .models import DISPLAY_MODELS
+from .const import MAX_BMP_FILES
 
 _LOGGER = logging.getLogger(__name__)
 
-SERIAL = None
-#IMG_PATH = Path(hass.config.path()) / "custom_components" / "weact_display" / "bmp"
+#SERIAL = None
 
 #************************************************************************
 #        O P E N  S E R I A L
@@ -148,12 +160,11 @@ async def send_screen(hass, serial_number):
     _LOGGER.debug(f"prepared {len(img_bytes)} image bytes for {serial_number}: {hex_str} [...]")
 
     try:
-        await set_orientation(hass, serial_number, 2)
         await send_bitmap(hass, serial_number, 0, 0, width, height, bytes(img_bytes))  # original
     except Exception as e:
         _LOGGER.error(f"error while sending the content: {e}")
 
-    # Save the image
+    # Save the image, maybe later only if debugging is set
     timestamp = datetime.now().strftime("%H%M%S")
     file_name = f"{serial_number}_{timestamp}.bmp"
     try:
@@ -161,6 +172,35 @@ async def send_screen(hass, serial_number):
         await asyncio.to_thread(lambda: img.save(const.IMG_PATH / file_name))
     except Exception as e:
         _LOGGER.error(f"error while saving the image to {const.IMG_PATH}: {e}")
+
+    # logrotate
+#    max_files = 40
+    max_files = MAX_BMP_FILES
+    try:
+        files = await hass.async_add_executor_job(
+            lambda: [
+                os.path.join(const.IMG_PATH, f)
+                for f in os.listdir(const.IMG_PATH)
+                if f.lower().endswith(".bmp")
+                and os.path.isfile(os.path.join(const.IMG_PATH, f))
+            ]
+        )
+
+        _LOGGER.debug(f"found {len(files)} files in {const.IMG_PATH}")
+
+        files.sort(key=os.path.getmtime)        # nach Änderungszeit sortieren (älteste zuerst)
+        files_to_delete = files[:-max_files]        # alles außer den letzten x löschen
+
+        _LOGGER.debug(f"deleting {len(files_to_delete)} files in {const.IMG_PATH}")
+
+        for f in files_to_delete:
+            try:
+                os.remove(f)
+            except Exception as e:
+                _LOGGER.warning(f"Could not delete old debug file {f}: {e}")
+    except Exception as e:
+        _LOGGER.error(f"Cleanup error in debug dir: {e}")
+
 
 #************************************************************************
 #        B R I G H T N E S S
@@ -176,6 +216,13 @@ async def set_brightness(hass, serial_number, brightness):
     _LOGGER.debug("setting volume [brightness]...")
 
     data = hass.data[const.DOMAIN][serial_number]
+#    state = data.get("state")
+#    if state is "busy":
+#        _LOGGER.debug("Display busy, waiting 3 seconds")
+#        return
+#    state = busy
+#    display.busy = True
+
     serial_port = data.get("serial_port")
     if not serial_port:
         _LOGGER.warning("Display not connected")
@@ -202,28 +249,38 @@ async def set_brightness(hass, serial_number, brightness):
 #************************************************************************
 # m: hass
 # m: serial_number
-# m: X start
-# m: Y start
-# m: X end
-# m: Y end
-# o: line-color, default = white (255, 255, 255)
-# o: line width, default = 1
+# o: orientation, default = 2 (landscape)
 #************************************************************************
-async def set_orientation(hass, serial_number, orientation = 0):
+async def set_orientation(hass, serial_number, orientation_value):
     _LOGGER.debug("setting orientation")
 
     data = hass.data[const.DOMAIN][serial_number]
     serial_port = data.get("serial_port")
+    model = data.get("model")
     if not serial_port:
         _LOGGER.warning("Display not connected")
         return
 
+    params = DISPLAY_MODELS.get(model, None)
+    if orientation_value in (0, 2):                                                                   # 0 oder 180°
+        hass.data[const.DOMAIN][serial_number]["width"] = params["large"]
+        hass.data[const.DOMAIN][serial_number]["height"] = params["small"]
+    elif orientation_value in (1,3):                                                                  # 90° oder 270°
+        hass.data[const.DOMAIN][serial_number]["width"] = params["small"]
+        hass.data[const.DOMAIN][serial_number]["height"] = params["large"]
+    else:
+        _LOGGER.error(f"unknown orientation_value {orientation_value}, not changing anything")
+        return
+
+    hass.data[const.DOMAIN][serial_number]["orientation_value"] = orientation_value
+    hass.data[const.DOMAIN][serial_number]["orientation"] = const.ORIENTATION_NAMES[orientation_value]
+
+    _LOGGER.debug(f"new orientation: {data.get("orientation")} [{orientation_value}], {data.get("width")}x{data.get("height")} px")
+
     packet = struct.pack(
         "<BBB",
-        0x02, orientation, 0x0A
+        0x02, orientation_value, 0x0A
     )
-
-    _LOGGER.debug(f"new orientation: {orientation}")
 
     # das hier nachher in send_data verschieben
     hex_str = " ".join(f"{b:02X}" for b in packet)
@@ -316,13 +373,14 @@ async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
 # m: hass
 # m: serial_number
 #************************************************************************
+# reads a BMP-Datei and sends it out to the WeAct Display
+#************************************************************************
 async def show_testbild(hass, serial_number):
-    """Liest eine 160x80 BMP-Datei und sendet sie an das WeAct Display."""
     bmp_path = "testbild.bmp"
     _LOGGER.debug(f"searching for file: {bmp_path}")
 
     if not os.path.exists(bmp_path):
-        _LOGGER.debug(f"Datei nicht gefunden: {bmp_path}")
+        _LOGGER.error(f"Datei nicht gefunden: {bmp_path}")
         return
 
     _LOGGER.debug("file found")
@@ -343,7 +401,7 @@ async def show_testbild(hass, serial_number):
         hex_str = " ".join(f"{b:02X}" for b in img[:40])
         _LOGGER.debug(f"need to send {len(img)} testbild Bytes to {serial_port}: {hex_str} [...]")
 
-        await send_bitmap(hass, SERIAL, 0, 0, width, height, bytes(img))
+#        await send_bitmap(hass, SERIAL, 0, 0, width, height, bytes(img))
     except Exception as e:
         _LOGGER.error(f"[{const.DOMAIN}] error while sending the testbild: {e}")
 
@@ -651,7 +709,7 @@ async def draw_line(hass, serial_number, xs, ys, xe, ye, l_color = (255, 255, 25
 # o: circle-frame width, default = 1
 # o: ellipse, set to radius if not given
 #************************************************************************
-async def draw_circle(hass, serial_number, xp, yp, r, c_color = (255, 255, 255), f_color = (255, 0, 0), cf_width = 1, e = None, range_check = True):
+async def draw_circle(hass, serial_number, xp, yp, r, c_color = (255, 255, 255), f_color = (255, 0, 0), cf_width = 0, e = None, range_check = True):
     _LOGGER.info("draw a circle ...")
 
     data = hass.data[const.DOMAIN][serial_number]
@@ -667,6 +725,9 @@ async def draw_circle(hass, serial_number, xp, yp, r, c_color = (255, 255, 255),
     if e is None:
         e = r
         _LOGGER.debug("no value given for ellipse, taking radius as second circle factor")
+    if cf_width is None:
+        cf_width = 0
+        _LOGGER.debug("no value given for circle-frame, set to 0")
     _LOGGER.debug(f"given circle: radius={r}, ellipse={e}, circle-frame-width={cf_width}")
 
     # calculate the place to be
@@ -749,7 +810,6 @@ async def draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width = 1, rf_c
     _LOGGER.debug("fetched image from instance")
 
     # Rahmen & Füllung zeichnen
-#    draw.rectangle((0, 0, width, height), width = rf_width, outline = rf_color, fill = f_color)
     draw.rectangle((xs, ys, xe, ye), width = rf_width, outline = rf_color, fill = f_color)
 
     await send_screen(hass, serial_number)
@@ -899,12 +959,6 @@ async def write_text(hass, serial_number, text, xs, ys, xe, ye = None, font_size
     if ye is None:
         ye = ys + font_size + 2
         _LOGGER.debug(f"no value given for y-end, calculated from font-size: y-end={ye}")
-    if xe < xs:
-        xs, xe = xe, xs
-        _LOGGER.debug(f"needed to swap x-coordinates to x-start={xs}, x-end={xe}")
-    if ye < ys:
-        ys, ye = ye, ys
-        _LOGGER.debug(f"needed to swap y-coordinates to y-start={ys}, y-end={ye}")
 
     # Textgröße berechnen
 #    lines = text.splitlines() or [text]
@@ -966,8 +1020,6 @@ async def write_text(hass, serial_number, text, xs, ys, xe, ye = None, font_size
 # m: Y start
 # o: X end
 # o: Y end
-# o: width
-# o: height
 # o: bar-value
 # o: min-value, default = 0
 # o: max-value, default = 100
@@ -976,11 +1028,10 @@ async def write_text(hass, serial_number, text, xs, ys, xe, ye = None, font_size
 # o: background-color, default = black (0, 0, 0)
 # o: rotation, default = 90
 #************************************************************************
-async def draw_progress_bar(hass, serial_number, xs, ys, xe=None, ye=None, width=None, height=None, bar_value=None, min_value=0, max_value=100, bf_width=1, bf_color=None, b_color=(255, 255, 255), bg_color=(0, 0, 0), rotation = 90, show_value=False):
-    _LOGGER.info(f"doing a progress with the values given: xs={xs}, ys={ys}, xe={xe}, ye={ye}, width={width}, height={height}, bar-value={bar_value}, min-value={min_value}, max-value={max_value}, bar-frame-width={bf_width}, bar-color={b_color}, bar-frame-color={bf_color}, background-color={bg_color}, rotation={rotation}, show_value={show_value}")
+async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None, min_value=0, max_value=100, bf_width=1, bf_color=None, b_color=(255, 255, 255), bg_color=(0, 0, 0), rotation = 90, show_value=False, val_appendix=""):
+    _LOGGER.info(f"doing a progress with the values given: xs={xs}, ys={ys}, xe={xe}, ye={ye}, bar-value={bar_value}, min-value={min_value}, max-value={max_value}, bar-frame-width={bf_width}, bar-color={b_color}, bar-frame-color={bf_color}, background-color={bg_color}, rotation={rotation}, show-value={show_value}, value-appendix={val_appendix}")
 
     data = hass.data[const.DOMAIN][serial_number]
-#    serial_port = data.get("serial_port")
 
     if xe is None or ye is None:
         raise ValueError("Either (xe, ye) or (width, height) must be provided")
@@ -997,30 +1048,13 @@ async def draw_progress_bar(hass, serial_number, xs, ys, xe=None, ye=None, width
     _LOGGER.debug(f"colors after normalize: bar-color={b_color}, bar-frame-color={bf_color}, background-color={bg_color}")
 
     # check for dimensions out-of-range
-
-    # --- Geometrie bestimmen ---
-    if xe is None and width is not None:
-        xe = xs + width
-        _LOGGER.debug(f"calculated xe from xs + width to {xe} px")
-    if ye is None and height is not None:
-        ye = ys + height
-        _LOGGER.debug(f"calculated ye from ys + height to {ye} px")
-
-    if xe is None or ye is None:
-        raise ValueError("Either (xe, ye) or (width, height) must be provided")
-
-    # Falls beides angegeben wurde, prüfen
-    # --> fehlt hier nicht die Hälfte der Prüfung und das ausführen?
-    if width is not None and abs((xe - xs) - width) > 1:
-        _LOGGER.info(f"Width mismatch: xe-xs ({xe - xs}) != width ({width}), using xe/ye")
-
     bar_w = xe - xs
     bar_h = ye - ys
     p_bar_w = bar_w - bf_width - bf_width
 
-    _LOGGER.debug(f"final bar dimensions: width={bar_w}, height={bar_h}, progress-bar-width={p_bar_w}")
+    _LOGGER.debug(f"final bar dimensions: bar-width={bar_w}, height-height={bar_h}, progress-bar-width={p_bar_w}")
 
-    # --- Prozentwert clampen ---
+    # Prozentwert clampen ---
     if bar_value < min_value:
         bar_value = min_value
     if bar_value > max_value:
@@ -1028,45 +1062,44 @@ async def draw_progress_bar(hass, serial_number, xs, ys, xe=None, ye=None, width
 
     _LOGGER.debug(f"bar-value after min/max range check: {bar_value}")
 
-    # --- Balken berechnen ---
+    # Balkenfüllstand berechnen
     fill_ratio = (bar_value - min_value) / (max_value - min_value)
-#    fill_ratio = (bar_value - min_value - bf_width - bf_width) / (max_value - min_value - bf_width - bf_width)
     fill_w = int(p_bar_w * fill_ratio)
 
     _LOGGER.debug(f"fill-ratio={fill_ratio}, fill-width={fill_w}")
 
-    # --- Bild vorbereiten ---
-#    img = Image.new("RGB", (bar_w, bar_h), bg_color)
+    # Bild aus der Instanz ziehen
     img = data.get("shadow")
     draw = ImageDraw.Draw(img)
 
     _LOGGER.debug("fetched image from instance")
 
-    # --- Rahmen zeichnen ---
-#    draw.rectangle((0, 0, bar_w, bar_h), width = bf_width, outline = bf_color, fill = bg_color)
+    # Rahmen zeichnen
     draw.rectangle((xs, ys, xs + bar_w, ys + bar_h), width = bf_width, outline = bf_color, fill = bg_color)
 
     _LOGGER.debug(f"drew the frame")
 
-    # --- Füllung zeichnen ---
-#    draw.rectangle([bf_width, bf_width, bf_width + fill_w, bar_h - bf_width - bf_width], fill=b_color)
-    draw.rectangle([xs + bf_width, ys + bf_width, xs + bf_width + fill_w, ys + bar_h - bf_width - bf_width], fill=b_color)
+    # Füllung zeichnen
+    draw.rectangle((xs + bf_width, ys + bf_width, xs + bf_width + fill_w, ys + bar_h - bf_width), fill=b_color)
 
     _LOGGER.debug(f"drew the bar")
 
-    # --- Wert einzeichnen (optional) ---
+    # ggf Wert einzeichnen
     if show_value:
-        value_str = f"{int(bar_value)}%"
+        value_str = f"{int(bar_value)}%" + val_appendix
         try:
-            font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(bar_h * 0.5))                # warum hier ein Faktor von 0,5? Ich würde ja eher sagen -4, oder?
+#            font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(bar_h * 0.5))                # warum hier ein Faktor von 0,5? Ich würde ja eher sagen -4, oder?
+            font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(bar_h - bf_width - bf_width - 2))                # warum hier ein Faktor von 0,5? Ich würde ja eher sagen -4, oder?
         except Exception:
             font = ImageFont.load_default()
 
-        text_w, text_h = draw.textsize(value_str, font=font)
+        bbox = draw.textbbox((0, 0), value_str, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
         tx = (bar_w - text_w) // 2
         ty = (bar_h - text_h) // 2
 
-        _LOGGER.debug(f"value's text size: width={text_w} px, height={text_h} px,  at x={tx}, y={ty}")
+        _LOGGER.debug(f"show_value is given: text-width={text_w} px, text-height={text_h} px, at x={tx}, y={ty}")
 
         # Overlay: Wir schreiben zwei Versionen — überlagert, getrennt
         # Erst die invertierte (über gefülltem Teil)
@@ -1193,3 +1226,22 @@ async def generate_qr(hass, serial_number, data, xs, ys, show_data=False, qr_col
     except Exception as e:
         _LOGGER.error(f"[{const.DOMAIN}] error while sending the qr code: {e}")
 
+
+
+
+
+
+
+
+
+#data = hass.data[const.DOMAIN][serial_number]
+#data.state = busy
+#if display.busy:
+#    _LOGGER.debug("Display busy, skipping draw")
+#    return
+#display.busy = True
+
+#try:
+    # zeichne ins display
+#finally:
+#    display.busy = False

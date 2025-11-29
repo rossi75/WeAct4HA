@@ -68,8 +68,6 @@ class WeActDisplaySensor(SensorEntity):
     # Hauptstatus
     @property
     def state(self):
-#        data = self._hass.data[const.DOMAIN][self._serial_number]
-#        return "ready" if data.get("ready") else "initializing"
         state = self._hass.data[const.DOMAIN][self._serial_number]["state"]
         return state
 
@@ -78,27 +76,26 @@ class WeActDisplaySensor(SensorEntity):
     def extra_state_attributes(self):
         data = self._hass.data[const.DOMAIN][self._serial_number]
         attr = {
-#            "device_id": data.get("device_id"),                                        # only friendly name, not serial_port with its attributes !!
             "port": data.get("port"),                                        # only friendly name, not serial_port with its attributes !!
             "model": data.get("model"),
-            "serial_number": data.get("serial_number"),                                        # only friendly name, not serial_port with its attributes !!
+            "serial_number": data.get("serial_number"),
             "start_time": data.get("start_time"),
             "width": data.get("width"),
             "height": data.get("height"),
             "orientation": data.get("orientation"),
             "humiture": data.get("humiture"),
+#            "lock": data.get("lock"),
             "clock_mode": data.get("clock_mode")
         }
         if data.get("humiture") is True:
             attr["humidity"] = data.get("humidity")
             attr["temperature"] = data.get("temperature")
-
+#        if _LOGGER.getEffectiveLevel() == logging.DEBUG:
+#            attr["port"] = data.get("port")                                        # only friendly name, not serial_port with its attributes !!
+#            attr["start_time"] = data.get("start_time")
+#            attr["humiture"] = data.get("humiture")
+#            attr["lock"] = data.get("lock")
         return attr
-
-    # Setter-Funktionen für andere Module --> wir setzen keine attribute, nur die instanz !! muss noch verschoben werden !!
-#    def update_clock_mode(self):
-#        self._hass.data[DOMAIN][self._serial_number]["clock_mode"] = mode
-#        self.async_write_ha_state()
 
 #    def set_resolution(self, width: int, height: int):
 #        self._hass.data[DOMAIN][self._serial_number]["width"] = width

@@ -167,29 +167,6 @@ draw_progress_bar:
           mode: slider  # alternativ 'box' für Eingabefeld
     x_end:
       name: X-end
-      description: or width
-      example: 10
-      default: 10
-      selector:
-        number:
-          min: 0
-          max: 419
-          step: 1
-          mode: slider  # alternativ 'box' für Eingabefeld
-    y_end:
-      name: Y-end
-      description: or height
-      example: 10
-      default: 10
-      selector:
-        number:
-          min: 0
-          max: 319
-          step: 1
-          mode: slider  # alternativ 'box' für Eingabefeld
-    width:
-      name: Width
-      description: or x-end
       example: 10
       default: 10
       selector:
@@ -198,9 +175,8 @@ draw_progress_bar:
           max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
-    height:
-      name: Height
-      description: or y-end
+    y_end:
+      name: Y-end
       example: 10
       default: 10
       selector:
@@ -663,6 +639,7 @@ start_digital_clock:
       name: Start X-Position
       example: 0
       default: 0
+      required: true
       selector:
         number:
           min: 0
@@ -673,6 +650,7 @@ start_digital_clock:
       name: Start Y-Position
       example: 0
       default: 0
+      required: true
       selector:
         number:
           min: 0
@@ -692,16 +670,31 @@ start_digital_clock:
     d_color:
       name: Digits
       example: [255, 255, 255]
-      default: [255, 255, 255]                         # weiss
+      default: [255, 255, 255]
       selector:
         color_rgb: {}
     bg_color:
       name: Background
-      description: "background color"
       example: [0, 0, 0]
-      default: [0, 0, 0]                          # schwarz
+      default: [0, 0, 0]
       selector:
         color_rgb: {}
+    cf_color:
+      name: Frame
+      example: [255, 0, 0]
+      default: [255, 0, 0]
+      selector:
+        color_rgb: {}
+    cf_width:
+      name: Clock Frame Width
+      default: 2
+      selector:
+        number:
+          min: 0
+          max: 480
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "px"
     offset:
       name: Time offset
       description: "offset to other timezone in hours"
@@ -977,8 +970,9 @@ set_full_color:
         color_rgb: {}
 
 set_orientation:
-  name: Display Orientation - do NEVER use !
-  description: "NEVER EVER use this !! sets the orientation for the WeAct Display"
+  name: Display Orientation
+#  description: "NEVER EVER use this !! sets the orientation for the WeAct Display"
+  description: "sets the orientation for the WeAct Display"
   fields:
     display:
       name: Display
@@ -992,18 +986,32 @@ set_orientation:
       description: choose the desired orientation
 #      example: "landscape"
       required: true
-      default: "portrait"
+      default: "Landscape"
       selector:
         select:
           options:
-            - "portrait"
-            - "portrait_r"
-            - "landscape"
-            - "landscape_r"
-            - "0"
-            - "90"
-            - "180"
-            - "270"
+            - label: "Portrait"
+              value: "0"
+            - label: "Portrait Reverse"
+              value: "2"
+            - label: "Landscape"
+              value: "1"
+            - label: "Landscape Reverse"
+              value: "3"
+#              value:  - "0"
+#            - "90"
+#            - "180"
+#            - "270"
+#          options:
+#            - "Portrait"
+#            - value:0
+#            - "Portrait Reverse": 2
+#            - "Landscape": 1
+#            - "Landscape Reverse": 3
+#            - "0"
+#            - "90"
+#            - "180"
+#            - "270"
 
 set_humiture_report:
   description: "do not use ! no sensor no value ! Temperatur und Luftfeuchtigkeit vom WeAct Display messen"
@@ -1035,8 +1043,8 @@ set_brightness:
       description: "Lautstärke des Display [0-255]"
       name: Brightness
       required: true
-      example: 127
-      default: 127
+      example: 10
+      default: 10
       selector:
         number:
           min: 0

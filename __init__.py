@@ -41,18 +41,14 @@ from homeassistant.helpers.discovery import async_load_platform
 #from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, start_analog_clock, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, stop_clock
 #from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, start_analog_clock, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, stop_clock, draw_progress_bar, generate_qr
 from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr
-#from .bitmap import text_to_bitmap_bytes
 #from .clock import stop_clock, start_analog_clock, start_digital_clock, start_rheinturm
 from .clock import stop_clock, start_analog_clock, start_digital_clock
 from pathlib import Path
 from PIL import Image
-#from .const import DOMAIN, IMG_PATH, CLOCK_REMOVE_HANDLE
-#from .const import CLOCK_REMOVE_HANDLE
 import pathlib
 import custom_components.weact_display.const as const
 from .models import DISPLAY_MODELS
 
-#DOMAIN = "weact_display"
 _LOGGER = logging.getLogger(__name__)
 SERIAL = None  # = const.SERIAL
 #IMG_PATH = None
@@ -106,8 +102,8 @@ async def async_setup(hass: HomeAssistant, config):
             height = 1
             humiture = False
         else:
-            width = params["width"]
-            height = params["height"]
+            width = params["large"]
+            height = params["small"]
             humiture = params["humiture"]
             _LOGGER.debug(f"read model parameters: width={width}, height={height}, humiture={humiture}")
 
@@ -121,13 +117,14 @@ async def async_setup(hass: HomeAssistant, config):
             "start_time": datetime.datetime.now().isoformat(timespec="seconds"),
             "width": width,
             "height": height,
+            "orientation_value": None,
             "orientation": None,
             "humiture": humiture,
             "temperature": None,
             "humidity": None,
             "clock_handle": None,
-            "clock_mode": "idle",
-#            "shadow": bytearray(width * height * 3)
+            "clock_mode": None,
+            "lock": asyncio.Lock(),
             "shadow": Image.new("RGB", (width, height))
         }
 
@@ -140,12 +137,13 @@ async def async_setup(hass: HomeAssistant, config):
             if serial_port is None:
                 _LOGGER.error(f"serial port {port} could not be opened.")
                 return False
-            else:
-                _LOGGER.debug(f"successfully opened serial-port {port}")
+
+            _LOGGER.debug(f"successfully opened serial-port {port}")
 
             hass.data[const.DOMAIN][serial_number]["serial_port"] = serial_port
+            await set_orientation(hass, serial_number, 2)
+            await set_brightness(hass, serial_number, 10)
             await display_selftest(hass, serial_number)
-#            hass.data[const.DOMAIN][serial_number]["ready"] = True
             hass.data[const.DOMAIN][serial_number]["state"] = "ready"
 
             _LOGGER.warning("Celebrating new Hardware")
@@ -285,72 +283,69 @@ async def async_setup(hass: HomeAssistant, config):
         _LOGGER.debug("called service for orientation")
  
         device = call.data.get("display", None)
-        if device is None:
-            _LOGGER.error("missing mandatory entity id")
-            return
+#        if device is None:
+#            _LOGGER.error("missing mandatory entity id")
+#            return
 
-        orientation_value = call.data.get("orientation")
-        opcode = 0
+        orientation_value = int(call.data.get("orientation"))
+#        opcode = 0
 
-        _LOGGER.debug(f"value given: {orientation_value}")
+ #       _LOGGER.debug(f"value given: orientation-value={orientation_value}")
 
-        if not SERIAL:
-            _LOGGER.warning("Display not connected")
-            return
-
-        if orientation_value is None:
-            raise ValueError(f"missing mandatory orientation value")
+#        if orientation_value is None:
+#            raise ValueError(f"missing mandatory orientation value")
            
         # Falls string: in lowercase und Leerzeichen entfernen
-        if isinstance(orientation_value, str):
-            v = orientation_value.strip().lower()
-            _LOGGER.debug("mapping text to opcode")
+#        if isinstance(orientation_value, str):
+#            v = orientation_value.strip().lower()
+#            _LOGGER.debug("mapping text to opcode")
 
             # Texte
-            mapping = {
-                "portrait": 0,
-                "landscape": 2,
-                "portrait_r": 1,
-                "landscape_r": 3,
-            }
-            if v in mapping:
-                opcode = mapping[v]
-                _LOGGER.debug(f"mapping set orientation to [{opcode}]")
+#            mapping = {
+#                "portrait": 0,
+#                "landscape": 2,
+#                "portrait_r": 1,
+#                "landscape_r": 3,
+#            }
+#            if v in mapping:
+#                opcode = mapping[v]
+#                _LOGGER.debug(f"mapping set orientation to [{opcode}]")
 
         # Falls Zahl:
-        elif isinstance(orientation_value, (int, float)):
-            _LOGGER.debug("found any integer")
-            val = int(orientation_value) % 360
-            angle_to_opcode = {
-                0: 0,   # portrait
-                90: 2,  # landscape
-                180: 1, # reverse portrait
-                270: 3, # reverse landscape
-            }
+#        elif isinstance(orientation_value, (int, float)):
+#            _LOGGER.debug("found any integer")
+#            val = int(orientation_value) % 360
+#            angle_to_opcode = {
+#                0: 0,   # portrait
+#                90: 2,  # landscape
+#                180: 1, # reverse portrait
+#                270: 3, # reverse landscape
+#            }
 
             # Direkter Opcode (0–3)
-            if orientation_value in (0, 1, 2, 3):
-                opcode = int(orientation_value)
+#            if orientation_value in (0, 1, 2, 3):
+#                opcode = int(orientation_value)
             # Winkel (0|90|180|270)
-            elif val in angle_to_opcode:
-                opcode = angle_to_opcode[val]
-                _LOGGER.debug("mapping angle to opcode")
-            else:
-                raise ValueError(f"invalid orientation: {orientation_value}")
-        else:
-            raise ValueError(f"invalid orientation: {orientation_value}")
+#            elif val in angle_to_opcode:
+#                opcode = angle_to_opcode[val]
+#                _LOGGER.debug("mapping angle to opcode")
+#            else:
+#                raise ValueError(f"invalid orientation: {orientation_value}")
+#        else:
+#            raise ValueError(f"invalid orientation: {orientation_value}")
 
-        _LOGGER.debug(f"final opcode={opcode}, device={device}, serial-number={serial_number}")
+#        _LOGGER.debug(f"final opcode={opcode}, device={device}, serial-number={serial_number}")
 
         # entity registry lookup
         registry = er.async_get(hass)
         entry = registry.async_get(device)
         serial_number = entry.unique_id
 
-        await set_orientation(hass, serial_number, opcode)
+        _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, orientation={orientation_value}")
 
-    # das setzen wir erst einmal hart aus !
-#    hass.services.async_register(const.DOMAIN, "set_orientation", handle_set_orientation)
+        await set_orientation(hass, serial_number, orientation_value)
+
+    hass.services.async_register(const.DOMAIN, "set_orientation", handle_set_orientation)
 
     # --------------------------------------------------------
     # Service: Lautstärke festlegen
@@ -455,24 +450,25 @@ async def async_setup(hass: HomeAssistant, config):
         if device is None:
             _LOGGER.error("missing mandatory entity id")
             return
-        sc_color = call.data.get("sc_color", None)
-        scf_color = call.data.get("scf_color", None)
-        h_color = call.data.get("hh_color", None)
-        m_color = call.data.get("mm_color", None)
-        offset_hours = call.data.get("offset", None)
-        h_shift = call.data.get("h_shift", None)
-        v_shift = call.data.get("v_shift", None)
-        clock_size = call.data.get("clock_size", None)
-        rotation = call.data.get("rotation", None)
+        sc_color = call.data.get("sc_color")
+        scf_color = call.data.get("scf_color")
+        h_color = call.data.get("hh_color")
+        m_color = call.data.get("mm_color")
+        offset_hours = call.data.get("offset")
+        h_shift = call.data.get("h_shift")
+        v_shift = call.data.get("v_shift")
+        scale_size = call.data.get("scale_size")
+        rotation = call.data.get("rotation")
 
         # entity registry lookup
         registry = er.async_get(hass)
         entry = registry.async_get(device)
         serial_number = entry.unique_id
 
-        _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, scale-color={sc_color}, scale-frame-color={scf_color}, hour-color={h_color}, minute-color={m_color}, offset={offset_hours}, h-shift={h_shift}, v-shift={v_shift}, clock-size={clock_size}, rotation={rotation}")
+        _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, scale-color={sc_color}, scale-frame-color={scf_color}, hour-color={h_color}, minute-color={m_color}, offset={offset_hours}, h-shift={h_shift}, v-shift={v_shift}, scale-size={scale_size}, rotation={rotation}")
 
         await start_analog_clock(hass, serial_number, sc_color = sc_color, scf_color = scf_color, h_color = h_color, m_color = m_color, offset_hours = offset_hours, h_shift = h_shift, v_shift = v_shift, rotation = rotation)
+#        await start_analog_clock(hass, serial_number, sc_color = sc_color, scf_color = scf_color, h_color = h_color, m_color = m_color, offset_hours = offset_hours, h_shift = h_shift, v_shift = v_shift, scale_size = scale_size, rotation = rotation)
 
     hass.services.async_register(const.DOMAIN, "start_analog_clock", handle_start_analog_clock)
 
@@ -489,11 +485,13 @@ async def async_setup(hass: HomeAssistant, config):
             return
         xs = call.data.get("xs")
         ys = call.data.get("ys")
-        d_color = call.data.get("d_color", None)
-        bg_color = call.data.get("bg_color", None)
-        offset_hours = call.data.get("offset", None)
-        digit_size = call.data.get("digit_size", None)
-        font = call.data.get("font", None)
+        d_color = call.data.get("d_color")
+        bg_color = call.data.get("bg_color")
+        cf_color = call.data.get("cf_color")
+        cf_width = call.data.get("cf_width")
+        offset_hours = call.data.get("offset")
+        digit_size = call.data.get("digit_size")
+#        font = call.data.get("font", None)
         rotation = call.data.get("rotation", None)
 
         # entity registry lookup
@@ -503,7 +501,8 @@ async def async_setup(hass: HomeAssistant, config):
 
         _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, x={xs}, y={ys}, background-color={bg_color}, digit-color={d_color}, offset={offset_hours}, digit-size={digit_size},  rotation={rotation}")
 
-        await start_digital_clock(hass, serial_number, xs = xs, ys = ys, bg_color = bg_color, d_color = d_color, offset_hours = offset_hours, digit_size = digit_size, rotation = rotation)
+#        await start_digital_clock(hass, serial_number, xs = xs, ys = ys, bg_color = bg_color, d_color = d_color, cf_color = cf_color, offset_hours = offset_hours, digit_size = digit_size, rotation = rotation)
+        await start_digital_clock(hass, serial_number, xs = xs, ys = ys, bg_color = bg_color, d_color = d_color, cf_color = cf_color, cf_width = cf_width, offset_hours = offset_hours, digit_size = digit_size, rotation = rotation)
 
     hass.services.async_register(const.DOMAIN, "start_digital_clock", handle_start_digital_clock)
 
@@ -575,21 +574,18 @@ async def async_setup(hass: HomeAssistant, config):
         xp = call.data.get("x_position")
         yp = call.data.get("y_position")
         r = call.data.get("radius")
-#        bg_color = call.data.get("bg_color", None)
-        c_color = call.data.get("c_color", None)
-        f_color = call.data.get("f_color", None)
-        cf_width = call.data.get("cf_width", None)
-        e = call.data.get("ellipse", None)
+        c_color = call.data.get("c_color")
+        f_color = call.data.get("f_color")
+        cf_width = call.data.get("cf_width")
+        e = call.data.get("ellipse")
 
         # entity registry lookup
         registry = er.async_get(hass)
         entry = registry.async_get(device)
         serial_number = entry.unique_id
 
-#        _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, X-pos={xp}, Y-pos={yp}, radius={r}, bg-color={bg_color}, circle-color={c_color}, fill-color={f_color}, circle-frame-width={cf_width}, ellipse={e}")
         _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, X-pos={xp}, Y-pos={yp}, radius={r}, circle-color={c_color}, fill-color={f_color}, circle-frame-width={cf_width}, ellipse={e}")
 
-#        await draw_circle(hass, serial_number, xp, yp, r, bg_color, c_color, f_color, cf_width, e)
         await draw_circle(hass, serial_number, xp, yp, r, c_color, f_color, cf_width, e)
 
     hass.services.async_register(const.DOMAIN, "draw_circle", handle_draw_circle)
@@ -704,8 +700,6 @@ async def async_setup(hass: HomeAssistant, config):
         ys = call.data.get("y_start")
         xe = call.data.get("x_end", None)
         ye = call.data.get("y_end", None)
-        width = call.data.get("width", None)
-        height = call.data.get("height", None)
         bf_width = call.data.get("bf_width", None)
         b_color = call.data.get("b_color", None)
         bf_color = call.data.get("bf_color", None)
@@ -719,8 +713,9 @@ async def async_setup(hass: HomeAssistant, config):
         serial_number = entry.unique_id
 
         _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, X-start={xs}, Y-Start={ys}, X-End={xe}, Y-End={ye}, width={width}, height={height}, bar-min={bar_min}, bar-value={bar_value}, bar-max={bar_max}, bar-frame-width={bf_width}, bar-frame-color={bf_color}, bar-color={b_color}, background-color={bg_color}, rotation={rotation}, show_value={show_value}")
+        _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, X-start={xs}, Y-Start={ys}, X-End={xe}, Y-End={ye}, bar-min={bar_min}, bar-value={bar_value}, bar-max={bar_max}, bar-frame-width={bf_width}, bar-frame-color={bf_color}, bar-color={b_color}, background-color={bg_color}, rotation={rotation}, show_value={show_value}")
 
-        await draw_progress_bar(hass, serial_number, xs, ys, xe=xe, ye=ye, width=width, height=height, min_value=bar_min, bar_value=bar_value, max_value=bar_max, bf_width=bf_width, b_color=b_color, bf_color=bf_color, bg_color=bg_color, rotation=rotation, show_value=show_value)
+        await draw_progress_bar(hass, serial_number, xs, ys, xe, ye, min_value=bar_min, bar_value=bar_value, max_value=bar_max, bf_width=bf_width, b_color=b_color, bf_color=bf_color, bg_color=bg_color, rotation=rotation, show_value=show_value)
 
     hass.services.async_register(const.DOMAIN, "draw_progress_bar", handle_draw_progress_bar)
 
@@ -760,3 +755,13 @@ async def async_setup(hass: HomeAssistant, config):
     return True
 
 
+
+#async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
+#    from .clock import stop_clock#
+
+#    LOGGER.debug("Unloading WeAct Display integration...")
+
+#    await stop_clock(hass)
+#    LOGGER.debug("WeAct Display clock stopped during unload.")
+
+ #   return True
