@@ -1,43 +1,32 @@
 from homeassistant.helpers.entity import Entity
-#from .const import (
-#    DOMAIN,
-#    ATTR_WIDTH, ATTR_HEIGHT,
-#    ATTR_ORIENTATION, ATTR_CLOCK_MODE,
-#    ATTR_IMAGE_PATH, DEFAULT_CLOCK_MODE
-#)
-
-#from homeassistant.components.sensor import SensorEntity
 import re
 import asyncio, datetime, glob, os, logging
-
-_LOGGER = logging.getLogger(__name__)
-
 import logging
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.helpers import entity_registry as er
-#from .const import DOMAIN
 from . import const
 
 _LOGGER = logging.getLogger(__name__)
 
-
 async def async_setup_entry(hass, entry, async_add_entities):
     _LOGGER.warning("called async_setup_entry, for later with config flow")
 
+# Initialisiert den Sensor für das WeAct Display
 async def async_setup_platform(
     hass: HomeAssistant,
     config: ConfigType,
     async_add_entities,
     discovery_info: DiscoveryInfoType | None = None,
 ):
-    """Initialisiert den Sensors für das WeAct Display."""
+#async def async_setup_platform(hass, config, async_add_entities, discovery_info | None = None):
     _LOGGER.debug("setting up platform Sensors for WeAct Display")
 
     registry = er.async_get(hass)
     sensors = []
     devices = hass.data[const.DOMAIN]
+
     _LOGGER.debug(f"found {len(devices)} displays: {list(devices.keys())}")
 
     for serial_number, dev in devices.items():
@@ -51,13 +40,12 @@ async def async_setup_platform(
             _LOGGER.debug(f"adding new platform sensor to list: {serial_number}")
             sensors.append(WeActDisplaySensor(hass, serial_number))
 
-#    _LOGGER.debug(f"adding {len(sensors)} display sensors: {list(sensors)}")
-    _LOGGER.debug(f"adding {len(sensors)} display sensors: {sensors}")
+    _LOGGER.debug(f"adding {len(sensors)} display sensors: {list(sensors)}")
+
     async_add_entities(sensors, True)
 
 class WeActDisplaySensor(SensorEntity):
     # Ein Sensor pro Display. Enthält alle Attribute
-
     def __init__(self, hass: HomeAssistant, serial_number):
         self._hass = hass
         self._attr_unique_id = serial_number
@@ -90,38 +78,10 @@ class WeActDisplaySensor(SensorEntity):
         if data.get("humiture") is True:
             attr["humidity"] = data.get("humidity")
             attr["temperature"] = data.get("temperature")
+            attr["temperature_unit"] = data.get("temperature_unit")
 #        if _LOGGER.getEffectiveLevel() == logging.DEBUG:
 #            attr["port"] = data.get("port")                                        # only friendly name, not serial_port with its attributes !!
 #            attr["start_time"] = data.get("start_time")
 #            attr["humiture"] = data.get("humiture")
 #            attr["lock"] = data.get("lock")
         return attr
-
-#    def set_resolution(self, width: int, height: int):
-#        self._hass.data[DOMAIN][self._serial_number]["width"] = width
-#        self._hass.data[DOMAIN][self._serial_number]["height"] = height
-#        self.async_write_ha_state()
-
-#    def set_orientation(self, orientation: int):
-#        self._hass.data[DOMAIN][self._serial_number]["orientation"] = orientation
-#        self.async_write_ha_state()
-
-"""
-
-###################################################################################################
-# alte Struktur
-
-    def set_clock_status(self, status):
-#       Extern aufrufbar, um den clock_status zu aktualisieren.
-#        _LOGGER.debug(f"Entity: setting clock state: {status}")
-        self._attr_extra_state_attributes["clock_status"] = status
-        self.async_write_ha_state()
-
-    def set_resolution(self, px_width, px_height):
-#        Extern aufrufbar, um den clock_status zu aktualisieren.
-        self._attr_extra_state_attributes["width"] = px_width
-        self._attr_extra_state_attributes["height"] = px_height
-        self.async_write_ha_state()
-
-
-"""

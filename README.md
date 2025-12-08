@@ -21,11 +21,24 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 - show a digital clock
 
 ## restrictions
-- new send actions only overwrite the specified area, they do not delete the whole screen. To clear the screen or area, first blank it with the background color
+- new draw/write actions only overwrite the specified area, they do not delete the whole screen. To clear the screen
+  or area, first blank it with the background color
 - display uses RGB565 ! ALWAYS use RGB888, as we calculate it ourself to RGB565
 - display is being recognized only if plugged in at HA startup
+- integration does not start up if NO display is being recognized
 
 # changelog
+
+## V0.4.2 - 30.11.-08.12.2025
+- start humiture report after startup for reporting every 60 seconds, only if model supports it, native Bytes can
+  be seen in debug, calculated values in logs, reflecting values into sensors attributes
+- corrected orientation values
+- moved initial display communication to post_startup(), integration startup now takes 0.05 seconds instead of ~5-8 seconds
+- added attribute temperature_unit into sensor
+- clock is now synchronized to seconds
+- offset hours for analog and digital clock
+- icon works, but is a bit scrappy.... will be fixed soon
+- stabilized rectangle function
 
 ## V0.4.1 - 27.11.2025
 - corrected analog clock (the dot was the issue)
@@ -33,6 +46,7 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 - digital clock working, no rotation
 - disabled hard-coded landscape mode [2], set as default at startup
 - max 20 files in .../bmp/ (max 10 MB)
+- brightness is set at startup (to 10)
 
 ## V0.4.0 - 20.-25.11.2025
 - multiple display support, need to mandatory select the display entity for every command
@@ -120,7 +134,6 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 ### ToDo
 - start digital clock (later with offset +- for hours)
 - send_picture from file (pos, size, orientation, shift, ...)
-- send icon
 - draw triangle
 - barcode
 - qr code
@@ -138,23 +151,36 @@ hass.data[weact_display][serial_number]
 
 | Instance          | Data Type | Default Value | Sensor/Attribute | Description                                              |
 |-------------------|-----------|---------------|------------------|----------------------------------------------------------|
-| << state >>       | boolean   | false         |                  | [false\|initializing\|ready]                             |
-| serial_port       | string    |               |                  | Serial Port description from HA                          |
-| port              | string    |               | port**           | friendly name from serial port                           |
-| model             | string    |               | model            |                                                          |
-| serial_number     | string    |               | serial_number    | part of the sensors name and unique ID                   |
-| start_time        | Date Time | init D/T      | start_time**     |                                                          |
-| width             | integer   | None          | width            |                                                          |
-| height            | integer   | None          | height           |                                                          |
-| orientation_value | integer   | None          | orientation      | [0\|1\|2\|3]                                             |
-| orientation       | string    | None          | orientation      | [landscape\|portrait\|landscape reverse\|portrait]       |
-| humiture          | boolean   | False         | humiture**       | Humiture Sensor available? [false\|true]                 |
-| temperature       | integer   | None          | temperature*     |                                                          |
-| humidity          | integer   | None          | humidity*        |                                                          |
-| clock_handle      | function  | None          |                  |                                                          |
-| clock_mode        | string    | idle          | clock_mode       | [idle\|analog\|digital\|rheinturm]                       |
-| lock              | function  | function      |                  | used for while an image is being send, avoids collisions |
-| shadow            | Image()   | 0x000000...   |                  | width * height * 3, the BMP itself                       |
+| << state >>       | String    | initializing  |                   | [initializing\|port error\|ready]                        |
+| serial_port       | String    |               |                   | Serial Port description from HA                          |
+| port              | String    |               | port**            | friendly name from serial port                           |
+| model             | String    |               | model             |                                                          |
+| serial_number     | String    |               | serial_number     | part of the sensors name and unique ID                   |
+| start_time        | Date Time | init D/T      | start_time**      |                                                          |
+| width             | Integer   | None          | width             |                                                          |
+| height            | Integer   | None          | height            |                                                          |
+| orientation_value | Integer   | None          |                   | [0\|1\|2\|3]                                             |
+| orientation       | String    | None          | orientation       | [landscape\|portrait\|landscape reverse\|portrait]       |
+| humiture          | Boolean   | False         | humiture**        | Humiture Sensor available? [false\|true]                 |
+| humidity          | Integer   | None          | humidity*         |                                                          |
+| temperature       | Integer   | None          | temperature*      |                                                          |
+| temperature_unit  | String    | °C            | temperature_unit* |                                                          |
+| clock_handle      | Function  | None          |                   |                                                          |
+| clock_mode        | String    | idle          | clock_mode        | [idle\|analog\|digital\|rheinturm]                       |
+| lock              | Function  | function      |                   | used for while an image is being send, avoids collisions |
+| shadow            | Image     | 0x000000...   |                   | width * height * 3, the BMP itself                       |
 
 \* only available if humiture sensor is also available
 ** later only if debug mode is set at startup
+
+
+### Orientation Settings:
+
+|                   | Orientation |
+| Orientation       | Value       |
+|-------------------|-------------|
+| PORTRAIT          | 0           |
+| REVERSE_PORTRAIT  | 1           |
+| LANDSCAPE         | 2           |
+| REVERSE_LANDSCAPE | 3           |
+| ROTATE            | 5           |

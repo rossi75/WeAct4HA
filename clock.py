@@ -8,14 +8,8 @@ from datetime import datetime, timedelta
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.core import HomeAssistant
 import custom_components.weact_display.const as const
-#from .const import CLOCK_REMOVE_HANDLE
 
 _LOGGER = logging.getLogger(__name__)
-
-#CLOCK_REMOVE_HANDLE = None
-#CLOCK_MODE = "idle"
-
-
 
 async def stop_clock(hass, serial_number):
     """Beendet alle Uhr-Routinen"""
@@ -41,15 +35,21 @@ async def start_analog_clock(hass, serial_number, **kwargs):
     async def _update_analog(now):
         await show_analog_clock(hass, serial_number, **kwargs)
 
-    clock_mode = hass.data[const.DOMAIN].get("clock_mode")
+    clock_mode = hass.data[const.DOMAIN][serial_number].get("clock_mode")
     if clock_mode is not None:
-        _LOGGER.debug(f"Clock for {serial_number} already running: {clock_mode}, stopping first")
+        _LOGGER.debug(f"Clock for {serial_number} already running as {clock_mode}, stopping first")
         await stop_clock(hass, serial_number)
 
+    hass.data[const.DOMAIN][serial_number]["clock_mode"] = "analog"
     await show_analog_clock(hass, serial_number, **kwargs)
 
-    hass.data[const.DOMAIN][serial_number]["clock_handle"] = async_track_time_interval(hass, _update_analog, timedelta(minutes=1))
-    hass.data[const.DOMAIN][serial_number]["clock_mode"] = "analog"
+    async def _task():
+        seconds_to_wait = 60 - datetime.now().second
+        _LOGGER.debug(f"need to wait {seconds_to_wait} seconds for the next minute")
+        await asyncio.sleep(seconds_to_wait)
+        await show_analog_clock(hass, serial_number, **kwargs)
+        hass.data[const.DOMAIN][serial_number]["clock_handle"] = async_track_time_interval(hass, _update_analog, timedelta(minutes=1))
+    asyncio.create_task(_task())
 
     _LOGGER.debug(f"set clock-mode from {clock_mode} to {hass.data[const.DOMAIN][serial_number]["clock_mode"]}")
     _LOGGER.warning("Analog clock update scheduled every minute")
@@ -59,9 +59,9 @@ async def start_digital_clock(hass, serial_number, **kwargs):
     async def _update_digital(now):
         await show_digital_clock(hass, serial_number, **kwargs)
 
-    clock_mode = hass.data[const.DOMAIN].get("clock_mode")
+    clock_mode = hass.data[const.DOMAIN][serial_number].get("clock_mode")
     if clock_mode is not None:
-        _LOGGER.debug(f"Clock for {serial_number} already running: {clock_mode}, stopping first")
+        _LOGGER.debug(f"Clock for {serial_number} already running as {clock_mode}, stopping first")
         await stop_clock(hass, serial_number)
 
     await show_digital_clock(hass, serial_number, **kwargs)
@@ -77,7 +77,7 @@ async def _start_rheinturm_clock(hass, serial_number, **kwargs):
     async def _update_rheinturm(now):
         await show_rheinturm(hass, serial_number, **kwargs)
 
-    clock_mode = hass.data[const.DOMAIN].get("clock_mode")
+    clock_mode = hass.data[const.DOMAIN][serial_number].get("clock_mode")
     if clock_mode is not None:
         _LOGGER.debug(f"Clock for {serial_number} already running: {clock_mode}, stopping first")
         await stop_clock(hass, serial_number)
@@ -114,7 +114,7 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
     _LOGGER.debug("analog clock...")
 
 #    from .commands import set_orientation, normalize_color, send_screen
-    from .commands import normalize_color, send_screen
+    from .commands import normalize_color
 
     data = hass.data[const.DOMAIN][serial_number]
     d_width = data.get("width")
@@ -122,9 +122,9 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
 
     if scale_size is None:
         scale_size = min(d_width, d_height)
-        _LOGGER.debug(f"set scale-size to {scale_size} px as no parameter is given")
+        _LOGGER.debug(f"set scale-size to {scale_size} px as no size parameter is given")
     elif scale_size < 80:
-        scale_size = 80                                                                  # one lonely hard-coded value
+        scale_size = 80                                                   # one lonely hard-coded value
 
     _LOGGER.debug(f"some clock values: display-width={d_width}, display-height={d_height}, scale-size={scale_size}")
 
@@ -189,8 +189,6 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
     cy = scale_size // 2 - 1 + v_shift
     hour_length = int(scale_size / 3.6)
     minute_length = int(scale_size / 2.3)
-#    hour_angle = (hour % 12) * 30 + (minute / 60) * 30 - 90
-#    minute_angle = minute * 6 - 90
     hour_angle = (hour % 12) * 30 + (minute / 60) * 30 - 90 + rotation
     minute_angle = minute * 6 - 90 + rotation
 
@@ -208,7 +206,6 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
     ys=cy - (point_size // 2) + v_shift
     xe=cx + (point_size // 2) + h_shift
     ye=cy + (point_size // 2) + v_shift
-#    draw.ellipse((xs, ys, xe, ye), outline = scf_color, width = 4) # punkt in der Mitte
     draw.ellipse((xs, ys, xe, ye), fill = scf_color)                                  # punkt in der Mitte
     _LOGGER.debug(f"middle point circumstances: point-size={point_size}, xs={xs}, ys={ys}, xe={xe}, ye={ye}")
 
@@ -301,11 +298,14 @@ async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_si
         _LOGGER.error(f"[{const.DOMAIN}] could not load TTF due to: {e}")
 
     # Textgröße messen
-#    dummy_img = Image.new("RGB", (1, 1))
-#    dummy_draw = ImageDraw.Draw(dummy_img)
-#    bbox = dummy_draw.textbbox((0, 0), time_str, font=font)
-#    text_w = bbox[2] - bbox[0]
-#    text_h = bbox[3] - bbox[1]
+    dummy_img = Image.new("RGB", (1, 1))
+    dummy_draw = ImageDraw.Draw(dummy_img)
+    bbox = dummy_draw.textbbox((0, 0), time_str, font=font)
+    text_w = bbox[2] - bbox[0]
+    text_h = bbox[3] - bbox[1]
+
+    _LOGGER.debug(f"bbox: 0={bbox[0]}, 1={bbox[1]}, 2={bbox[2]}, 3={bbox[3]}")
+    _LOGGER.debug("text_w = [2] - [0] = {text_w}, text_h = [3] - [1] = {text_h}")
 
 #    _LOGGER.debug(f"time-string dimensions: width={text_w}, height={text_h} px")
 
@@ -371,90 +371,6 @@ async def show_rheinturm(hass, serial_port, rotation = 0):
     
     # check rotation
 
-    # convert colors 888>565
-
-    # transfer image to display
-
     # calculate need dimensions
     
-    # Neues 80x80 Displaybild erstellen
-    img = Image.new("RGB", (80, 80), bg_color)
-    draw = ImageDraw.Draw(img)
-    i_width, i_height = img.size
-
-    _LOGGER.debug("defined new image")
-
-    # Kreis und 4 Striche malen
-    draw.ellipse((0, 0, 79, 78), outline = sc_color, width = 2)                                   # Äußerer Kreis
-    draw.ellipse((39, 39, 41, 41), outline = sc_color, width = 4)    # punkt in der Mitte
-    draw.line((39, 2, 39, 6), fill = sc_color, width = 1)         # 12
-    draw.line((79, 39, 75, 39), fill = sc_color, width = 1)    # 3
-    draw.line((39, 79, 39, 75), fill = sc_color, width = 1)      # 6
-    draw.line((2, 39, 6, 39), fill = sc_color, width = 1)      # 9
-
-    _LOGGER.debug("drew the scale")
-
-    # Zeiger malen
-    cx = 39        # Mittelpunkt (Displaymitte)
-    cy = 39
-    hour_length = 22
-    minute_length = 35
-
-    # aktuelle Zeit holen (oder fest vorgeben)
-    now = datetime.now()
-    hour = now.hour
-    minute = now.minute
-
-    # Winkel berechnen (12 Uhr = -90°)
-    hour_angle = (hour % 12) * 30 + (minute / 60) * 30 - 90
-    minute_angle = minute * 6 - 90
-
-    # Zeiger-Endpunkte berechnen
-    hx = cx + hour_length * math.cos(math.radians(hour_angle))
-    hy = cy + hour_length * math.sin(math.radians(hour_angle))
-    mx = cx + minute_length * math.cos(math.radians(minute_angle))
-    my = cy + minute_length * math.sin(math.radians(minute_angle))
-
-    # Zeiger zeichnen
-    draw.line((cx, cy, hx, hy), fill = h_color, width=3)
-    draw.line((cx, cy, mx, my), fill = m_color, width=2)
-
-    _LOGGER.debug("drew the pointers")
-
-    # ggf das Datum, den WT oder die CPU Temp einpflanzen
-    # Text
-#    font = ImageFont.load_default()
-#    draw.text((10, 30), "Hallo Welt", fill=(255, 255, 255), font=font)
-#    _LOGGER.debug("wrote into the image")
-
-    # bild ggf drehen
-    img = img.rotate(rotation, expand=True)
-    
-    # Bild extrahieren
-    img_bytes = img.tobytes()  # ergibt z.B. 160 * 80 * 3 = 38400 Bytes (RGB888)
-
-    _LOGGER.debug(f"clock has {width}x{height} pixels")
-    px = width * height
-    rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
-    _LOGGER.debug(f"expected digital clock size from coordinates should be {width}x{height} = {px} px. RGB888 = {rgb888} bytes")
-    hex_str = " ".join(f"{b:02X}" for b in img_bytes[:40])
-    _LOGGER.debug(f"prepared {len(img_bytes)} digital clock bytes for {serial_port}: {hex_str} [...]")
-
-    xs = 39 + shift
-    xe = 119 + shift
-
-    # Bild ans display schicken, hier auch noch mal den Versatz prüfen
-    await set_orientation(hass, serial_port, 2)
-    try:
-#        await send_bitmap(hass, serial_port, 39 + position_shift, 0, 119 + position_shift, 79, bytes(img_bytes))
-        await send_bitmap(hass, serial_port, xs, 0, xe, 79, bytes(img_bytes))
-    except Exception as e:
-        _LOGGER.error(f"[{const.DOMAIN}] error while sending the digital clock: {e}")
-
-    # entsprechend versetzten Ausschnitt "befreien", ggf noch 1 px r/l mehr
-
-
-    # timer setzen auf 60 Sekunden
-
-    # Timer wird unterbrochen durch...?
 

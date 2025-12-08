@@ -49,11 +49,9 @@ from homeassistant.helpers.event import async_track_time_interval
 from pathlib import Path
 from .iconutils import load_icon
 from .models import DISPLAY_MODELS
-from .const import MAX_BMP_FILES
+#from .const import MAX_BMP_FILES
 
 _LOGGER = logging.getLogger(__name__)
-
-#SERIAL = None
 
 #************************************************************************
 #        O P E N  S E R I A L
@@ -63,7 +61,6 @@ _LOGGER = logging.getLogger(__name__)
 # m: port
 #************************************************************************
 def open_serial(port: str):
-    """Initialisiert den seriellen Port mit stty und öffnet ihn."""
     _LOGGER.debug(f"initializing serial port {port} ...")
 
     if not os.path.exists(port):
@@ -81,7 +78,7 @@ def open_serial(port: str):
     except subprocess.CalledProcessError as e:
         _LOGGER.warning(f"STTY Setup has some issue: {e}")
 
-    # ---- Seriellen Port öffnen ----
+    # Seriellen Port öffnen
     try:
         serial_port = serial.Serial(
             port=port,
@@ -174,8 +171,7 @@ async def send_screen(hass, serial_number):
         _LOGGER.error(f"error while saving the image to {const.IMG_PATH}: {e}")
 
     # logrotate
-#    max_files = 40
-    max_files = MAX_BMP_FILES
+    max_files = const.MAX_BMP_FILES
     try:
         files = await hass.async_add_executor_job(
             lambda: [
@@ -186,12 +182,12 @@ async def send_screen(hass, serial_number):
             ]
         )
 
-        _LOGGER.debug(f"found {len(files)} files in {const.IMG_PATH}")
+        _LOGGER.debug(f"found {len(files)} files in {const.IMG_PATH}/")
 
         files.sort(key=os.path.getmtime)        # nach Änderungszeit sortieren (älteste zuerst)
         files_to_delete = files[:-max_files]        # alles außer den letzten x löschen
 
-        _LOGGER.debug(f"deleting {len(files_to_delete)} files in {const.IMG_PATH}")
+        _LOGGER.debug(f"deleting {len(files_to_delete)} files in {const.IMG_PATH}/")
 
         for f in files_to_delete:
             try:
@@ -235,7 +231,7 @@ async def set_brightness(hass, serial_number, brightness):
 
     # das hier nachher in send_data verschieben
     hex_str = " ".join(f"{b:02X}" for b in packet)
-    _LOGGER.debug(f"having {len(packet)} Bytes for {serial_port}: {hex_str}")
+    _LOGGER.debug(f"having {len(packet)} Bytes for {serial_number}: {hex_str}")
 
     await hass.async_add_executor_job(serial_port.write, packet)
 
@@ -262,10 +258,10 @@ async def set_orientation(hass, serial_number, orientation_value):
         return
 
     params = DISPLAY_MODELS.get(model, None)
-    if orientation_value in (0, 2):                                                                   # 0 oder 180°
+    if orientation_value in (2, 3):                                                                   # 0 oder 180°
         hass.data[const.DOMAIN][serial_number]["width"] = params["large"]
         hass.data[const.DOMAIN][serial_number]["height"] = params["small"]
-    elif orientation_value in (1,3):                                                                  # 90° oder 270°
+    elif orientation_value in (0, 1):                                                                  # 90° oder 270°
         hass.data[const.DOMAIN][serial_number]["width"] = params["small"]
         hass.data[const.DOMAIN][serial_number]["height"] = params["large"]
     else:
@@ -284,12 +280,82 @@ async def set_orientation(hass, serial_number, orientation_value):
 
     # das hier nachher in send_data verschieben
     hex_str = " ".join(f"{b:02X}" for b in packet)
-    _LOGGER.debug(f"having {len(packet)} Bytes for {serial_port}: {hex_str}")
+    _LOGGER.debug(f"having {len(packet)} Bytes for {serial_number}: {hex_str}")
 
     await hass.async_add_executor_job(serial_port.write, packet)
     await asyncio.sleep(0.1)
 
     _LOGGER.debug("orientation done")
+
+
+#************************************************************************
+#        H U M I T U R E
+#************************************************************************
+# enables the humiture reports for a display
+#************************************************************************
+# m: hass
+# m: serial_number
+# o: time_interval, default = 60
+#************************************************************************
+async def enable_humiture_reports(hass, serial_number, time_interval = None):
+    _LOGGER.debug("enabling humiture reports")
+
+    data = hass.data[const.DOMAIN][serial_number]
+    serial_port = data.get("serial_port")
+    humiture = data.get("humiture")
+    if not serial_port:
+        _LOGGER.warning("Display not connected")
+        return
+    if time_interval is None:
+        time_interval = 60
+        _LOGGER.debug("no value given for time-interval, set to 60 seconds")
+    time_interval = time_interval * 1000              # von s in ms
+
+    packet = struct.pack(
+        "<BHB",
+        0x06, time_interval, 0x0A                             # alle 60 Sekunden
+    )
+
+    # das hier nachher in send_data verschieben
+    hex_str = " ".join(f"{b:02X}" for b in packet)
+    _LOGGER.debug(f"having {len(packet)} Bytes for {serial_number}: {hex_str}")
+
+    await hass.async_add_executor_job(serial_port.write, packet)
+    await asyncio.sleep(0.1)
+
+    _LOGGER.debug("enabled humiture report")
+
+#************************************************************************
+#        H U M I T U R E  P A R S E R
+#************************************************************************
+# parses the humiture reports from a display
+#    Erwartet ein Paket:
+#    [86] [T_low] [T_high] [H_low] [H_high] [0A]
+#************************************************************************
+# m: packet-Bytes
+# r: temp_celsius, humidity_percent or None if error
+#************************************************************************
+def parse_humiture_packet(packet: bytes):
+    if len(packet) != 6:
+        return None
+    if packet[0] != 0x86:     # Startbyte prüfen
+        return None
+    if packet[5] != 0x0A:         # Endbyte prüfen
+        return None
+
+    # Temperatur extrahieren
+    t_low  = packet[1]
+    t_high = packet[2]
+    temp_raw = (t_high << 8) | t_low
+    temp_c = temp_raw / 100.0  # Anzeige in °C
+
+    # Humidity extrahieren
+    h_low  = packet[3]
+    h_high = packet[4]
+    hum_raw = (h_high << 8) | h_low
+    hum_percent = hum_raw / 100.0
+
+    return temp_c, hum_percent
 
 
 #************************************************************************
@@ -345,9 +411,9 @@ async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
         data_565.append((rgb565 >> 8) & 0xFF)
 
     hex_str = " ".join(f"{b:02X}" for b in header)
-    _LOGGER.debug(f"need to send {len(header)} header bytes to {serial_port}: {hex_str}")
+    _LOGGER.debug(f"need to send {len(header)} header bytes for {serial_number}: {hex_str}")
     hex_str = " ".join(f"{b:02X}" for b in data_565[:40])
-    _LOGGER.debug(f"... and {len(data_565)} bitmap bytes as RGB565 to {serial_port}: {hex_str} [...]")
+    _LOGGER.debug(f"... and {len(data_565)} bitmap bytes as RGB565 for {serial_number}: {hex_str} [...]")
 
     await hass.async_add_executor_job(serial_port.write, header)
     _LOGGER.debug("header write done")
@@ -399,7 +465,7 @@ async def show_testbild(hass, serial_number):
         hex_str = " ".join(f"{b:02X}" for b in img[:40])
         _LOGGER.debug(f"expected testbild size from coordinates should be {width}x{height} = {px} px. RGB888 = {rgb888} bytes")
         hex_str = " ".join(f"{b:02X}" for b in img[:40])
-        _LOGGER.debug(f"need to send {len(img)} testbild Bytes to {serial_port}: {hex_str} [...]")
+        _LOGGER.debug(f"need to send {len(img)} testbild Bytes for {serial_number}: {hex_str} [...]")
 
 #        await send_bitmap(hass, SERIAL, 0, 0, width, height, bytes(img))
     except Exception as e:
@@ -437,7 +503,6 @@ async def send_full_color(hass, serial_number, color):
     r >>= 3
     g >>= 2
     b >>= 3
-
     rgb565 = ((r & 0x1F) << 11) | ((g & 0x3F) << 5) | (b & 0x1F)
 
     packet = struct.pack(
@@ -447,7 +512,7 @@ async def send_full_color(hass, serial_number, color):
 
     # das hier nachher in send_command verschieben
     hex_str = " ".join(f"{b:02X}" for b in packet)
-    _LOGGER.debug(f"having {len(packet)} Bytes for {serial_port}: {hex_str}")
+    _LOGGER.debug(f"having {len(packet)} Bytes for {serial_number}: {hex_str}")
 
     await hass.async_add_executor_job(serial_port.write, packet)
 
@@ -514,7 +579,7 @@ async def generate_random(hass, serial_number):
             buf += struct.pack("<BBB", r, g, b)
 
         hex_str = " ".join(f"{b:02X}" for b in buf[:40])
-        _LOGGER.debug(f"generated {len(buf)} Bytes for {serial_port}: {hex_str} [...]")
+        _LOGGER.debug(f"generated {len(buf)} Bytes for {serial_number}: {hex_str} [...]")
 
         await set_orientation(hass, serial_number, 2)
         await send_bitmap(hass, serial_number, 0, 0, width, height, bytes(buf))
@@ -548,7 +613,7 @@ async def show_init_screen(hass, serial_number):
 
     # das hier nachher in send_data verschieben
     hex_str = " ".join(f"{b:02X}" for b in packet)
-    _LOGGER.debug(f"having {len(packet)} Bytes for {serial_port}: {hex_str}")
+    _LOGGER.debug(f"having {len(packet)} Bytes for {serial_number}: {hex_str}")
 
     await hass.async_add_executor_job(serial_port.write, packet)
 
@@ -572,66 +637,42 @@ async def show_init_screen(hass, serial_number):
 #************************************************************************
 # rotate from: https://stackoverflow.com/questions/45179820/draw-text-on-an-angle-rotated-in-python
 #************************************************************************
-#async def show_icon(icon_name: str, color="#FFFFFF", size=(48, 48), bg_color="#000000"):
-async def show_icon(hass, serial_number, icon_name: str, xp, yp, size = 32, i_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
+#sync def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
+async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_color = (255, 255, 255), rotation = 0):
     _LOGGER.debug("show icon...")
 
-#    data = self._hass.data[const.DOMAIN][serial_number].get(self._device_id, {})
     data = hass.data[const.DOMAIN][serial_number]
 
-#    await set_orientation(hass, serial_port, 2)
+    # Konvertiere mögliche Stringfarben in RGB-Tupel
+    if i_color is None:
+        i_color = (255, 255, 255)
+        _LOGGER.debug(f"set icon-color to {i_color} as no parameter is given")
+    else:
+        i_color = normalize_color(i_color)
+#   if bg_color is None:
+#       bg_color = (255, 255, 255)
+#       _LOGGER.debug(f"set background-color to {bg_color} as no parameter is given")
+#   else:
+#       bg_color = normalize_color(bg_color)
 
-#    await load_icon_as_rgb888(icon_name: str, color = icon_color, size = size, rotation = rotation)
-    rgb_data = await load_icon(icon_name = icon_name, icon_color = icon_color, icon_size = size, bg_color = bg_color, rotation = rotation)
+#   _LOGGER.debug(f"colors after normalize: icon-color={i_color}, background-color={bg_color}")
+    _LOGGER.debug(f"colors after normalize: icon-color={i_color}")
 
+#   icon = await load_icon(hass, i_name = i_name, i_size = i_size, i_color = i_color, bg_color = bg_color, rotation = rotation)
+    icon = await load_icon(hass, i_name = i_name, i_size = i_size, i_color = i_color, rotation = rotation)
+    icon = icon.convert("RGBA")
 
+    _LOGGER.debug(f"icon parameters: xs={xs}, ys={ys}, icon-size={i_size}x{i_size}, rotation={rotation}, icon-bytes={len(icon.tobytes())}")
 
-#    svg_data = MDI.get_svg(icon_name)
-#    if not svg_data:
-#        raise ValueError(f"Icon '{icon_name}' not found")
+    shadow = data.get("shadow")
 
-#    _LOGGER.debug("icon found")
+    _LOGGER.debug("read image from instance")
 
-#    svg_data = svg_data.replace('fill="currentColor"', f'fill="{icon_color}"')                  # Farbe ersetzen (im SVG alle fill="" Attribute anpassen)
-#    _LOGGER.debug("changed icon color to {icon_color}")
-#    png_bytes = cairosvg.svg2png(bytestring=svg_data, output_width=size, output_height=size)      # Mit CairoSVG in PNG rendern (als Bytes)
-#    _LOGGER.debug("rendered to PNG")
-#    img = Image.open(io.BytesIO(png_bytes)).convert("RGB")                      # In PIL laden
-#    _LOGGER.debug("loaded in IMG")
-#    img = img.rotate(rotation)
-#    _LOGGER.debug(f"rotated {rotation} degrees")
-#    bg = Image.new("RGB", img.size, bg_color)                                   # Hintergrundfarbe anwenden
-#    _LOGGER.debug("created new background image")
-#    bg.paste(img, mask=None)
-#    _LOGGER.debug("pasted IMG into background image")
-#    rgb_data = bg.tobytes()  # → R, G, B Bytefolge (RGB888)                     # RGB888 Bytes extrahieren
+    shadow.paste(icon, (xs, ys), icon)   # 3. Parameter geht nur wenn das Bild einen Alphakanal hat
+
+    _LOGGER.debug("pasted icon into instance")
     
-
-    # Save the image
-    try:
-        _LOGGER.debug(f"Saving icon to {const.IMG_PATH}")
-        await asyncio.to_thread(lambda: img.save(const.IMG_PATH / "icon.bmp"))
-    except Exception as e:
-        _LOGGER.error(f"[{const.DOMAIN}] error while saving the icon to {const.IMG_PATH}: {e}")
-
-    # Save the modified image
-    try:
-        img.save("icon.bmp")
-    except Exception as e:
-        _LOGGER.error(f"[{const.DOMAIN}] error while saving the icon: {e}")
-
-    px = size * size
-    rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
-    _LOGGER.debug(f"expected icon size from coordinates should be {size}x{size} = {px} px. RGB888 = {rgb888} bytes")
-    hex_str = " ".join(f"{b:02X}" for b in rgb_data[:40])
-    _LOGGER.debug(f"prepared {len(rgb_data)} icon bytes for {serial_port}: {hex_str} [...]")
-
-    await set_orientation(hass, serial_number, 2)
-
-    try:
-        await send_bitmap(hass, serial_number, x_position, y_position, x_position + size, y_position + size, bytes(rgb_data))
-    except Exception as e:
-        _LOGGER.error(f"[{const.DOMAIN}] error while sending the icon: {e}")
+    await send_screen(hass, serial_number)
 
 
 #************************************************************************
@@ -658,34 +699,12 @@ async def draw_line(hass, serial_number, xs, ys, xe, ye, l_color = (255, 255, 25
 
     _LOGGER.debug(f"l_color_after = {l_color}")
 
-    # Bereich berechnen
-#    min_x = min(x1, x2)
-#    max_x = max(x1, x2)
-#    min_y = min(y1, y2)
-#    max_y = max(y1, y2)
-
-#    min_x = min(xs, xe)
-#    max_x = max(xs, xe)
-#    min_y = min(ys, ye)
-#    max_y = max(ys, ye)
-#    width = max_x - min_x + 1
-#    height = max_y - min_y + 1
-
-#    _LOGGER.debug(f"calculated area: min_x = {min_x}, max_x = {max_x}, min_y = {min_y}, max_y = {max_y}, width = {width}, height = {height}")
-
-#    if l_color == (0, 0, 0):
-#        l_color = (1, 1, 1)
-#        _LOGGER.debug("needed to switch to safe color mode, due to a black line")
-
-    # Instanzbild holen
-#    img = Image.new("RGB", (width, height), (0, 0, 0))
     img = data.get("shadow")
     draw = ImageDraw.Draw(img)
 
     _LOGGER.debug("read image from instance")
 
     # Linie mit angepassten Koordinaten zeichnen
-#    draw.line([(xs - min_x, ys - min_y), (xe - min_x, ye - min_y)], fill = l_color, width = l_width)
     draw.line([(xs, ys), (xe, ye)], fill = l_color, width = l_width)
 
     _LOGGER.debug("drew the line")
@@ -709,7 +728,7 @@ async def draw_line(hass, serial_number, xs, ys, xe, ye, l_color = (255, 255, 25
 # o: circle-frame width, default = 1
 # o: ellipse, set to radius if not given
 #************************************************************************
-async def draw_circle(hass, serial_number, xp, yp, r, c_color = (255, 255, 255), f_color = (255, 0, 0), cf_width = 0, e = None, range_check = True):
+async def draw_circle(hass, serial_number, xp, yp, r, c_color = (255, 255, 255), f_color = (255, 0, 0), cf_width = 0, e = None):
     _LOGGER.info("draw a circle ...")
 
     data = hass.data[const.DOMAIN][serial_number]
@@ -738,14 +757,6 @@ async def draw_circle(hass, serial_number, xp, yp, r, c_color = (255, 255, 255),
 
     _LOGGER.debug(f"calculated where to place the circle: xs={xs}, ys={ys}, xe={xe}, ye={ye}")
 
- #   if range_check:                                                                       # check for ranges out-of-display
- #       xs = max(xs, 0)
- #       ys = max(ys, 0)
- #       xe = min(width, xe)
- #       ye = min(height, ye)
-
-#        _LOGGER.debug(f"corrected where to place the circle image: xs={xs}, ys={ys}, xe={xe}, ye={ye}")
-
     # Schattenbild abholen
     img = data.get("shadow")
     draw = ImageDraw.Draw(img)
@@ -753,7 +764,6 @@ async def draw_circle(hass, serial_number, xp, yp, r, c_color = (255, 255, 255),
     _LOGGER.debug("fetched image from instance")
 
     # Kreis zeichnen
-#    draw.ellipse((0, 0, r * 2, e * 2), outline = c_color, width = cf_width, fill = f_color)                                   # Äußerer Kreis
     draw.ellipse((xs, ys, xe, ye), outline = c_color, width = cf_width, fill = f_color)
 
     _LOGGER.debug("drew the circle")
@@ -781,27 +791,19 @@ async def draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width = 1, rf_c
 
     data = hass.data[const.DOMAIN][serial_number]
 
-    if f_color is None:
-        f_color = rf_color
-        _LOGGER.debug("no value given for fill-color, taking rectangle-frame-color for filling")
-
     # Konvertiere mögliche Stringfarben in RGB-Tupel
-    rf_color = normalize_color(rf_color)                     
-    f_color = normalize_color(f_color)
+    if rf_width is None:
+        _LOGGER.debug(f"set rectangle-frame-width to {rf_width} as no parameter is given")
+        rf_width = 1
+    if rf_color is None:
+        rf_color = (255, 255, 255)
+        _LOGGER.debug(f"set rectangle-frame-color to {rf_color} as no parameter is given")
+    else:
+        rf_color = normalize_color(rf_color)
+    if f_color is not None:
+        f_color = normalize_color(f_color)
 
-    _LOGGER.debug(f"colors after normalize: rectangle-frame-color={rf_color}, fill-color={f_color}")
-
-    if xe < xs:
-        xs, xe = xe, xs
-        _LOGGER.debug(f"needed to swap x-coordinates to x-start={xs}, x-end={xe}")
-    if ye < ys:
-        ys, ye = ye, ys
-        _LOGGER.debug(f"needed to swap y-coordinates to y-start={ys}, y-end={ye}")
-
-    width = abs(xe - xs + 1)
-    height = abs(ye - ys + 1)
-
-    _LOGGER.debug(f"calculated width x height = {width}x{height} with rf-width={rf_width}")
+    _LOGGER.debug(f"colors after normalize: rectangle-frame-color={rf_color}, fill-color={f_color} + rectangle-frame-width={rf_width}")
 
     # Schattenbild abholen
     img = data.get("shadow")
@@ -810,7 +812,9 @@ async def draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width = 1, rf_c
     _LOGGER.debug("fetched image from instance")
 
     # Rahmen & Füllung zeichnen
-    draw.rectangle((xs, ys, xe, ye), width = rf_width, outline = rf_color, fill = f_color)
+    draw.rectangle((xs, ys, xe, ye), width = rf_width, outline = rf_color)
+    if f_color is not None:
+        draw.rectangle((xs + rf_width, ys + rf_width, xe - rf_width, ye - rf_width), fill = f_color)
 
     await send_screen(hass, serial_number)
 
@@ -828,100 +832,46 @@ async def draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width = 1, rf_c
 # m: Y2
 # m: X3
 # m: Y3
-# o: background-color, default = black (0, 0, 0)
 # o: triangle-color, default = white (255, 255, 255)
-# o: fill-color, default = None, if no value given, same as the border
-# o: triangle-frame width, default = 1
+# o: triangle-frame-color, default = None, if no value given, same as the border
+# o: triangle-frame width, default = None
 #************************************************************************
-#def draw_triangle(draw, xa, ya, xb, yb, xc, yc, outline_color=(255,255,255), fill_color=None, width=1):
-#        await draw_triangle( bg_color, t_color, f_color, tf_width, xa, ya, xb, yb, xc, yc)
-#def draw_triangle(hass, SERIAL, xa, ya, xb, yb, xc, yc, outline_color=(255,255,255), fill_color=None, width=1):
-async def draw_triangle(hass, serial_number, xa, ya, xb, yb, xc, yc, bg_color = (0, 0, 0), t_color = (255,255,255), f_color = None, tf_width = 1):
-    """
-    Zeichnet ein Dreieck mit Rahmen und optionaler Füllung.
-    
-    draw: PIL.ImageDraw.Draw-Objekt
-    xa, ya, xb, yb, xc, yc: Koordinaten der drei Punkte
-    bg_color: Farbe des Hintergrundes (tuple RGB)
-    t_color: Farbe des Rahmens (tuple RGB)
-    f_color: Füllfarbe (tuple RGB) oder None
-    tf_width: Dreieck-Rahmenbreite
-    """
+async def draw_triangle(hass, serial_number, xa, ya, xb, yb, xc, yc, t_color = None, tf_color = None, tf_width = None):
     _LOGGER.info("draw a triangle ...")
 
     data = hass.data[const.DOMAIN][serial_number]
-#    serial_port = data.get("serial_port")
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
-    bg_color = normalize_color(bg_color)                     
-    t_color = normalize_color(t_color)
-    f_width = normalize_color(f_width)
+    if tf_width is None:
+        tf_width = 0
+    if t_color is None:
+        t_color = (255, 255, 255)
+        _LOGGER.debug(f"set triangle-color to {t_color} as no parameter is given")
+    else:
+        t_color = normalize_color(t_color)
+    if tf_color is None:
+        tf_color = (0, 0, 0)
+        _LOGGER.debug(f"set triangle-frame-color to {tf_color} as no parameter is given")
+    else:
+        tf_color = normalize_color(tf_color)
 
-    _LOGGER.debug(f"colors after normalize: background-color={bg_color}, triangle-color={t_color}, frame-color={f_color} + triangle-frame-width={tf_width}")
+    _LOGGER.debug(f"colors after normalize: triangle-color={t_color}, triangle-frame-color={tf_color} + triangle-frame-width={tf_width}")
 
-#    points = [(xa, ya), (xb, yb), (xc, yc)]
-#    draw.polygon(points, outline=outline_color, fill=fill_color)
-#    if width > 1:
-#        # Rahmen mehrfach zeichnen für breiteren Rand
-#        for i in range(1, width):
-#            draw.polygon(
-#                [(xa+i, ya+i), (xb+i, yb+i), (xc+i, yc+i)],
-#                outline=outline_color
-#            )
-
-
-              #          outline_color=(255,255,255),
-              #          fill_color=None, width=1):
-
-    # 1️⃣ Bereich berechnen
-    min_x = min(xa, xb, xc)
-    max_x = max(xa, xb, xc)
-    min_y = min(ya, yb, yc)
-    max_y = max(ya, yb, yc)
-
-    width = max_x - min_x + 1
-    height = max_y - min_y + 1
-
-    _LOGGER.debug(f"limitations: min-X = {min_x}, max-X = {max_x}, min-Y = {min_y}, max-Y = {max_y}, width = {width}, height = {height}")
-
-    # Lokales Bild erzeugen
-#    img = Image.new("RGB", (w, h), (0, 0, 0))
-    img = Image.new("RGB", (width, height), bg_color)
+    # Schattenbild abholen
+    img = data.get("shadow")
     draw = ImageDraw.Draw(img)
+
+    _LOGGER.debug("fetched image from instance")
 
     # Koordinaten anpassen (verschieben)
     adj_points = [(xa - min_x, ya - min_y),
                   (xb - min_x, yb - min_y),
                   (xc - min_x, yc - min_y)]
-    draw.polygon(adj_points, outline = t_color, fill = f_color)
+    draw.polygon(adj_points, fill = t_color, outline = tf_color, width = tf_width)
 
-    _LOGGER.debug(f"polygon points: {adj_points}")
+    _LOGGER.debug(f"drew polygon points: {adj_points}")
 
-#    # Rahmen mehrfach zeichnen für breiteren Rand
-#    if width > 1:
-#        for i in range(1, width):
-#            draw.polygon([(xa+i, ya+i), (xb+i, yb+i), (xc+i, yc+i)], outline=t_color, fill = f_color)
-
-    # RGB-Daten erzeugen
-    img_bytes = img.tobytes()
-
-    # Save the image
-    try:
-        _LOGGER.debug(f"Saving triangle to {const.IMG_PATH}")
-        await asyncio.to_thread(lambda: img.save(const.IMG_PATH / "triangle.bmp"))
-    except Exception as e:
-        _LOGGER.error(f"[{const.DOMAIN}] error while saving the triangle to {const.IMG_PATH}: {e}")
-
-#    _LOGGER.debug(f"triangle has a size of {width}x{height} pixels")
-    px = width * height
-    rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
-    _LOGGER.debug(f"expected triangle size from coordinates should be {width}x{height} = {px} px. RGB888 = {rgb888} bytes")
-    hex_str = " ".join(f"{b:02X}" for b in img_bytes[:40])
-    _LOGGER.debug(f"prepared {len(img_bytes)} triangle bytes for {serial_port}: {hex_str} [...]")
-
-    # An Display senden (nur relevanten Bereich)
-    await set_orientation(hass, serial_port, 2)
-    await send_bitmap(hass, serial_port, min_x, min_y, max_x, max_y, img_bytes)
+    await send_screen(hass, serial_number)
 
 
 #************************************************************************
@@ -930,6 +880,7 @@ async def draw_triangle(hass, serial_number, xa, ya, xb, yb, xc, yc, bg_color = 
 # writes a text
 #************************************************************************
 # rotate from: https://stackoverflow.com/questions/45179820/draw-text-on-an-angle-rotated-in-python
+# or           https://stackoverflow.com/questions/245447/how-do-i-draw-text-at-an-angle-using-pythons-pil
 #************************************************************************
 # m: hass
 # m: serial_number
@@ -944,21 +895,26 @@ async def draw_triangle(hass, serial_number, xa, ya, xb, yb, xc, yc, bg_color = 
 # o: rotation
 #************************************************************************
 #async def write_text(hass, serial_port, text, xs, ys, font_size = 15, font = None, align = "left", t_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
-async def write_text(hass, serial_number, text, xs, ys, xe, ye = None, font_size = 15, t_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
+#async def write_text(hass, serial_number, text, xs, ys, xe, ye = None, font_size = 15, t_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
+#async def write_text(hass, serial_number, text, xs, ys, xe, ye = None, font_size = 15, t_color = None, bg_color = None, rotation = 0):
+async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, t_color = None, bg_color = None, rotation = 0):
     _LOGGER.debug(f"writing some text with values given: serial-number={serial_number}, text={text}, xs={xs}, ys={ys}, xe={xe}, ye={ye}, font-size={font_size}, text-color={t_color}, background-color={bg_color}, rotation={rotation}")
 
     data = hass.data[const.DOMAIN][serial_number]
-#    serial_port = data.get("serial_port")
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
-    bg_color = normalize_color(bg_color)                     
-    t_color = normalize_color(t_color)
+    if t_color is None:
+        t_color = (255, 255, 255)
+        _LOGGER.debug(f"set text-color to {t_color} as no parameter is given")
+    else:
+        t_color = normalize_color(t_color)
+    if bg_color is None:
+        bg_color = (0, 0, 0)
+        _LOGGER.debug(f"set background-color to {bg_color} as no parameter is given")
+    else:
+        bg_color = normalize_color(bg_color)
 
     _LOGGER.debug(f"colors after normalize: background-color={bg_color}, text-color={t_color}")
-
-    if ye is None:
-        ye = ys + font_size + 2
-        _LOGGER.debug(f"no value given for y-end, calculated from font-size: y-end={ye}")
 
     # Textgröße berechnen
 #    lines = text.splitlines() or [text]
@@ -1004,9 +960,6 @@ async def write_text(hass, serial_number, text, xs, ys, xe, ye = None, font_size
     await send_screen(hass, serial_number)
 
 
-
-
-
 #************************************************************************
 #        P R O G R E S S  B A R
 #************************************************************************
@@ -1029,12 +982,9 @@ async def write_text(hass, serial_number, text, xs, ys, xe, ye = None, font_size
 # o: rotation, default = 90
 #************************************************************************
 async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None, min_value=0, max_value=100, bf_width=1, bf_color=None, b_color=(255, 255, 255), bg_color=(0, 0, 0), rotation = 90, show_value=False, val_appendix=""):
-    _LOGGER.info(f"doing a progress with the values given: xs={xs}, ys={ys}, xe={xe}, ye={ye}, bar-value={bar_value}, min-value={min_value}, max-value={max_value}, bar-frame-width={bf_width}, bar-color={b_color}, bar-frame-color={bf_color}, background-color={bg_color}, rotation={rotation}, show-value={show_value}, value-appendix={val_appendix}")
+    _LOGGER.debug(f"doing a progress with the values given: xs={xs}, ys={ys}, xe={xe}, ye={ye}, bar-value={bar_value}, min-value={min_value}, max-value={max_value}, bar-frame-width={bf_width}, bar-color={b_color}, bar-frame-color={bf_color}, background-color={bg_color}, rotation={rotation}, show-value={show_value}, value-appendix={val_appendix}")
 
     data = hass.data[const.DOMAIN][serial_number]
-
-    if xe is None or ye is None:
-        raise ValueError("Either (xe, ye) or (width, height) must be provided")
 
     if bf_color is None:
         bf_color = b_color
@@ -1121,7 +1071,6 @@ async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None,
 #    _LOGGER.debug(f"rotated the image for {rotation} degrees")
 
     await send_screen(hass, serial_number)
-
 
 
 #************************************************************************
@@ -1245,3 +1194,5 @@ async def generate_qr(hass, serial_number, data, xs, ys, show_data=False, qr_col
     # zeichne ins display
 #finally:
 #    display.busy = False
+
+

@@ -1,24 +1,18 @@
-DOMAIN = "weact_display"
-DEFAULT_PORT = "/dev/ttyACM0"
-DEFAULT_PORT = "port: /dev/serial/by-id/usb-WeAct_Studio_Display_FS_0.96_Inch_addec74db14d-if00"
-DEFAULT_BAUDRATE = 115200
+from pathlib import Path
 
+DOMAIN = "weact_display"
 IMG_PATH = None
 MAX_BMP_FILES = 20
-#IMG_PATH = Path(hass.config.path()) / "custom_components" / "weact_display"
-
-#ATTR_WIDTH = "width"
-#ATTR_HEIGHT = "height"
-#ATTR_ORIENTATION = "orientation"
-#ATTR_IMAGE_PATH = "image_path"
-
-#ATTR_CLOCK_MODE = "clock_mode"
-#CLOCK_REMOVE_HANDLE = None
-#DEFAULT_CLOCK_MODE = "idle"
+MAX_SVG_FILES = 100
+BASE_PATH = Path(__file__).parent
+IMG_PATH = BASE_PATH / "bmp"
+ICON_CACHE_DIR = BASE_PATH / "icons"
+MDI_BASE_URL = "https://raw.githubusercontent.com/Templarian/MaterialDesign-SVG/master/svg"
 
 ORIENTATION_NAMES = {
-    0: "Landscape",
-    1: "Portrait",
-    2: "Landscape Reverse",
-    3: "Portrait Reverse"
+    0: "Portrait",
+    1: "Portrait Reverse",
+    2: "Landscape",
+    3: "Landscape Reverse",
+    5: "Rotate"
 }

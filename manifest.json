@@ -1,12 +1,13 @@
 {
   "domain": "weact_display",
   "name": "WeAct Display for HA",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "documentation": "https://github.com/rossi75/WeAct4HA",
   "requirements": [
 	"qrcode",
     "pyserial>=3.5",
-    "Pillow>=10.0.0"
+    "Pillow>=10.0.0",
+    "svgpathtools==1.6.0"
   ],
   "codeowners": ["@rossi75"],
   "iot_class": "local_push",
