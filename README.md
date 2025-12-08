@@ -176,7 +176,6 @@ hass.data[weact_display][serial_number]
 
 ### Orientation Settings:
 
-|                   | Orientation |
 | Orientation       | Value       |
 |-------------------|-------------|
 | PORTRAIT          | 0           |
@@ -184,3 +183,4 @@ hass.data[weact_display][serial_number]
 | LANDSCAPE         | 2           |
 | REVERSE_LANDSCAPE | 3           |
 | ROTATE            | 5           |
+
