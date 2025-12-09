@@ -114,7 +114,7 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
     _LOGGER.debug("analog clock...")
 
 #    from .commands import set_orientation, normalize_color, send_screen
-    from .commands import normalize_color
+    from .commands import normalize_color, send_screen
 
     data = hass.data[const.DOMAIN][serial_number]
     d_width = data.get("width")
