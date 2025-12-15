@@ -64,15 +64,14 @@ class WeActDisplaySensor(SensorEntity):
     def extra_state_attributes(self):
         data = self._hass.data[const.DOMAIN][self._serial_number]
         attr = {
-            "port": data.get("port"),                                        # only friendly name, not serial_port with its attributes !!
+            "port": data.get("port"),                      #                  # only friendly name, not serial_port with its attributes !!
             "model": data.get("model"),
             "serial_number": data.get("serial_number"),
-            "start_time": data.get("start_time"),
+            "start_time": data.get("start_time"),          #
             "width": data.get("width"),
             "height": data.get("height"),
             "orientation": data.get("orientation"),
-            "humiture": data.get("humiture"),
-#            "lock": data.get("lock"),
+            "humiture": data.get("humiture"),              #
             "clock_mode": data.get("clock_mode")
         }
         if data.get("humiture") is True:
@@ -82,6 +81,6 @@ class WeActDisplaySensor(SensorEntity):
 #        if _LOGGER.getEffectiveLevel() == logging.DEBUG:
 #            attr["port"] = data.get("port")                                        # only friendly name, not serial_port with its attributes !!
 #            attr["start_time"] = data.get("start_time")
+#            attr["orientation_value"] = data.get("orientation_value")
 #            attr["humiture"] = data.get("humiture")
-#            attr["lock"] = data.get("lock")
         return attr

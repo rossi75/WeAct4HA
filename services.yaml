@@ -39,7 +39,7 @@ write_text:
         number:
           unit_of_measurement: "pixels"
           min: 5
-          max: 319
+          max: 1000
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
 #    font:
@@ -52,7 +52,7 @@ write_text:
       selector:
         number:
           min: 0
-          max: 319
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     y_start:
@@ -83,7 +83,7 @@ write_text:
       selector:
         number:
           min: 0
-          max: 319
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     rotation:
@@ -162,7 +162,7 @@ draw_progress_bar:
       selector:
         number:
           min: 0
-          max: 319
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     x_end:
@@ -182,7 +182,7 @@ draw_progress_bar:
       selector:
         number:
           min: 0
-          max: 319
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     rotation:
@@ -252,7 +252,7 @@ draw_circle:
       selector:
         number:
           min: 0
-          max: 319
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     radius:
@@ -334,7 +334,7 @@ draw_rectangle:
       selector:
         number:
           min: 0
-          max: 319
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     x_end:
@@ -356,7 +356,7 @@ draw_rectangle:
       selector:
         number:
           min: 0
-          max: 319
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     rf_width:
@@ -415,7 +415,7 @@ draw_line:
       selector:
         number:
           min: 0
-          max: 319
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     xe_position:
@@ -437,7 +437,7 @@ draw_line:
       selector:
         number:
           min: 0
-          max: 319
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     l_color:
@@ -487,7 +487,7 @@ draw_triangle:
       selector:
         number:
           min: 0
-          max: 319
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     xb_position:
@@ -507,7 +507,7 @@ draw_triangle:
       selector:
         number:
           min: 0
-          max: 319
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     xc_position:
@@ -527,7 +527,7 @@ draw_triangle:
       selector:
         number:
           min: 0
-          max: 319
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     t_color:
@@ -662,7 +662,7 @@ start_digital_clock:
       selector:
         number:
           min: 0
-          max: 319
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     digit_size:
@@ -672,7 +672,7 @@ start_digital_clock:
       selector:
         number:
           min: 5
-          max: 319
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     d_color:
@@ -854,7 +854,7 @@ generate_qr:
       selector:
         number:
           min: 0
-          max: 319
+          max: 479
           mode: slider  # alternativ 'box' für Eingabefeld
     show_data:
       name: Show data under QR
@@ -921,7 +921,7 @@ show_icon:
         number:
           unit_of_measurement: "pixels"
           min: 0
-          max: 319
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     icon_size:
@@ -933,7 +933,7 @@ show_icon:
         number:
           unit_of_measurement: "pixels"
           min: 8
-          max: 320
+          max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     rotation:

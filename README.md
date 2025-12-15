@@ -19,6 +19,7 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 - draw a progress bar
 - show an analog clock
 - show a digital clock
+- draws an icon
 
 ## restrictions
 - new draw/write actions only overwrite the specified area, they do not delete the whole screen. To clear the screen
@@ -28,6 +29,13 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 - integration does not start up if NO display is being recognized
 
 # changelog
+
+## V0.4.3 - 15.12.2025
+- fixed icon with native code
+- fixed services.yaml to allow x- and y-values to 479
+- display lock activated while sending
+- serial read without CPU blocking
+- enabled logrotate for SVG, 100 files in CONST.PY, destination is ../icons/
 
 ## V0.4.2 - 30.11.-08.12.2025
 - start humiture report after startup for reporting every 60 seconds, only if model supports it, native Bytes can
@@ -39,14 +47,16 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 - offset hours for analog and digital clock
 - icon works, but is a bit scrappy.... will be fixed soon
 - stabilized rectangle function
+- CPU load +25% due to serial RX if FS V1 is connected, since 
 
 ## V0.4.1 - 27.11.2025
 - corrected analog clock (the dot was the issue)
 - corrected progress bar (missing last lines as big as the frame-width), no value, no rotation
 - digital clock working, no rotation
 - disabled hard-coded landscape mode [2], set as default at startup
-- max 20 files in .../bmp/ (max 10 MB)
+- enabled logrotate for BMP, 100 files in CONST.PY, destination is ../bmp/
 - brightness is set at startup (to 10)
+- enabled temperature and humidity reading
 
 ## V0.4.0 - 20.-25.11.2025
 - multiple display support, need to mandatory select the display entity for every command
@@ -132,7 +142,6 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 - communication for full size one color is working
 
 ### ToDo
-- start digital clock (later with offset +- for hours)
 - send_picture from file (pos, size, orientation, shift, ...)
 - draw triangle
 - barcode
@@ -142,33 +151,38 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 - do not crash at startup with no display detected
 - function for send simple commands
 - parameter for supressing direct upload the whole memory for all draw functions
-- enable temperature and humidity reading
-
+- text rotation
+- progress bar value
+- progress bar rotate
+- testbild
+- bitmap
+- digital clock rotate
+- analog clock rotate
 
 ### internal structure:
 
 hass.data[weact_display][serial_number]
 
-| Instance          | Data Type | Default Value | Sensor/Attribute | Description                                              |
-|-------------------|-----------|---------------|------------------|----------------------------------------------------------|
-| << state >>       | String    | initializing  |                   | [initializing\|port error\|ready]                        |
-| serial_port       | String    |               |                   | Serial Port description from HA                          |
-| port              | String    |               | port**            | friendly name from serial port                           |
-| model             | String    |               | model             |                                                          |
-| serial_number     | String    |               | serial_number     | part of the sensors name and unique ID                   |
-| start_time        | Date Time | init D/T      | start_time**      |                                                          |
-| width             | Integer   | None          | width             |                                                          |
-| height            | Integer   | None          | height            |                                                          |
-| orientation_value | Integer   | None          |                   | [0\|1\|2\|3]                                             |
-| orientation       | String    | None          | orientation       | [landscape\|portrait\|landscape reverse\|portrait]       |
-| humiture          | Boolean   | False         | humiture**        | Humiture Sensor available? [false\|true]                 |
-| humidity          | Integer   | None          | humidity*         |                                                          |
-| temperature       | Integer   | None          | temperature*      |                                                          |
-| temperature_unit  | String    | °C            | temperature_unit* |                                                          |
-| clock_handle      | Function  | None          |                   |                                                          |
-| clock_mode        | String    | idle          | clock_mode        | [idle\|analog\|digital\|rheinturm]                       |
-| lock              | Function  | function      |                   | used for while an image is being send, avoids collisions |
-| shadow            | Image     | 0x000000...   |                   | width * height * 3, the BMP itself                       |
+| Instance          | Data Type | Default Value | Sensor/Attribute    | Description                                                |
+|-------------------|-----------|---------------|---------------------|------------------------------------------------------------|
+| << state >>       | String    | initializing  |                     | [initializing\|port error\|timeout error\|ready\|busy]     |
+| serial_port       | String    |               |                     | Serial Port description from HA                            |
+| port              | String    |               | port**              | friendly name from serial port                             |
+| model             | String    |               | model               |                                                            |
+| serial_number     | String    |               | serial_number       | part of the sensors name and unique ID                     |
+| start_time        | Date Time | init D/T      | start_time**        |                                                            |
+| width             | Integer   | None          | width               |                                                            |
+| height            | Integer   | None          | height              |                                                            |
+| orientation_value | Integer   | None          | orientation_value** | [0\|1\|2\|3]                                               |
+| orientation       | String    | None          | orientation         | [Portrait\|Reverse Portrait\|landscape\|Reverse landscape] |
+| humiture          | Boolean   | False         | humiture**          | Humiture Sensor available? [False\|True]                   |
+| humidity          | Integer   | None          | humidity*           |                                                            |
+| temperature       | Integer   | None          | temperature*        |                                                            |
+| temperature_unit  | String    | °C            | temperature_unit*   |                                                            |
+| clock_handle      | Function  | None          |                     |                                                            |
+| clock_mode        | String    | idle          | clock_mode          | [idle\|analog\|digital\|rheinturm]                         |
+| lock              | Function  | function      |                     | used for while an image is being send, avoids collisions   |
+| shadow            | Image     | 0x000000...   |                     | width * height * 3, the BMP itself                         |
 
 \* only available if humiture sensor is also available
 ** later only if debug mode is set at startup
@@ -183,4 +197,3 @@ hass.data[weact_display][serial_number]
 | LANDSCAPE         | 2           |
 | REVERSE_LANDSCAPE | 3           |
 | ROTATE            | 5           |
-

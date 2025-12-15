@@ -195,7 +195,6 @@ async def async_setup(hass: HomeAssistant, config):
     # Service: Zufallsbild anzeigen
     # --------------------------------------------------------
     async def handle_show_random(call: ServiceCall):
-        """Erzeugt ein zufälliges Bitmap und sendet es an das Display."""
         _LOGGER.debug("called service for random bmp")
         
         device = call.data.get("display", None)
@@ -217,7 +216,6 @@ async def async_setup(hass: HomeAssistant, config):
     # Service: Selbsttest aufrufen
     # --------------------------------------------------------
     async def handle_start_selftest(call: ServiceCall):
-        """startet den Selbsttest wie bei der Initialisierung"""
         _LOGGER.debug("called service for display selftest")
 
         device = call.data.get("display", None)
@@ -239,7 +237,6 @@ async def async_setup(hass: HomeAssistant, config):
     # Service: Display Neustart
     # --------------------------------------------------------
     async def handle_restart_display(call: ServiceCall):
-        """startet das Display neu"""
         _LOGGER.debug("called service for display restart")
         
         device = call.data.get("display", None)
@@ -277,7 +274,6 @@ async def async_setup(hass: HomeAssistant, config):
     # Service: Ausrichtung setzen
     # --------------------------------------------------------
     async def handle_set_orientation(call: ServiceCall):
-        """legt die Ausrichtung fest"""
         _LOGGER.debug("called service for orientation")
  
         device = call.data.get("display", None)
@@ -437,7 +433,6 @@ async def async_setup(hass: HomeAssistant, config):
         cf_width = call.data.get("cf_width")
         offset_hours = call.data.get("offset")
         digit_size = call.data.get("digit_size")
-#        font = call.data.get("font", None)
         rotation = call.data.get("rotation", None)
 
         # entity registry lookup
@@ -497,10 +492,8 @@ async def async_setup(hass: HomeAssistant, config):
         entry = registry.async_get(device)
         serial_number = entry.unique_id
 
-#       _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, icon-name={i_name}, bg-color={bg_color}, icon-color={i_color}, x-start={xs}, y-start={ys}, size={i_size}, rotation={rotation}")
         _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, icon-name={i_name}, icon-color={i_color}, x-start={xs}, y-start={ys}, size={i_size}, rotation={rotation}")
 
-#       await show_icon(hass, serial_number, i_name = i_name, bg_color = bg_color, i_color = i_color, xs = xs, ys = ys, i_size = i_size, rotation = rotation)
         await show_icon(hass, serial_number, i_name = i_name, i_color = i_color, xs = xs, ys = ys, i_size = i_size, rotation = rotation)
 
     hass.services.async_register(const.DOMAIN, "show_icon", handle_show_icon)
@@ -700,7 +693,6 @@ async def async_setup(hass: HomeAssistant, config):
     return True
 
 
-
 #async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
 #    from .clock import stop_clock#
 
@@ -740,20 +732,22 @@ def start_serial_reader_thread(hass, serial_number):
 
         while True:
             try:
-                if serial_port.in_waiting > 0:
-                    data = serial_port.read(serial_port.in_waiting)
+                data = serial_port.read(64)   # blockiert bis timeout oder Daten
+                if not data:
+                    continue  # Timeout → ruhig weiter
 
-                    _LOGGER.debug(f"RX [{serial_number}]: {data.hex(' ')}")                       # Zeige rohe Daten an (Hex + ASCII)
+                _LOGGER.debug(f"RX [{serial_number}]: {data.hex(' ')}")                       # Zeige rohe Daten an (Hex + ASCII)
 
-                    parsed = parse_humiture_packet(data)
-                    if parsed:
-                        temperature, humidity = parsed
-                        device["temperature"] = int(temperature)
-                        device["humidity"] = int(humidity)
+                parsed = parse_humiture_packet(data)
+                if parsed:
+                    temperature, humidity = parsed
+                    device["temperature"] = int(temperature)
+                    device["humidity"] = int(humidity)
 
-                        _LOGGER.info(f"Humiture values for serial {serial_number}: {temperature:.2f} °C, {humidity:.2f} %")
-                    else:
-                        _LOGGER.warning(f"could not parse the packet {data.hex(' ')} on port {serial_port}")
+                    _LOGGER.info(f"Humiture values for serial {serial_number}: {temperature:.2f} °C, {humidity:.2f} %")
+                else:
+                    _LOGGER.warning(f"could not parse the packet {data.hex(' ')} on port {serial_port}")
+
             except Exception as e:
                 _LOGGER.error(f"Thread error for serial-port {serial_port}: {e}")
                 break

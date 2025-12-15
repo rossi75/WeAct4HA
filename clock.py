@@ -113,7 +113,6 @@ async def _start_rheinturm_clock(hass, serial_number, **kwargs):
 async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None, m_color = None, scf_color = None, offset_hours = 0, scale_size = None, h_shift = 0, v_shift = 0, rotation = 0):
     _LOGGER.debug("analog clock...")
 
-#    from .commands import set_orientation, normalize_color, send_screen
     from .commands import normalize_color, send_screen
 
     data = hass.data[const.DOMAIN][serial_number]
@@ -196,8 +195,8 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
     hy = int(cy + hour_length * math.sin(math.radians(hour_angle)))
     mx = int(cx + minute_length * math.cos(math.radians(minute_angle)))
     my = int(cy + minute_length * math.sin(math.radians(minute_angle)))
-    draw.line((cx, cy, hx, hy), fill = h_color, width = scale_size // 25)             # Stundenzeiger
     draw.line((cx, cy, mx, my), fill = m_color, width = scale_size // 40)             # Minutenzeiger
+    draw.line((cx, cy, hx, hy), fill = h_color, width = scale_size // 25)             # Stundenzeiger
     _LOGGER.debug(f"center: cx={cx}, cy={cy}, pointers endpoints: hx={hx}, hy={hy}, mx={mx}, my={my}")
 
     # Mittelpunkt zeichnen

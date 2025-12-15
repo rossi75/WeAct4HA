@@ -212,13 +212,6 @@ async def set_brightness(hass, serial_number, brightness):
     _LOGGER.debug("setting volume [brightness]...")
 
     data = hass.data[const.DOMAIN][serial_number]
-#    state = data.get("state")
-#    if state is "busy":
-#        _LOGGER.debug("Display busy, waiting 3 seconds")
-#        return
-#    state = busy
-#    display.busy = True
-
     serial_port = data.get("serial_port")
     if not serial_port:
         _LOGGER.warning("Display not connected")
@@ -372,7 +365,6 @@ def parse_humiture_packet(packet: bytes):
 # m: data_888, RGB888-data
 #************************************************************************
 async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
-    """Sendet ein Bitmap an das Display (CMD 0x05)."""
     _LOGGER.debug("finally sending bitmap...")
 
     data = hass.data[const.DOMAIN][serial_number]
@@ -410,6 +402,12 @@ async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
         data_565.append(rgb565 & 0xFF)
         data_565.append((rgb565 >> 8) & 0xFF)
 
+
+    if not await _wait_for_display(hass, serial_number):
+        _LOGGER.error(f"seems that display {serial_number} is permanently blocked. Please restart integration")
+        return
+
+
     hex_str = " ".join(f"{b:02X}" for b in header)
     _LOGGER.debug(f"need to send {len(header)} header bytes for {serial_number}: {hex_str}")
     hex_str = " ".join(f"{b:02X}" for b in data_565[:40])
@@ -427,8 +425,37 @@ async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
         await hass.async_add_executor_job(serial_port.write, chunk)
         await hass.async_add_executor_job(serial_port.flush)
         await asyncio.sleep(0.001)  # kleine Pause zwischen den Chunks
+    _release_display(hass, serial_number)
 
     _LOGGER.debug(f"Sent {len(data_565)} bytes in chunks of {CHUNK_SIZE} bytes")
+
+
+async def _wait_for_display(hass, serial_number, timeout=5.0):
+    dev = hass.data[const.DOMAIN][serial_number]
+    lock = dev["lock"]
+
+    try:
+        await asyncio.wait_for(lock.acquire(), timeout=timeout)
+        dev["state"] = "busy"
+        _LOGGER.debug(f"locked display {serial_number}")
+    except asyncio.TimeoutError:
+        dev["state"] = "timeout error"
+        _LOGGER.error(f"{serial_number}: display busy timeout → switching to ERROR")
+        return False
+
+    # erfolgreich gelockt → Busy setzen
+    dev["state"] = "busy"
+    return True
+
+def _release_display(hass, serial_number):
+    dev = hass.data[const.DOMAIN][serial_number]
+    lock = dev["lock"]
+
+    if lock.locked():
+        lock.release()
+        _LOGGER.debug(f"released display {serial_number}")
+
+    dev["state"] = "ready"
 
 
 #************************************************************************
@@ -545,6 +572,7 @@ async def display_selftest(hass, serial_number: str):
 
     _LOGGER.debug("display selftest done")
 
+
 #************************************************************************
 #        R A N D O M  S C R E E N
 #************************************************************************
@@ -599,7 +627,6 @@ async def generate_random(hass, serial_number):
 async def show_init_screen(hass, serial_number):
     _LOGGER.debug("show up initial screen")
 
-#    data = self._hass.data[const.DOMAIN][serial_number].get(self._device_id, {})
     data = hass.data[const.DOMAIN][serial_number]
     serial_port = data.get("serial_port")
     if not serial_port:
@@ -637,7 +664,6 @@ async def show_init_screen(hass, serial_number):
 #************************************************************************
 # rotate from: https://stackoverflow.com/questions/45179820/draw-text-on-an-angle-rotated-in-python
 #************************************************************************
-#sync def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
 async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_color = (255, 255, 255), rotation = 0):
     _LOGGER.debug("show icon...")
 
@@ -649,16 +675,9 @@ async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_col
         _LOGGER.debug(f"set icon-color to {i_color} as no parameter is given")
     else:
         i_color = normalize_color(i_color)
-#   if bg_color is None:
-#       bg_color = (255, 255, 255)
-#       _LOGGER.debug(f"set background-color to {bg_color} as no parameter is given")
-#   else:
-#       bg_color = normalize_color(bg_color)
 
-#   _LOGGER.debug(f"colors after normalize: icon-color={i_color}, background-color={bg_color}")
     _LOGGER.debug(f"colors after normalize: icon-color={i_color}")
 
-#   icon = await load_icon(hass, i_name = i_name, i_size = i_size, i_color = i_color, bg_color = bg_color, rotation = rotation)
     icon = await load_icon(hass, i_name = i_name, i_size = i_size, i_color = i_color, rotation = rotation)
     icon = icon.convert("RGBA")
 
@@ -1118,13 +1137,11 @@ async def generate_qr(hass, serial_number, data, xs, ys, show_data=False, qr_col
     _LOGGER.debug(f"Selected QR version {version}")
 
     # Create 1px QR matrix
-#    qr_img = qr.make_image(fill_color="white", back_color="black")
     qr_img = qr.make_image(fill_color=qr_color, back_color=bg_color)
     qr_img = qr_img.convert("RGB")
 
     # Calculate pixel_size to fit in 80px
     modules = qr_img.size[0]
-#    total = modules + 8  # border*2
     total = modules + 2 # border*2
 
     max_pixel_size = 80 // total
