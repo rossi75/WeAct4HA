@@ -27,7 +27,7 @@ async def stop_clock(hass, serial_number):
         data["clock_mode"] = None
         _LOGGER.debug(f"deleted clock_handle")
     else:
-        _LOGGER.debug(f"unplanned call as no clock was active or planned call while startup")
+        _LOGGER.debug(f"unplanned stop-call as no clock was active or planned call while startup")
 
 
 async def start_analog_clock(hass, serial_number, **kwargs):
@@ -52,7 +52,7 @@ async def start_analog_clock(hass, serial_number, **kwargs):
     asyncio.create_task(_task())
 
     _LOGGER.debug(f"set clock-mode from {clock_mode} to {hass.data[const.DOMAIN][serial_number]["clock_mode"]}")
-    _LOGGER.warning("Analog clock update scheduled every minute")
+    _LOGGER.info("Analog clock update scheduled every minute")
 
 async def start_digital_clock(hass, serial_number, **kwargs):
 
@@ -70,7 +70,7 @@ async def start_digital_clock(hass, serial_number, **kwargs):
     hass.data[const.DOMAIN][serial_number]["clock_mode"] = "digital"
 
     _LOGGER.debug(f"set clock-mode from {clock_mode} to {hass.data[const.DOMAIN][serial_number]["clock_mode"]}")
-    _LOGGER.warning("Digital clock update scheduled every minute")
+    _LOGGER.info("Digital clock update scheduled every minute")
 
 async def _start_rheinturm_clock(hass, serial_number, **kwargs):
 
@@ -90,7 +90,7 @@ async def _start_rheinturm_clock(hass, serial_number, **kwargs):
     _LOGGER.debug(f"set clock-mode from {clock_mode} to {hass.data[const.DOMAIN][serial_number]["clock_mode"]}")
 
     _LOGGER.debug(f"set status to {CLOCK_MODE}")
-    _LOGGER.warning("Rheinturm update scheduled every second")
+    _LOGGER.info("Rheinturm update scheduled every second")
 
 
 #************************************************************************
@@ -276,7 +276,14 @@ async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_si
 #        ys = disp_h - dc_height
 
 #    _LOGGER.debug(f"values after vertical check: digital-clock-height={dc_height}, font-size={font_size}, Y-Start={ys}")
-    _LOGGER.debug(f"values after vertical check: digit-size={digit_size}, digital-clock-height={dc_height}, digital-clock-width={dc_width}")
+#    _LOGGER.debug(f"values after vertical check: digit-size={digit_size}, digital-clock-height={dc_height}, digital-clock-width={dc_width}")
+
+    if xs is None:
+        xs = (data.get("width") // 2) - dc_width - cf_width - 2
+    if ys is None:
+        ys = (data.get("height") // 2) - dc_height - cf_width - 2
+
+    _LOGGER.debug(f"values after vertical check: digit-size={digit_size}, digital-clock-height={dc_height}, digital-clock-width={dc_width}, xs={xs}, ys={ys}")
 
     # aktuelle Zeit holen
     now = datetime.now() + timedelta(hours=offset_hours)
@@ -304,7 +311,7 @@ async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_si
     text_h = bbox[3] - bbox[1]
 
     _LOGGER.debug(f"bbox: 0={bbox[0]}, 1={bbox[1]}, 2={bbox[2]}, 3={bbox[3]}")
-    _LOGGER.debug("text_w = [2] - [0] = {text_w}, text_h = [3] - [1] = {text_h}")
+    _LOGGER.debug(f"text_w = [2] - [0] = {text_w}, text_h = [3] - [1] = {text_h}")
 
 #    _LOGGER.debug(f"time-string dimensions: width={text_w}, height={text_h} px")
 

@@ -1,0 +1,18 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "WeAct Display",
+        "description": "Select the serial port of the display"
+      },
+      "confirm": {
+        "title": "Confirm",
+        "description": "Use serial port: {port}"
+      }
+    },
+    "abort": {
+      "no_serial_ports": "No serial ports found",
+      "cannot_read_serial": "Unable to read serial number from display"
+    }
+  }
+}

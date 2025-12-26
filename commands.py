@@ -45,11 +45,11 @@ import qrcode
 import custom_components.weact_display.const as const
 from PIL import Image, ImageDraw, ImageFont, ImageColor
 from datetime import datetime, timedelta
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.event import async_track_time_interval
 from pathlib import Path
 from .iconutils import load_icon
 from .models import DISPLAY_MODELS
-#from .const import MAX_BMP_FILES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -262,9 +262,10 @@ async def set_orientation(hass, serial_number, orientation_value):
         return
 
     hass.data[const.DOMAIN][serial_number]["orientation_value"] = orientation_value
-    hass.data[const.DOMAIN][serial_number]["orientation"] = const.ORIENTATION_NAMES[orientation_value]
+#    hass.data[const.DOMAIN][serial_number]["orientation"] = const.ORIENTATION_MAP[orientation_value]
 
-    _LOGGER.debug(f"new orientation: {data.get("orientation")} [{orientation_value}], {data.get("width")}x{data.get("height")} px")
+#    _LOGGER.debug(f"new orientation: {data.get("orientation")} [{orientation_value}], {data.get("width")}x{data.get("height")} px")
+    _LOGGER.debug(f"new orientation-value={orientation_value}, {data.get("width")}x{data.get("height")} px")
 
     packet = struct.pack(
         "<BBB",
@@ -295,7 +296,6 @@ async def enable_humiture_reports(hass, serial_number, time_interval = None):
 
     data = hass.data[const.DOMAIN][serial_number]
     serial_port = data.get("serial_port")
-    humiture = data.get("humiture")
     if not serial_port:
         _LOGGER.warning("Display not connected")
         return
@@ -318,37 +318,168 @@ async def enable_humiture_reports(hass, serial_number, time_interval = None):
 
     _LOGGER.debug("enabled humiture report")
 
+
+
 #************************************************************************
-#        H U M I T U R E  P A R S E R
+#        R E A D  F I R M W A R E  V E R S I O N
 #************************************************************************
-# parses the humiture reports from a display
-#    Erwartet ein Paket:
-#    [86] [T_low] [T_high] [H_low] [H_high] [0A]
+# reads firmware version from display
+#************************************************************************
+# m: hass
+# m: serial_number
+#************************************************************************
+async def read_firmware_version(hass, serial_number):
+    _LOGGER.debug("requesting firmware version")
+
+    data = hass.data[const.DOMAIN][serial_number]
+    serial_port = data.get("serial_port")
+    if not serial_port:
+        _LOGGER.warning("Display not connected")
+        return
+
+    packet = struct.pack(
+        "<BB",
+        0xC2, 0x0A
+    )
+
+    # das hier nachher in send_data verschieben
+    hex_str = " ".join(f"{b:02X}" for b in packet)
+    _LOGGER.debug(f"having {len(packet)} Bytes for {serial_number}: {hex_str}")
+
+    await hass.async_add_executor_job(serial_port.write, packet)
+    await asyncio.sleep(0.1)
+
+
+
+#************************************************************************
+#        R E A D  W H O  A M  I
+#************************************************************************
+# reads who-am-i description from display
+#************************************************************************
+# m: hass
+# m: serial_number
+#************************************************************************
+async def read_who_am_i(hass, serial_number):
+    _LOGGER.debug("requesting who-am-i from display")
+
+    data = hass.data[const.DOMAIN][serial_number]
+    serial_port = data.get("serial_port")
+    if not serial_port:
+        _LOGGER.warning("Display not connected")
+        return
+
+    packet = struct.pack(
+        "<BB",
+        0x81, 0x0A
+    )
+
+    # das hier nachher in send_data verschieben
+    hex_str = " ".join(f"{b:02X}" for b in packet)
+    _LOGGER.debug(f"having {len(packet)} Bytes for {serial_number}: {hex_str}")
+
+    await hass.async_add_executor_job(serial_port.write, packet)
+    await asyncio.sleep(0.1)
+
+
+#************************************************************************
+#        P A C K E T  P A R S E R
+#************************************************************************
+# parses the packets received from a display
+# [0x86] [T_low] [T_high] [H_low] [H_high] [0A]
 #************************************************************************
 # m: packet-Bytes
-# r: temp_celsius, humidity_percent or None if error
+# r: True if packet could be parsed, False if any error occured
 #************************************************************************
-def parse_humiture_packet(packet: bytes):
-    if len(packet) != 6:
-        return None
-    if packet[0] != 0x86:     # Startbyte prüfen
-        return None
-    if packet[5] != 0x0A:         # Endbyte prüfen
-        return None
+def parse_packet(hass, serial_number, packet: bytes):
+    # Mindestlänge: Start + Endbyte
+    if not packet or len(packet) < 2:
+        _LOGGER.info(f"Received an empty packet or packet-length < 2 Bytes from serial {serial_number}: Packet-length={len(packet)}, discarding packet bytes")
+        return False
 
-    # Temperatur extrahieren
-    t_low  = packet[1]
-    t_high = packet[2]
-    temp_raw = (t_high << 8) | t_low
-    temp_c = temp_raw / 100.0  # Anzeige in °C
+    # Endbyte prüfen
+    if packet[-1] != 0x0A:
+        _LOGGER.info(f"Last byte is not 0x0A, so the end of the packet cannot be determined and all bytes received from serial {serial_number} must be discarded")
+        return False
 
-    # Humidity extrahieren
-    h_low  = packet[3]
-    h_high = packet[4]
-    hum_raw = (h_high << 8) | h_low
-    hum_percent = hum_raw / 100.0
+    device = hass.data[const.DOMAIN][serial_number]
+    cmd = packet[0]
+    try:
+        # -----------------------------
+        # PARSE HUMITURE REPORT (0x86)
+        # -----------------------------
+        if cmd == 0x86:
+            if len(packet) != 6:
+                return False
 
-    return temp_c, hum_percent
+            t_low  = packet[1]
+            t_high = packet[2]
+            h_low  = packet[3]
+            h_high = packet[4]
+
+            temp_raw = (t_high << 8) | t_low
+            hum_raw  = (h_high << 8) | h_low
+
+            device["temperature"] = temp_raw / 100.0
+            device["humidity"]    = hum_raw / 100.0
+
+            entity = device.get("entity")
+            if entity:
+                hass.loop.call_soon_threadsafe(entity.async_write_ha_state)
+    
+            _LOGGER.info(f"received humiture values for serial {serial_number}: {device["temperature"]:.2f} °C, {device["humidity"]:.2f} %")
+
+            return True
+
+        # -----------------------------
+        # PARSE SYSTEM VERSION (0xC2)
+        # -----------------------------
+        elif cmd == 0xC2:
+            firmware_version = packet[1:-1].decode(errors="ignore").strip()
+            if not firmware_version:
+                return False
+            device["firmware_version"] = firmware_version
+            device_registry = dr.async_get(hass)
+
+            dev_reg = device_registry.async_get_device(identifiers={(const.DOMAIN, serial_number)})
+
+            hass.loop.call_soon_threadsafe(
+                lambda: hass.async_create_task(
+                    _async_update_firmware_device(
+                        hass,
+                        serial_number,
+                        firmware_version,
+                    )
+                )
+            )
+            
+            _LOGGER.info(f"Firmware version for serial {serial_number}: {device["firmware_version"]}")
+
+            return True
+
+        # -----------------------------
+        # PARSE WHO AM I (0x81)
+        # -----------------------------
+        elif cmd == 0x81:
+            who_am_i = packet[1:-1].decode(errors="ignore").strip()
+            if not who_am_i:
+                return False
+
+            device["who_am_i"] = who_am_i
+
+            _LOGGER.info(f"Device description for serial {serial_number}: {device["who_am_i"]}")
+
+            return True
+
+        # -----------------------------
+        # PARSE UNKNOWN COMMAND
+        # -----------------------------
+        else:
+            _LOGGER.info(f"unrecognized answer from serial {serial_number}: {cmd.hex()}")
+            return False
+
+    except Exception as e:
+        _LOGGER.error(f"Error while parsing a packet from serial {serial_number}: {e}")
+        return False
 
 
 #************************************************************************
@@ -425,7 +556,7 @@ async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
         await hass.async_add_executor_job(serial_port.write, chunk)
         await hass.async_add_executor_job(serial_port.flush)
         await asyncio.sleep(0.001)  # kleine Pause zwischen den Chunks
-    _release_display(hass, serial_number)
+    await _release_display(hass, serial_number)
 
     _LOGGER.debug(f"Sent {len(data_565)} bytes in chunks of {CHUNK_SIZE} bytes")
 
@@ -447,7 +578,7 @@ async def _wait_for_display(hass, serial_number, timeout=5.0):
     dev["state"] = "busy"
     return True
 
-def _release_display(hass, serial_number):
+async def _release_display(hass, serial_number):
     dev = hass.data[const.DOMAIN][serial_number]
     lock = dev["lock"]
 
@@ -1193,23 +1324,11 @@ async def generate_qr(hass, serial_number, data, xs, ys, show_data=False, qr_col
         _LOGGER.error(f"[{const.DOMAIN}] error while sending the qr code: {e}")
 
 
+async def _async_update_firmware_device(hass, serial_number, firmware_version):
+    device_registry = dr.async_get(hass)
+    device = device_registry.async_get_device(identifiers={(const.DOMAIN, serial_number)})
 
+    if not device:
+        return
 
-
-
-
-
-
-#data = hass.data[const.DOMAIN][serial_number]
-#data.state = busy
-#if display.busy:
-#    _LOGGER.debug("Display busy, skipping draw")
-#    return
-#display.busy = True
-
-#try:
-    # zeichne ins display
-#finally:
-#    display.busy = False
-
-
+    device_registry.async_update_device(device.id, sw_version=firmware_version)

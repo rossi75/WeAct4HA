@@ -6,7 +6,7 @@ toDo:
 - testbild
 + umbau für public/github
 - qr code
-~ send text with font/size/pos/ft-color/bg-color/orientation/...
+~ send text with font/size/pos/t-color/bg-color/orientation/...
 ~ draw lines, circles, rectangles, triangles
 + show icon
 + clear screen
@@ -15,11 +15,10 @@ toDo:
 - pic from file
 + set orientation
 + lautstärke
-- trigger testen
 + temp/humid
-- UI reload
-- scan for new devices regularly, list of known devices needed
-- was passiert wenn ab und dran?
++ UI reload
++ scan for new devices regularly, list of known devices needed
++ was passiert wenn ab und dran?
 + multiple displays
 - 
 - Dokumentation der initialen Funktionsweise, der Sensoren, der verfügbaren Aktionen, ...
@@ -40,21 +39,28 @@ import time
 
 from PIL import Image
 from pathlib import Path
+from homeassistant.components import usb
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr
+#from homeassistant.helpers.event import async_track_event
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.discovery import async_load_platform
 
-from .models import DISPLAY_MODELS
 import custom_components.weact_display.const as const
+from .models import DISPLAY_MODELS
 from .clock import stop_clock, start_analog_clock, start_digital_clock
-from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr, enable_humiture_reports, parse_humiture_packet
+#from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr, enable_humiture_reports, parse_packet
+from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr, enable_humiture_reports, parse_packet, read_firmware_version, read_who_am_i
 #from .commands import send_bitmap, send_full_color, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, enable_humiture_reports
 #from .draws import write_text, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr
 #from .clock import stop_clock, start_analog_clock, start_digital_clock, start_rheinturm
 
 
-_LOGGER = logging.getLogger(__name__)
+#from .const import DOMAIN, LOGGER
+#from .clock import stop_clock, CLOCK_MODE
+
 
 # ------------------------------------------------------------
 # Initialisierung
@@ -62,8 +68,54 @@ _LOGGER = logging.getLogger(__name__)
 
 _LOGGER = logging.getLogger(__name__)
 
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    _LOGGER.debug("async_setup_entry called for weact_display")
+
+    serial_number = entry.data["serial_number"]
+    device_path = entry.data["device"]
+
+    hass.data.setdefault(const.DOMAIN, {})
+    hass.data[const.DOMAIN].setdefault(serial_number, {})
+    hass.data[const.DOMAIN][serial_number]["device"] = device_path
+    hass.data[const.DOMAIN][serial_number]["entry_id"] = entry.entry_id
+
+
+    # === DEVICE REGISTRY ===
+    device_registry = dr.async_get(hass)
+    device = device_registry.async_get_or_create(
+        config_entry_id = entry.entry_id,
+        identifiers = {(const.DOMAIN, serial_number)},
+        manufacturer = "WeAct Studio",
+        model = f"WeAct Display type {hass.data[const.DOMAIN][serial_number].get("model")}",
+        sw_version = hass.data[const.DOMAIN][serial_number].get("firmware_version"),
+        name = f"WeAct Display {serial_number}",
+    )
+
+    _LOGGER.debug(f"Registered device: name={device.name}, identifiers={device.identifiers}, manufacturer={device.manufacturer}, model={device.model}, sw_version={device.sw_version}")
+
+    # === interne Datenstruktur ===
+    hass.data[const.DOMAIN][serial_number]["device_id"] = device.id
+    hass.data[const.DOMAIN][serial_number]["entry_id"] = entry.entry_id
+    hass.data[const.DOMAIN][serial_number]["online"] = True
+    _LOGGER.debug(f"Device-ID={hass.data[const.DOMAIN][serial_number]["device_id"]}, Entry-ID={hass.data[const.DOMAIN][serial_number]["device_id"]}")
+
+    # Plattformen laden
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "select"])
+
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    await hass.config_entries.async_unload_platforms(entry, ["sensor"])
+    # alle displays durchgehen, ob die clock auf IDLE steht. Wenn nicht, diese gezielt eliminieren
+#    await stop_clock(hass)
+#    LOGGER.debug("WeAct Display clock stopped during unload.")
+    hass.data[const.DOMAIN].pop(entry.entry_id, None)
+    return True
+
+
 async def async_setup(hass: HomeAssistant, config):
-    _LOGGER.debug("Starting WeAct Display integration")
+    _LOGGER.info("Starting WeAct Display integration via async_setup")
 
     # BMP/ICON Filepath
     const.IMG_PATH.mkdir(parents=True, exist_ok=True)
@@ -74,9 +126,12 @@ async def async_setup(hass: HomeAssistant, config):
     ports = await asyncio.to_thread(glob.glob, "/dev/serial/by-id/*WeAct*")
     if not ports:
         _LOGGER.debug("could not find any WeAct Display")
-        return
+#        return
+        return False
+#        return True
 
     hass.data[const.DOMAIN] = {}
+    hass.data.setdefault(const.DOMAIN, {})
 
     for idx, port in enumerate(ports):
         serial_full = os.path.basename(port)
@@ -111,14 +166,15 @@ async def async_setup(hass: HomeAssistant, config):
             "port": port,
             "model": model,
             "serial_number": serial_number,
+            "firmware_version": None,
+            "who_am_i": None,
             "start_time": datetime.datetime.now().isoformat(timespec="seconds"),
             "width": width,
             "height": height,
-            "orientation_value": None,
-            "orientation": None,
+            "orientation_value": 2,     # hier später aus dem Speicher lesen
+#            "orientation": None,
             "humiture": humiture,
             "temperature": None,
-            "temperature_unit": "°C",
             "humidity": None,
             "clock_handle": None,
             "clock_mode": "idle",
@@ -148,7 +204,7 @@ async def async_setup(hass: HomeAssistant, config):
             _LOGGER.error(f"Error while initializing display: {e}")
             return False
 
-        _LOGGER.warning(f"WeAct Display {model} is now waiting for some commands at {port}")
+        _LOGGER.info(f"WeAct Display {model} is now waiting for some commands at {port}")
 
     # Sensor-Plattform laden (Erzeugt die Entity!)
     await async_load_platform(hass, "sensor", const.DOMAIN, {}, config)
@@ -159,6 +215,29 @@ async def async_setup(hass: HomeAssistant, config):
 ###
 # ab hier die Dienste
 ###
+    # --------------------------------------------------------
+    # Service: USB remove detektieren
+    # --------------------------------------------------------
+    async def _usb_removed(event):
+        device = event.data
+        serial = device.get("serial_number")
+        if not serial:
+            return
+        if serial not in hass.data[const.DOMAIN]:
+            return
+
+        _LOGGER.warning(f"USB device removed: serial={serial}, device={device.device}")
+
+        hass.data[const.DOMAIN][serial]["online"] = False                        # mark device as offline
+
+        # Entities informieren
+        entity = hass.data[const.DOMAIN][serial].get("entity")
+        if entity:
+            entity.async_write_ha_state()
+
+    hass.bus.async_listen("usb_device_removed", _usb_removed)
+
+
     # --------------------------------------------------------
     # Service: Text anzeigen
     # --------------------------------------------------------
@@ -692,35 +771,28 @@ async def async_setup(hass: HomeAssistant, config):
     # --------------------------------------------------------
     return True
 
-
-#async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
-#    from .clock import stop_clock#
-
-#    LOGGER.debug("Unloading WeAct Display integration...")
-
-#    await stop_clock(hass)
-#    LOGGER.debug("WeAct Display clock stopped during unload.")
-
- #   return True
  
 async def post_startup(hass: HomeAssistant):
     await asyncio.sleep(0.1)  # kleinen Yield geben
     _LOGGER.debug("post-startup")
 
     for serial_number, data in hass.data[const.DOMAIN].items():
-        _LOGGER.error(f"setting up display with serial-number {serial_number}")
-        await set_orientation(hass, serial_number, 2)                      # landscape setzen
+        _LOGGER.info(f"initializing display with serial-number {serial_number}")
+#        await set_orientation(hass, serial_number, 2)                      # landscape setzen
+        await set_orientation(hass, serial_number, hass.data[const.DOMAIN][serial_number].get("orientation_value"))
         await set_brightness(hass, serial_number, 7)
+        await start_serial_reader_thread(hass, serial_number)
+        await asyncio.sleep(0.1)                                         # nur mal kurz die Welt retten
         if hass.data[const.DOMAIN][serial_number]["humiture"]:
-            start_serial_reader_thread(hass, serial_number)
-            await asyncio.sleep(0.1)                                         # nur mal kurz die Welt retten
             await enable_humiture_reports(hass, serial_number)
+        await read_who_am_i(hass, serial_number)
+        await read_firmware_version(hass, serial_number)
         await display_selftest(hass, serial_number)
  
     _LOGGER.debug("post-startup done for all actually known displays")
  
  
-def start_serial_reader_thread(hass, serial_number):
+async def start_serial_reader_thread(hass, serial_number):
     device = hass.data[const.DOMAIN][serial_number]
     serial_port = device["serial_port"]
     if serial_port is None:
@@ -738,14 +810,7 @@ def start_serial_reader_thread(hass, serial_number):
 
                 _LOGGER.debug(f"RX [{serial_number}]: {data.hex(' ')}")                       # Zeige rohe Daten an (Hex + ASCII)
 
-                parsed = parse_humiture_packet(data)
-                if parsed:
-                    temperature, humidity = parsed
-                    device["temperature"] = int(temperature)
-                    device["humidity"] = int(humidity)
-
-                    _LOGGER.info(f"Humiture values for serial {serial_number}: {temperature:.2f} °C, {humidity:.2f} %")
-                else:
+                if not parse_packet(hass, serial_number, packet=data):
                     _LOGGER.warning(f"could not parse the packet {data.hex(' ')} on port {serial_port}")
 
             except Exception as e:

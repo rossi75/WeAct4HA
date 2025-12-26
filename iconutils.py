@@ -90,7 +90,7 @@ async def load_icon(hass, i_name: str, i_size = 32, i_color = (255, 255, 255), r
     except Exception as e:
         _LOGGER.error(f"Cleanup error in debug dir: {e}")
 
-    _LOGGER.debug(f"icon is (now) locally available as SVG, doing some magic now")
+    _LOGGER.debug("icon is (now) locally available as SVG, doing some magic now")
 
     loop = asyncio.get_running_loop()
     def _read():
