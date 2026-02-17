@@ -9,6 +9,7 @@ IMG_PATH = BASE_PATH / "bmp"
 ICON_CACHE_DIR = BASE_PATH / "icons"
 MDI_BASE_URL = "https://raw.githubusercontent.com/Templarian/MaterialDesign-SVG/master/svg"
 IGNORE_WEACT_FILTER = False
+DEFAULT_BRIGHTNESS = 7
 
 ORIENTATION_MAP = {
     "Portrait": 0,

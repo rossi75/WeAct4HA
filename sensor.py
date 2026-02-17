@@ -24,7 +24,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     # bestehender Display-Sensor (falls vorhanden)
     entities.append(WeActDisplaySensor(hass, serial_number))
 
-    # 👉 HUMITURE optional
+    # HUMITURE optional
     if device.get("humiture") is True:
         _LOGGER.debug(f"Humiture enabled for {serial_number}, adding its sensors")
         entities.append(WeActTemperatureSensor(hass, serial_number))
@@ -54,10 +54,10 @@ class WeActTemperatureSensor(SensorEntity):
 
     @property
     def native_value(self):
-        try:
-            return round(self.hass.data[const.DOMAIN][self.serial_number].get("temperature"), 0)
-        except Exception:
-            return self.hass.data[const.DOMAIN][self.serial_number].get("temperature")           # Null
+        value = self.hass.data[const.DOMAIN][self.serial_number].get("temperature")
+        if value is None:
+            return None
+        return round(float(value), 1)
 
 
 class WeActHumiditySensor(SensorEntity):
@@ -80,10 +80,10 @@ class WeActHumiditySensor(SensorEntity):
 
     @property
     def native_value(self):
-        try:
-            return round(self.hass.data[const.DOMAIN][self.serial_number].get("humidity"), 0)
-        except Exception:
-            return self.hass.data[const.DOMAIN][self.serial_number].get("humidity")
+        value = self.hass.data[const.DOMAIN][self.serial_number].get("humidity")
+        if value is None:
+            return None
+        return round(float(value))
 
 
 async def async_setup_platform(
@@ -142,18 +142,17 @@ class WeActDisplaySensor(SensorEntity):
         attr = {
             "model": data.get("model"),
             "serial_number": data.get("serial_number"),
+            "brightness": data.get("brightness"),
             "width": data.get("width"),
             "height": data.get("height"),
-#            "orientation": data.get("orientation"),
             "orientation": const.ORIENTATION_MAP_INV[data.get("orientation_value", 3)],
-#            "orientation": const.ORIENTATION_MAP_INV[data.get("orientation_value", "Null")],
             "clock_mode": data.get("clock_mode")
         }
-        if data.get("humiture") is True:
-            attr["humidity"] = data.get("humidity")
-            attr["temperature"] = data.get("temperature")
-            attr["temperature_unit"] = "°C"
         if _LOGGER.getEffectiveLevel() == logging.DEBUG:
+            if data.get("humiture") is True:
+                attr["dbg_humidity"] = data.get("humidity")
+                attr["dbg_temperature"] = data.get("temperature")
+                attr["dbg_temperature_unit"] = "°C"
             attr["dbg_port"] = data.get("port")                                        # only friendly name, not serial_port with its attributes !!
             attr["dbg_who_am_i"] = data.get("who_am_i")
             attr["dbg_firmware_version"] = data.get("firmware_version")
@@ -161,7 +160,7 @@ class WeActDisplaySensor(SensorEntity):
             attr["dbg_humiture"] = data.get("humiture")
             attr["dbg_device_id"] = data.get("device_id")
             attr["dbg_entry_id"] = data.get("entry_id")
-        if True:
+        if True:                                                                # actually always on
             attr["dbg_source"] = data.get("source")
             attr["dbg_start_time"] = data.get("start_time")
         return attr

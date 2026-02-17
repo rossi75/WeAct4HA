@@ -1,7 +1,7 @@
 {
   "domain": "weact_display",
   "name": "WeAct Display for HA",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "documentation": "https://github.com/rossi75/WeAct4HA",
   "requirements": [
 	"qrcode",
@@ -14,7 +14,7 @@
   "iot_class": "local_push",
   "dependencies": [],
   "after_dependencies": [],
-  "platforms": ["sensor", "select"],
+  "platforms": ["sensor", "select", "number"],
   "config_flow": true,
   "usb": [
     {

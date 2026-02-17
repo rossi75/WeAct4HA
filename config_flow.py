@@ -3,11 +3,10 @@ from __future__ import annotations
 import voluptuous as vol
 import logging
 import asyncio
-
 from homeassistant import config_entries
 from homeassistant.components import usb
 from homeassistant.core import HomeAssistant
-
+from homeassistant.helpers import device_registry as dr
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -17,59 +16,123 @@ class WeActDisplayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         _LOGGER.debug(f"step-user, user-input={user_input}")
+
         errors = {}
 
         # Alle USB-Serial-Devices scannen
-        ports = usb.scan_serial_ports()
-
-        if not ports:
+        usb_devices = usb.scan_serial_ports()
+        if not usb_devices:
             return self.async_abort(reason="no_serial_ports")
 
-        # Nur Ports ohne bestehenden ConfigEntry
+        # Bereits konfigurierte Seriennummern
         existing_serials = {
             entry.data.get("serial_number")
             for entry in self._async_current_entries()
         }
 
-        available_ports = {}
-        for dev in ports:
-            serial = dev.serial_number
-            if not serial:
+        # Auswahl: Anzeige → interne Daten
+        devices: dict[str, dict] = {}
+        options: dict[str, str] = {}
+
+        # Device Registry zu Rate ziehen
+        device_registry = dr.async_get(self.hass)
+
+        for dev in usb_devices:
+            _LOGGER.debug(f"dev={dev}")
+            # Robust: Objekt oder Dict
+            serial = getattr(dev, "serial_number", None)
+            device_path = getattr(dev, "device", None)
+            description = getattr(dev, "description", None)
+            manufacturer = getattr(dev, "manufacturer", None),
+
+            if not serial or not device_path:
                 continue
             if serial in existing_serials:
+                _LOGGER.debug(f"Skipping serial {serial}, already configured in weact_display")
                 continue
 
-            available_ports[f"{dev.device} ({serial})"] = {
-                "device": dev.device,
+            # Bereits als Device in irgendeiner Integration verwendet ?
+            already_registered = False
+            for device in device_registry.devices.values():
+                for domain, identifier in device.identifiers:
+                    if identifier == serial:
+                        already_registered = True
+                        _LOGGER.debug(f"Skipping {serial}, already used by integration {domain}")
+                        break
+                if already_registered:
+                    break
+            if already_registered:
+                continue
+
+            options[device_path] = description
+            devices[device_path] = {
+                "device": device_path,
+                "device_path": device_path,
                 "serial_number": serial,
-                "vid": dev.vid,
-                "pid": dev.pid,
-                "manufacturer": dev.manufacturer,
-                "source": "user",
+                "description": description,
+                "manufacturer": manufacturer,
             }
 
-        if not available_ports:
+            _LOGGER.debug(f"serial={serial}, device-path={device_path}, description={description}, options={options}, devices={devices}")
+
+        if not devices:
             return self.async_abort(reason="no_new_devices")
 
+        _LOGGER.debug(f"options={options}, devices={devices}")
+
+# ~~~
+        schema = vol.Schema(
+            {
+                vol.Required("device_path"): vol.In(options)
+            }
+        )
+# ~~~
+
         if user_input is not None:
-            selection = available_ports[user_input["port"]]
+            device_path = user_input["device_path"]
+            selection = devices[device_path]
+            serial = selection.get("serial_number")
+
+            _LOGGER.debug(f"selection={selection}, serial={serial}, device-path={device_path}")
+
+# +++
+#            if not selection.get("device"):
+            if not selection.get("device_path"):
+                _LOGGER.error("device does not have a device-path")
+                errors["base"] = "no_device_path"
+                return self.async_show_form(
+                    step_id="user",
+                    data_schema=schema,
+                    errors=errors,
+                )
+
+            if not serial:
+                _LOGGER.error("device does not have a serial-number")
+                return self.async_abort(reason="no_serial_number")
+
+            _LOGGER.debug("setting unique-ID...")
+            await self.async_set_unique_id(serial)
+            _LOGGER.debug("...done !")
+            self._abort_if_unique_id_configured()
+            _LOGGER.debug("not aborted due to unique-ID is available")
+# +++
+
+
             return self.async_create_entry(
-                title=f"WeAct Display {selection['serial_number']}",
-                data=selection,
+#                title = selection["model"],
+                title = selection["description"],
+                data = selection,
             )
 
-        schema = vol.Schema({
-            vol.Required("port"): vol.In(available_ports.keys())
-        })
-
         return self.async_show_form(
-            step_id="user",
-            data_schema=schema,
-            errors=errors,
+            step_id = "user",
+            data_schema = schema,
+            errors = errors,
+            description_placeholders={"info": "please choose one not recognized device to add"},
         )
 
 
-    async def _get_serial_ports(self) -> dict[str, str]:
+    async def _get_serial_ports_(self) -> dict[str, str]:
         _LOGGER.debug("_get_serial_ports")
         loop = asyncio.get_running_loop()
 
@@ -96,10 +159,9 @@ class WeActDisplayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         _LOGGER.debug(f"async_step_confirm with user-input {user_input}")
         if user_input is not None:
             return self.async_create_entry(
-                title="WeAct Display",
+                title="Choose new device to add as new display",
                 data={
-                    "port": self.port,
-#                    "created_by": "manually",
+                    "device": self.port,
                     "source": "usually",
                 },
             )
@@ -107,70 +169,11 @@ class WeActDisplayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="confirm",
             description_placeholders={
-                "port": self.port
+#                "port": self.port
+                "Device": self.port
             },
             data_schema=vol.Schema({}),
         )
-
-
-    async def async_step_serial(self, user_input=None):
-        _LOGGER.debug(f"async_step_serial with user-input {user_input}")
-        errors = {}
-
-        if user_input is not None:
-            serial_number = user_input["serial_number"]
-
-            await self.async_set_unique_id(serial_number)
-            self._abort_if_unique_id_configured()
-
-            return self.async_create_entry(
-                title=f"WeAct Display {serial_number}",
-                data={
-                    "serial_number": serial_number,
-                    "port": self.port,
-#                    "created_by": "manual_serial",
-                    "source": "user_serial",
-                },
-            )
-
-        schema = vol.Schema({
-            vol.Required("serial_number"): str,
-        })
-
-        return self.async_show_form(
-            step_id="serial",
-            data_schema=schema,
-            errors=errors,
-        )
-
-
-    async def async_step_usb(self, discovery_info: usb.UsbServiceInfo):
-        _LOGGER.debug(f"USB discovery: vid={discovery_info.vid}, pid={discovery_info.pid}, serial={discovery_info.serial_number}, device={discovery_info.device}")
-
-        serial_number = discovery_info.serial_number
-        device_path = discovery_info.device
-
-        if not serial_number:
-            _LOGGER.warning("no serial-number found for device, aborting USB discovery")
-            return self.async_abort(reason="no_serial")
-
-        await self.async_set_unique_id(serial_number)
-        self._abort_if_unique_id_configured()
-
-        # Automatisch Entry anlegen
-        return self.async_create_entry(
-            title=f"WeAct Display {serial_number}",
-            data={
-                "serial_number": serial_number,
-                "device": device_path,
-                "vid": discovery_info.vid,
-                "pid": discovery_info.pid,
-#                "created_by": "_usb",
-                "source": "usb",
-            },
-        )
-
-
 
 
 

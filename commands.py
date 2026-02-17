@@ -202,6 +202,7 @@ async def send_screen(hass, serial_number):
 #        B R I G H T N E S S
 #************************************************************************
 # changes the brightness of the display
+# and afterwards requests the actual brightness 
 #************************************************************************
 # m: hass
 # m: serial_number
@@ -223,6 +224,18 @@ async def set_brightness(hass, serial_number, brightness):
     )
 
     # das hier nachher in send_data verschieben
+    hex_str = " ".join(f"{b:02X}" for b in packet)
+    _LOGGER.debug(f"having {len(packet)} Bytes for {serial_number}: {hex_str}")
+
+    await hass.async_add_executor_job(serial_port.write, packet)
+
+    # neue Lautstärke anfordern
+    _LOGGER.debug("requesting volume [brightness]...")
+
+    packet = struct.pack(
+        "<BB",
+        0x83, 0x0A
+    )
     hex_str = " ".join(f"{b:02X}" for b in packet)
     _LOGGER.debug(f"having {len(packet)} Bytes for {serial_number}: {hex_str}")
 
@@ -467,6 +480,23 @@ def parse_packet(hass, serial_number, packet: bytes):
             device["who_am_i"] = who_am_i
 
             _LOGGER.info(f"Device description for serial {serial_number}: {device["who_am_i"]}")
+
+            return True
+
+        # -----------------------------
+        # PARSE BRIGHTNESS (0x83)
+        # -----------------------------
+        elif cmd == 0x83:
+            if len(packet) != 3:
+                return False
+
+            brightness = packet[1]
+            if not brightness:
+                return False
+
+            device["brightness"] = brightness
+
+            _LOGGER.info(f"received brightness for serial {serial_number}: {device["brightness"]}")
 
             return True
 

@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "WeAct Display",
-        "description": "Select the serial port of the display"
+        "description": "Select the new display to add"
       },
       "confirm": {
         "title": "Confirm",

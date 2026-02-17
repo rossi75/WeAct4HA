@@ -50,6 +50,7 @@ from homeassistant.helpers.discovery import async_load_platform
 
 import custom_components.weact_display.const as const
 from .models import DISPLAY_MODELS
+#from .const import DEFAULT_BRIGHTNESS
 from .clock import stop_clock, start_analog_clock, start_digital_clock
 #from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr, enable_humiture_reports, parse_packet
 from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr, enable_humiture_reports, parse_packet, read_firmware_version, read_who_am_i
@@ -69,15 +70,34 @@ from .commands import send_bitmap, send_full_color, write_text, generate_random,
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    _LOGGER.debug("async_setup_entry called for weact_display")
+    _LOGGER.debug(f"async_setup_entry called for weact_display, entry={entry}")
+    # reales Display beim Startup:
+    # 2025-12-28 23:45:37.658 DEBUG (MainThread) [custom_components.weact_display] async_setup_entry called for weact_display, entry=<ConfigEntry entry_id=01KDDSQP0NMRXTP0DQF45ZPAD2 version=1 domain=weact_display title=WeAct Display addec74db14d state=ConfigEntryState.SETUP_IN_PROGRESS unique_id=addec74db14d>
+    # Fake Display manuell:
+    # 2025-12-28 23:59:11.478 DEBUG (MainThread) [custom_components.weact_display] async_setup_entry called for weact_display, entry=<ConfigEntry entry_id=01KDKJZSZPNXN4CKQ03KYA1BEK version=1 domain=weact_display title=SMLIGHT SLZB-07p7 state=ConfigEntryState.SETUP_IN_PROGRESS unique_id=None>
 
     serial_number = entry.data["serial_number"]
     device_path = entry.data["device"]
+#    model = entry.data["model"] or entry.data["description"]
+
+
+
+# +++
+    if not device_path:
+        _LOGGER.error(f"ConfigEntry {entry.entry_id} has no device path, aborting setup")
+        return False
+# +++
+
+
 
     hass.data.setdefault(const.DOMAIN, {})
     hass.data[const.DOMAIN].setdefault(serial_number, {})
     hass.data[const.DOMAIN][serial_number]["device"] = device_path
     hass.data[const.DOMAIN][serial_number]["entry_id"] = entry.entry_id
+#    try:
+#        model = entry.data["description"]
+#        hass.data[const.DOMAIN][serial_number]["model"] = model
+#    except:
 
 
     # === DEVICE REGISTRY ===
@@ -94,24 +114,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug(f"Registered device: name={device.name}, identifiers={device.identifiers}, manufacturer={device.manufacturer}, model={device.model}, sw_version={device.sw_version}")
 
     # === interne Datenstruktur ===
-    hass.data[const.DOMAIN][serial_number]["device_id"] = device.id
-    hass.data[const.DOMAIN][serial_number]["entry_id"] = entry.entry_id
+#    hass.data[const.DOMAIN][serial_number]["device_id"] = device.id
+#    hass.data[const.DOMAIN][serial_number]["entry_id"] = entry.entry_id
     hass.data[const.DOMAIN][serial_number]["online"] = True
-    _LOGGER.debug(f"Device-ID={hass.data[const.DOMAIN][serial_number]["device_id"]}, Entry-ID={hass.data[const.DOMAIN][serial_number]["device_id"]}")
+#    _LOGGER.debug(f"Device-ID={hass.data[const.DOMAIN][serial_number]["device_id"]}, Entry-ID={hass.data[const.DOMAIN][serial_number]["device_id"]}")
 
     # Plattformen laden
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "select"])
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "select", "number"])
 
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    await hass.config_entries.async_unload_platforms(entry, ["sensor"])
-    # alle displays durchgehen, ob die clock auf IDLE steht. Wenn nicht, diese gezielt eliminieren
-#    await stop_clock(hass)
-#    LOGGER.debug("WeAct Display clock stopped during unload.")
-    hass.data[const.DOMAIN].pop(entry.entry_id, None)
-    return True
+    serial_number = entry.data.get("serial_number")
+
+    _LOGGER.info(f"Unloading WeAct Display for serial {serial_number}")
+    
+    # Uhr anhalten
+    stop_clock(hass, serial_number)
+    # Plattformen entladen
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor", "select", "button", "number"],)
+
+    if unload_ok and serial_number:
+        hass.data[const.DOMAIN].pop(serial_number, None)
+
+    return unload_ok
 
 
 async def async_setup(hass: HomeAssistant, config):
@@ -126,9 +153,7 @@ async def async_setup(hass: HomeAssistant, config):
     ports = await asyncio.to_thread(glob.glob, "/dev/serial/by-id/*WeAct*")
     if not ports:
         _LOGGER.debug("could not find any WeAct Display")
-#        return
         return False
-#        return True
 
     hass.data[const.DOMAIN] = {}
     hass.data.setdefault(const.DOMAIN, {})
@@ -169,10 +194,10 @@ async def async_setup(hass: HomeAssistant, config):
             "firmware_version": None,
             "who_am_i": None,
             "start_time": datetime.datetime.now().isoformat(timespec="seconds"),
+            "brightness": None,
             "width": width,
             "height": height,
             "orientation_value": 2,     # hier später aus dem Speicher lesen
-#            "orientation": None,
             "humiture": humiture,
             "temperature": None,
             "humidity": None,
@@ -778,10 +803,11 @@ async def post_startup(hass: HomeAssistant):
 
     for serial_number, data in hass.data[const.DOMAIN].items():
         _LOGGER.info(f"initializing display with serial-number {serial_number}")
+        await start_serial_reader_thread(hass, serial_number)
+        await asyncio.sleep(0.1)  # kleinen Yield geben
 #        await set_orientation(hass, serial_number, 2)                      # landscape setzen
         await set_orientation(hass, serial_number, hass.data[const.DOMAIN][serial_number].get("orientation_value"))
-        await set_brightness(hass, serial_number, 7)
-        await start_serial_reader_thread(hass, serial_number)
+        await set_brightness(hass, serial_number, const.DEFAULT_BRIGHTNESS)
         await asyncio.sleep(0.1)                                         # nur mal kurz die Welt retten
         if hass.data[const.DOMAIN][serial_number]["humiture"]:
             await enable_humiture_reports(hass, serial_number)
@@ -813,11 +839,17 @@ async def start_serial_reader_thread(hass, serial_number):
                 if not parse_packet(hass, serial_number, packet=data):
                     _LOGGER.warning(f"could not parse the packet {data.hex(' ')} on port {serial_port}")
 
+            except serial.SerialException:
+                _LOGGER.warning(f"WeAct Display {serial_number} disconnected")
+                hass.data[DOMAIN][serial]["online"] = False
+                hass.data[DOMAIN][serial]["state"] = "port error"
+                break
+
             except Exception as e:
                 _LOGGER.error(f"Thread error for serial-port {serial_port}: {e}")
                 break
 
-        _LOGGER.warning(f"serial reader stopped for port {serial_port} (should never reach this point !!)")
+        _LOGGER.warning(f"serial reader stopped for port {serial_port} (should only reach this point while unloading !!)")
  
     t = threading.Thread(target=reader, daemon=True)
     t.start()
