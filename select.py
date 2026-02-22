@@ -87,6 +87,9 @@ class Select_ClockMode(SelectEntity):
             start_rheinturm(self.hass, self.serial_number)
         elif option == "idle":
             await stop_clock(self.hass, self.serial_number)
+
+        self._attr_current_option = self.hass.data[const.DOMAIN][self.serial_number].get("clock_mode", "idle")
+        self.async_write_ha_state()
             
 
 

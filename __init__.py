@@ -78,27 +78,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     serial_number = entry.data["serial_number"]
     device_path = entry.data["device"]
-#    model = entry.data["model"] or entry.data["description"]
 
-
-
-# +++
     if not device_path:
         _LOGGER.error(f"ConfigEntry {entry.entry_id} has no device path, aborting setup")
         return False
-# +++
-
-
 
     hass.data.setdefault(const.DOMAIN, {})
     hass.data[const.DOMAIN].setdefault(serial_number, {})
     hass.data[const.DOMAIN][serial_number]["device"] = device_path
     hass.data[const.DOMAIN][serial_number]["entry_id"] = entry.entry_id
-#    try:
-#        model = entry.data["description"]
-#        hass.data[const.DOMAIN][serial_number]["model"] = model
-#    except:
-
 
     # === DEVICE REGISTRY ===
     device_registry = dr.async_get(hass)
@@ -113,11 +101,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     _LOGGER.debug(f"Registered device: name={device.name}, identifiers={device.identifiers}, manufacturer={device.manufacturer}, model={device.model}, sw_version={device.sw_version}")
 
-    # === interne Datenstruktur ===
-#    hass.data[const.DOMAIN][serial_number]["device_id"] = device.id
-#    hass.data[const.DOMAIN][serial_number]["entry_id"] = entry.entry_id
     hass.data[const.DOMAIN][serial_number]["online"] = True
-#    _LOGGER.debug(f"Device-ID={hass.data[const.DOMAIN][serial_number]["device_id"]}, Entry-ID={hass.data[const.DOMAIN][serial_number]["device_id"]}")
 
     # Plattformen laden
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "select", "number"])
@@ -131,9 +115,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info(f"Unloading WeAct Display for serial {serial_number}")
     
     # Uhr anhalten
-    stop_clock(hass, serial_number)
+    await stop_clock(hass, serial_number)
     # Plattformen entladen
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor", "select", "button", "number"],)
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor", "select", "number"],)
 
     if unload_ok and serial_number:
         hass.data[const.DOMAIN].pop(serial_number, None)

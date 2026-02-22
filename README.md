@@ -24,6 +24,7 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 - show a digital clock
 - draws an icon
 - reads temperature and humidity from displays supported
+- set brightness via slider
 
 ## restrictions
 - new draw/write actions only overwrite the specified area, they do not delete the whole screen. To clear the screen
@@ -34,15 +35,24 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 
 # changelog
 
+## V0.5.2 - 17.02.2026 - 22.02.2026
+- attribute shows correct clock mode, but clock mode stays in idle state. fixed !
+- reading the new brightness from display was too fast after sending the new value, so the old value was
+  given by the display and stored into the structure/attribute. As it fades, now polling up to 15 seconds
+  waiting for the adjustment
+- removed button in unload
+! upon reading from serial, new brightness value being stored into the attribute of the main entity but
+  not into the brightness entity (seems to be stored into entity, but not shown in developer tools). fixed !
+
 ## V0.5.1 - 26.12.2025 - 17.02.2026
 - improved code for humidity and temperature sensors, rounding to no digits
 - moved un-rounded humiture attributes into debug-section. The rounded ones are available as separate entities if supported
 - if any device needs to be added manually, checking if it is used by another integration
 - unload for reload etc
 - usb-plugin/-plugout
-- slider for display brightness
+- slider for display brightness in UI
 - display brightness in entity
-- request for display brightness when setting
+- request for display brightness after setting
 - extended parser for display brightness
 - added DEFAULT_BRIGHTNESS in const.py, set to 7
 
@@ -118,7 +128,7 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 - bitmap not working
 
 ## V0.3.0 - 16.11.2025
--  repaired clock
+- repaired clock
 
 ## V0.2.9 - 14.11.2025
 - progress bar works 
@@ -201,36 +211,37 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 
 hass.data[weact_display][serial_number]
 
-| Tupel             | Data Type  | Default Value | Sensor/Attribute        | Description                                                |
-|-------------------|------------|---------------|-------------------------|------------------------------------------------------------|
-| << state >>       | String     | initializing  |                         | [initializing\|port error\|timeout error\|ready\|busy]     |
-| online            | Boolean    |               |                         | for device state                                                           |
-| serial_port       | String     |               |                         | Serial Port description from HA                            |
-| model             | String     |               | model                   |                                                            |
-| serial_number     | String     |               | serial_number           | part of the sensors name and unique ID                     |
-| brightness        | Integer    | None          | brightness              |                                                            |
-| width             | Integer    | None          | width                   |                                                            |
-| height            | Integer    | None          | height                  |                                                            |
-|                   | String     | None          | orientation             | [Portrait\|Portrait Reverse\|Landscape\|Landscape Reverse] |
-| clock_mode        | String     | idle          | clock_mode              | [idle\|analog\|digital\|rheinturm]                         |
-| clock_handle      | Function   | None          |                         |                                                            |
-| humidity          | Integer    | None          | humidity*               |                                                            |
-| temperature       | Integer    | None          | temperature*            |                                                            |
-|                   | String     | °C            | temperature_unit*       |                                                            |
-| port              | String     |               | dbg_port**              | friendly name from serial port                             |
-| source            | String     | None          | dbg_source**            | [user\|import\|usb]                                        |
-| start_time        | DateTime   | init D/T      | dbg_start_time**        |                                                            |
-| who_am_i          | String     | None          | dbg_who_am_i**          |                                                            |
-| firmware_version  | String     | None          | dbg_firmware_version**  |                                                            |
-| humiture          | Boolean    | False         | dbg_humiture**          | Humiture Sensor available? [False\|True]                   |
-| orientation_value | Integer    | None          | dbg_orientation_value** | [0\|1\|2\|3]                                               |
-| device_id         | String     | None          | dbg_device_id**         |                                                            |
-| entry_id          | String     | None          | dbg_entry_id**          |                                                            |
-| lock              | Function   | function      |                         | used for while an image is being send, avoids collisions   |
-| shadow            | Image Data | 0x000000...   |                         | width * height * 3, the BMP itself                         |
+| Tupel             | Data Type  | Default Value | Sensor/Attribute         | Description                                                |
+|-------------------|------------|---------------|--------------------------|------------------------------------------------------------|
+| << state >>       | String     | initializing  |                          | [initializing\|port error\|timeout error\|ready\|busy]     |
+| online            | Boolean    |               |                          | for device state                                                           |
+| serial_port       | String     |               |                          | Serial Port description from HA                            |
+| model             | String     |               | model                    |                                                            |
+| serial_number     | String     |               | serial_number            | part of the sensors name and unique ID                     |
+| brightness        | Integer    | None          | brightness*              |                                                            |
+| width             | Integer    | None          | width                    |                                                            |
+| height            | Integer    | None          | height                   |                                                            |
+|                   | String     | None          | orientation*             | [Portrait\|Portrait Reverse\|Landscape\|Landscape Reverse] |
+| clock_mode        | String     | idle          | clock_mode*              | [idle\|analog\|digital\|rheinturm]                         |
+| clock_handle      | Function   | None          |                          |                                                            |
+| humidity          | Integer    | None          | humidity**               |                                                            |
+| temperature       | Integer    | None          | temperature**            |                                                            |
+|                   | String     | °C            | temperature_unit**       |                                                            |
+| port              | String     |               | dbg_port***              | friendly name from serial port                             |
+| source            | String     | None          | dbg_source***            | [user\|import\|usb]                                        |
+| start_time        | DateTime   | init D/T      | dbg_start_time***        |                                                            |
+| who_am_i          | String     | None          | dbg_who_am_i***          |                                                            |
+| firmware_version  | String     | None          | dbg_firmware_version***  |                                                            |
+| humiture          | Boolean    | False         | dbg_humiture***          | Humiture Sensor available? [False\|True]                   |
+| orientation_value | Integer    | None          | dbg_orientation_value*** | [0\|1\|2\|3]                                               |
+| device_id         | String     | None          | dbg_device_id***         |                                                            |
+| entry_id          | String     | None          | dbg_entry_id***          |                                                            |
+| lock              | Function   | function      |                          | used for while an image is being send, avoids collisions   |
+| shadow            | Image Data | 0x000000...   |                          | width * height * 3, the BMP itself                         |
 
-\* only available as separate entity if humiture sensor is also available
-** (later) only if debug mode is set
+\* also available as seperate entity
+** only available as separate entity if humiture sensor is also available
+*** (later) only if debug mode is set
 
 
 ### Orientation Settings:

@@ -31,7 +31,6 @@ async def stop_clock(hass, serial_number):
 
 
 async def start_analog_clock(hass, serial_number, **kwargs):
-
     async def _update_analog(now):
         await show_analog_clock(hass, serial_number, **kwargs)
 

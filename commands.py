@@ -208,9 +208,9 @@ async def send_screen(hass, serial_number):
 # m: serial_number
 # m: brightness
 #************************************************************************
-async def set_brightness(hass, serial_number, brightness):
+async def set_brightness(hass, serial_number, target_brightness):
     """setzt die Lautstärke"""
-    _LOGGER.debug("setting volume [brightness]...")
+    _LOGGER.debug("setting brightness...")
 
     data = hass.data[const.DOMAIN][serial_number]
     serial_port = data.get("serial_port")
@@ -220,26 +220,40 @@ async def set_brightness(hass, serial_number, brightness):
 
     packet = struct.pack(
         "<BBHB",
-        0x03, brightness, 0x3500, 0x0A
+        0x03, target_brightness, 0x3500, 0x0A
     )
 
     # das hier nachher in send_data verschieben
     hex_str = " ".join(f"{b:02X}" for b in packet)
+
     _LOGGER.debug(f"having {len(packet)} Bytes for {serial_number}: {hex_str}")
 
     await hass.async_add_executor_job(serial_port.write, packet)
+    timeout = 15    # Sekunden
+    start = time.monotonic()
 
-    # neue Lautstärke anfordern
-    _LOGGER.debug("requesting volume [brightness]...")
-
-    packet = struct.pack(
-        "<BB",
-        0x83, 0x0A
-    )
+    packet = struct.pack("<BB", 0x83, 0x0A)
     hex_str = " ".join(f"{b:02X}" for b in packet)
-    _LOGGER.debug(f"having {len(packet)} Bytes for {serial_number}: {hex_str}")
 
-    await hass.async_add_executor_job(serial_port.write, packet)
+    _LOGGER.debug(f"prepared polling with {len(packet)} Bytes for {serial_number}: {hex_str}")
+
+    while True:
+        # Helligkeit abfragen
+        _LOGGER.debug("requesting brightness...")
+
+        await hass.async_add_executor_job(serial_port.write, packet)
+        await asyncio.sleep(1)
+        current_brightness = data.get("brightness")
+
+        _LOGGER.debug(f"polled brightness for serial {serial_number}: target-brightness={target_brightness}, current-brightness={current_brightness}")
+
+        if current_brightness == target_brightness:
+            _LOGGER.info(f"Target brightness of {current_brightness} reached for serial {serial_number}")
+            break
+
+        if time.monotonic() - start > timeout:
+            _LOGGER.warning("brightness fade timeout reached for serial {serial_number}")
+            break
 
     _LOGGER.debug("brightness done")
 
@@ -275,9 +289,7 @@ async def set_orientation(hass, serial_number, orientation_value):
         return
 
     hass.data[const.DOMAIN][serial_number]["orientation_value"] = orientation_value
-#    hass.data[const.DOMAIN][serial_number]["orientation"] = const.ORIENTATION_MAP[orientation_value]
 
-#    _LOGGER.debug(f"new orientation: {data.get("orientation")} [{orientation_value}], {data.get("width")}x{data.get("height")} px")
     _LOGGER.debug(f"new orientation-value={orientation_value}, {data.get("width")}x{data.get("height")} px")
 
     packet = struct.pack(
@@ -398,7 +410,6 @@ async def read_who_am_i(hass, serial_number):
 #        P A C K E T  P A R S E R
 #************************************************************************
 # parses the packets received from a display
-# [0x86] [T_low] [T_high] [H_low] [H_high] [0A]
 #************************************************************************
 # m: packet-Bytes
 # r: True if packet could be parsed, False if any error occured
@@ -419,6 +430,7 @@ def parse_packet(hass, serial_number, packet: bytes):
     try:
         # -----------------------------
         # PARSE HUMITURE REPORT (0x86)
+        # [0x86] [T_low] [T_high] [H_low] [H_high] [0A]
         # -----------------------------
         if cmd == 0x86:
             if len(packet) != 6:
@@ -496,7 +508,7 @@ def parse_packet(hass, serial_number, packet: bytes):
 
             device["brightness"] = brightness
 
-            _LOGGER.info(f"received brightness for serial {serial_number}: {device["brightness"]}")
+            _LOGGER.info(f"received new brightness from serial {serial_number}: {device["brightness"]}")
 
             return True
 

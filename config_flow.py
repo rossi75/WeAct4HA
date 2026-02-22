@@ -119,7 +119,6 @@ class WeActDisplayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
             return self.async_create_entry(
-#                title = selection["model"],
                 title = selection["description"],
                 data = selection,
             )
