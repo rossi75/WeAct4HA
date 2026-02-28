@@ -22,10 +22,20 @@ async def stop_clock(hass, serial_number):
     _LOGGER.debug(f"actually running clock-mode is {clock_mode}")
 
     if clock_handle is not None:
+        if data["clock_mode"] == "analog":
+            await show_analog_clock(hass, serial_number, sc_color = (0, 0, 0), h_color = (0, 0, 0), m_color = (0, 0, 0), scf_color = (0, 0, 0))
+            _LOGGER.debug(f"deleted last analog drawing")
+        if data["clock_mode"] == "digital":
+            await show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = 30, rotation = 0, d_color = (0, 255, 255), bg_color = (0, 0, 0), cf_color = (0, 255, 255), cf_width = 0, offset_hours = None, am_pm = False)
+            _LOGGER.debug(f"deleted last digital drawing")
+        if data["clock_mode"] == "rheinturm":
+            await delete_rheinturm(hass, serial_number)
+            _LOGGER.debug(f"deleted last rheinturm drawing")
         clock_handle()
         data["clock_handle"] = None
-        data["clock_mode"] = None
+        data["clock_mode"] = "idle"
         _LOGGER.debug(f"deleted clock_handle")
+
     else:
         _LOGGER.debug(f"unplanned stop-call as no clock was active or planned call while startup")
 
@@ -35,11 +45,15 @@ async def start_analog_clock(hass, serial_number, **kwargs):
         await show_analog_clock(hass, serial_number, **kwargs)
 
     clock_mode = hass.data[const.DOMAIN][serial_number].get("clock_mode")
-    if clock_mode is not None:
+    if clock_mode != "idle":
         _LOGGER.debug(f"Clock for {serial_number} already running as {clock_mode}, stopping first")
         await stop_clock(hass, serial_number)
 
     hass.data[const.DOMAIN][serial_number]["clock_mode"] = "analog"
+    entity = hass.data[const.DOMAIN][serial_number].get("clock_select_entity")
+    if entity:
+        entity.refresh_from_data()
+
     await show_analog_clock(hass, serial_number, **kwargs)
 
     async def _task():
@@ -59,14 +73,24 @@ async def start_digital_clock(hass, serial_number, **kwargs):
         await show_digital_clock(hass, serial_number, **kwargs)
 
     clock_mode = hass.data[const.DOMAIN][serial_number].get("clock_mode")
-    if clock_mode is not None:
+    if clock_mode != "idle":
         _LOGGER.debug(f"Clock for {serial_number} already running as {clock_mode}, stopping first")
         await stop_clock(hass, serial_number)
 
+    hass.data[const.DOMAIN][serial_number]["clock_mode"] = "digital"
+    entity = hass.data[const.DOMAIN][serial_number].get("clock_select_entity")
+    if entity:
+        entity.refresh_from_data()
+
     await show_digital_clock(hass, serial_number, **kwargs)
 
-    hass.data[const.DOMAIN][serial_number]["clock_handle"] = async_track_time_interval(hass, _update_digital, timedelta(minutes=1))
-    hass.data[const.DOMAIN][serial_number]["clock_mode"] = "digital"
+    async def _task():
+        seconds_to_wait = 60 - datetime.now().second
+        _LOGGER.debug(f"need to wait {seconds_to_wait} seconds for the next minute")
+        await asyncio.sleep(seconds_to_wait)
+        await show_digital_clock(hass, serial_number, **kwargs)
+        hass.data[const.DOMAIN][serial_number]["clock_handle"] = async_track_time_interval(hass, _update_digital, timedelta(minutes=1))
+    asyncio.create_task(_task())
 
     _LOGGER.debug(f"set clock-mode from {clock_mode} to {hass.data[const.DOMAIN][serial_number]["clock_mode"]}")
     _LOGGER.info("Digital clock update scheduled every minute")
@@ -77,18 +101,26 @@ async def _start_rheinturm_clock(hass, serial_number, **kwargs):
         await show_rheinturm(hass, serial_number, **kwargs)
 
     clock_mode = hass.data[const.DOMAIN][serial_number].get("clock_mode")
-    if clock_mode is not None:
+    if clock_mode != "idle":
         _LOGGER.debug(f"Clock for {serial_number} already running: {clock_mode}, stopping first")
         await stop_clock(hass, serial_number)
 
+    hass.data[const.DOMAIN][serial_number]["clock_mode"] = "rheinturm"
+    entity = hass.data[const.DOMAIN][serial_number].get("clock_select_entity")
+    if entity:
+        entity.refresh_from_data()
+
     await show_rheinturm(hass, serial_number, **kwargs)
 
-    hass.data[const.DOMAIN][serial_number]["clock_handle"] = async_track_time_interval(hass, _update_digital, timedelta(minutes=1))
-    hass.data[const.DOMAIN][serial_number]["clock_mode"] = "Rheinturm"
+    async def _task():
+        seconds_to_wait = 60 - datetime.now().second
+        _LOGGER.debug(f"need to wait {seconds_to_wait} seconds for the next minute")
+        await asyncio.sleep(seconds_to_wait)
+        await show_rheinturm(hass, serial_number, **kwargs)
+        hass.data[const.DOMAIN][serial_number]["clock_handle"] = async_track_time_interval(hass, _update_rheinturm, timedelta(minutes=1))
+    asyncio.create_task(_task())
 
     _LOGGER.debug(f"set clock-mode from {clock_mode} to {hass.data[const.DOMAIN][serial_number]["clock_mode"]}")
-
-    _LOGGER.debug(f"set status to {CLOCK_MODE}")
     _LOGGER.info("Rheinturm update scheduled every second")
 
 
@@ -109,7 +141,7 @@ async def _start_rheinturm_clock(hass, serial_number, **kwargs):
 # o: vertical-shift
 # o: rotation
 #************************************************************************
-async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None, m_color = None, scf_color = None, offset_hours = 0, scale_size = None, h_shift = 0, v_shift = 0, rotation = 0):
+async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None, m_color = None, scf_color = None, offset_hours = None, scale_size = None, h_shift = None, v_shift = None, rotation = None):
     _LOGGER.debug("analog clock...")
 
     from .commands import normalize_color, send_screen
@@ -130,12 +162,26 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
 
     # check position_shift
     _LOGGER.debug(f"position shifts given: h-shift={h_shift}, v-shift={v_shift}")
+    if h_shift is None:
+        h_shift = 0
+        _LOGGER.debug(f"set h-shift to {h_shift} as no parameter is given")
+    if v_shift is None:
+        v_shift = 0
+        _LOGGER.debug(f"set v-shift to {v_shift} as no parameter is given")
     if h_shift > (d_width // 2 - 1) or h_shift < -(d_width // 2):
         _LOGGER.debug(f"horizontal position shift {h_shift} out of expected range. Changed to 0.")
         h_shift = 0
     if v_shift > (d_height // 2 - 1) or v_shift < -(d_height // 2):
         _LOGGER.debug(f"vertical position shift {v_shift} out of expected range. Changed to 0.")
         v_shift = 0
+
+    _LOGGER.debug(f"offset-hours={offset_hours}, rotation={rotation}")
+    if offset_hours is None:
+        offset_hours = 0
+        _LOGGER.debug(f"set offset-hours to {offset_hours} as no parameter is given")
+    if rotation is None:
+        rotation = 0
+        _LOGGER.debug(f"set rotation to {rotation} as no parameter is given")
         
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     if sc_color is None:
@@ -234,7 +280,6 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
 # o: offset-hours
 # o: am/pm
 #************************************************************************
-#async def show_digital_clock(hass, serial_port, xs = 0, ys = 0, digit_size = 30, rotation = 0, d_color = (0, 255, 255), bg_color = (0, 0, 0), cf_color = (0, 255, 255), cf_width = 0, offset_hours = 0, am_pm = False):
 async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = 30, rotation = 0, d_color = (0, 255, 255), bg_color = (0, 0, 0), cf_color = (0, 255, 255), cf_width = 0, offset_hours = None, am_pm = False):
     _LOGGER.debug("digital clock...")
 
@@ -310,7 +355,7 @@ async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_si
     text_h = bbox[3] - bbox[1]
 
     _LOGGER.debug(f"bbox: 0={bbox[0]}, 1={bbox[1]}, 2={bbox[2]}, 3={bbox[3]}")
-    _LOGGER.debug(f"text_w = [2] - [0] = {text_w}, text_h = [3] - [1] = {text_h}")
+    _LOGGER.debug(f"text_w=[2]-[0]={text_w}, text_h=[3]-[1]={text_h}")
 
 #    _LOGGER.debug(f"time-string dimensions: width={text_w}, height={text_h} px")
 

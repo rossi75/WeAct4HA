@@ -25,6 +25,11 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 - draws an icon
 - reads temperature and humidity from displays supported
 - set brightness via slider
+- set clock-mode via selector
+- set orientation via selector
+- draw a triangle
+- draw a bmp onto the screen, including downsizing
+
 
 ## restrictions
 - new draw/write actions only overwrite the specified area, they do not delete the whole screen. To clear the screen
@@ -35,12 +40,21 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 
 # changelog
 
-## V0.5.2 - 17.02.2026 - 22.02.2026
-- attribute shows correct clock mode, but clock mode stays in idle state. fixed !
+## V0.5.3 - 23.-28.02.2026
+- triangle working
+- fixed analog clock from service call without parameters (shift, offset and rotation)
+- testbild working, calling send_bmp() without filename
+- send_picture from file (pos, ...), if filepath is given, check and draw this. if no filename is given, send testbild.
+- if clock is being disabled, last timestamp will be drawn once again, but in black color, so it disappears...
+- improved handling for clock_mode-entity, will now be also reflected if started from service
+- corrected unplug notification
+
+## V0.5.2 - 17.-22.02.2026
+- attribute shows correct clock mode, but clock mode entity stays in idle state. fixed !
 - reading the new brightness from display was too fast after sending the new value, so the old value was
   given by the display and stored into the structure/attribute. As it fades, now polling up to 15 seconds
-  waiting for the adjustment
-- removed button in unload
+  waiting for finishing the adjustment
+- removed unloading button platform
 ! upon reading from serial, new brightness value being stored into the attribute of the main entity but
   not into the brightness entity (seems to be stored into entity, but not shown in developer tools). fixed !
 
@@ -189,12 +203,10 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 
 
 ### ToDo
-- send_picture from file (pos, size, orientation, shift, ...)
-- draw triangle
+- enhance send_bmp from file (size, orientation, ...)
 - barcode
 - qr code
 - Rheinturm-Uhr
-- detect-loop every 20 sec
 - do not crash at startup with no display detected
 - function for send simple commands
 - parameter for supressing direct upload the whole memory for all draw functions
@@ -202,42 +214,41 @@ https://sourceforge.net/projects/weact-studio-system-monitor/files/Doc/WeAct%20S
 - progress bar value
 - progress bar rotate
 - testbild
-- bitmap
 - digital clock rotate
-- analog clock rotate
 
 
 ### internal structure:
 
 hass.data[weact_display][serial_number]
 
-| Tupel             | Data Type  | Default Value | Sensor/Attribute         | Description                                                |
-|-------------------|------------|---------------|--------------------------|------------------------------------------------------------|
-| << state >>       | String     | initializing  |                          | [initializing\|port error\|timeout error\|ready\|busy]     |
-| online            | Boolean    |               |                          | for device state                                                           |
-| serial_port       | String     |               |                          | Serial Port description from HA                            |
-| model             | String     |               | model                    |                                                            |
-| serial_number     | String     |               | serial_number            | part of the sensors name and unique ID                     |
-| brightness        | Integer    | None          | brightness*              |                                                            |
-| width             | Integer    | None          | width                    |                                                            |
-| height            | Integer    | None          | height                   |                                                            |
-|                   | String     | None          | orientation*             | [Portrait\|Portrait Reverse\|Landscape\|Landscape Reverse] |
-| clock_mode        | String     | idle          | clock_mode*              | [idle\|analog\|digital\|rheinturm]                         |
-| clock_handle      | Function   | None          |                          |                                                            |
-| humidity          | Integer    | None          | humidity**               |                                                            |
-| temperature       | Integer    | None          | temperature**            |                                                            |
-|                   | String     | °C            | temperature_unit**       |                                                            |
-| port              | String     |               | dbg_port***              | friendly name from serial port                             |
-| source            | String     | None          | dbg_source***            | [user\|import\|usb]                                        |
-| start_time        | DateTime   | init D/T      | dbg_start_time***        |                                                            |
-| who_am_i          | String     | None          | dbg_who_am_i***          |                                                            |
-| firmware_version  | String     | None          | dbg_firmware_version***  |                                                            |
-| humiture          | Boolean    | False         | dbg_humiture***          | Humiture Sensor available? [False\|True]                   |
-| orientation_value | Integer    | None          | dbg_orientation_value*** | [0\|1\|2\|3]                                               |
-| device_id         | String     | None          | dbg_device_id***         |                                                            |
-| entry_id          | String     | None          | dbg_entry_id***          |                                                            |
-| lock              | Function   | function      |                          | used for while an image is being send, avoids collisions   |
-| shadow            | Image Data | 0x000000...   |                          | width * height * 3, the BMP itself                         |
+| Tupel               | Data Type  | Default Value | Sensor/Attribute         | Description                                                |
+|---------------------|------------|---------------|--------------------------|------------------------------------------------------------|
+| << state >>         | String     | initializing  |                          | [initializing\|port error\|timeout error\|ready\|busy]     |
+| online              | Boolean    |               |                          | for device state                                                           |
+| serial_port         | String     |               |                          | Serial Port description from HA                            |
+| model               | String     |               | model                    |                                                            |
+| serial_number       | String     |               | serial_number            | part of the sensors name and unique ID                     |
+| brightness          | Integer    | None          | brightness*              |                                                            |
+| width               | Integer    | None          | width                    |                                                            |
+| height              | Integer    | None          | height                   |                                                            |
+|                     | String     | None          | orientation*             | [Portrait\|Portrait Reverse\|Landscape\|Landscape Reverse] |
+| clock_mode          | String     | idle          | clock_mode*              | [idle\|analog\|digital\|rheinturm]                         |
+| clock_handle        | Function   | None          |                          | stores the handle that is called periodically              |
+| clock_select_entity | Function   | None          |                          | relation to reflect the clock_mode into select entity      |
+| humidity            | Integer    | None          | humidity**               |                                                            |
+| temperature         | Integer    | None          | temperature**            |                                                            |
+|                     | String     | °C            | temperature_unit**       |                                                            |
+| port                | String     |               | dbg_port***              | friendly name from serial port                             |
+| source              | String     | None          | dbg_source***            | [user\|import\|usb]                                        |
+| start_time          | DateTime   | init D/T      | dbg_start_time***        |                                                            |
+| who_am_i            | String     | None          | dbg_who_am_i***          |                                                            |
+| firmware_version    | String     | None          | dbg_firmware_version***  |                                                            |
+| humiture            | Boolean    | False         | dbg_humiture***          | Humiture Sensor available? [False\|True]                   |
+| orientation_value   | Integer    | None          | dbg_orientation_value*** | [0\|1\|2\|3]                                               |
+| device_id           | String     | None          | dbg_device_id***         |                                                            |
+| entry_id            | String     | None          | dbg_entry_id***          |                                                            |
+| lock                | Function   | function      |                          | used for while an image is being send, avoids collisions   |
+| shadow              | Image Data | 0x000000...   |                          | width * height * 3, the BMP itself                         |
 
 \* also available as seperate entity
 ** only available as separate entity if humiture sensor is also available

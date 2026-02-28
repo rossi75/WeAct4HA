@@ -152,7 +152,7 @@ async def send_screen(hass, serial_number):
 
     px = i_width * i_height
     rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
-    _LOGGER.debug(f"image size is {i_width}x{i_height} = {px} px. RGB888 = {rgb888} bytes")
+    _LOGGER.debug(f"image size is {i_width}x{i_height}={px} px, RGB888={rgb888} bytes")
     hex_str = " ".join(f"{b:02X}" for b in img_bytes[:40])
     _LOGGER.debug(f"prepared {len(img_bytes)} image bytes for {serial_number}: {hex_str} [...]")
 
@@ -558,7 +558,7 @@ async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
     rgb565 = px * 2  # anzahl bytes RGB565 (8-3 + 8-3 + 8-3 = 16 bit = 2 byte pro pixel)
     CHUNK_SIZE = width * 2  # empirisch aus USB-Sniffing
 
-    _LOGGER.debug(f"expected bitmap size from coordinates should be {width}x{height} = {px} px. RGB888 = {rgb888} bytes, RGB565 = {rgb565} bytes")
+    _LOGGER.debug(f"expected bitmap size from coordinates should be {width}x{height}={px} px. RGB888={rgb888} bytes, RGB565={rgb565} bytes")
     _LOGGER.debug(f"chunk size is {CHUNK_SIZE} bytes per write")
 
     # data: bytes oder bytearray mit RGB888 (R,G,B) Werten
@@ -632,46 +632,87 @@ async def _release_display(hass, serial_number):
 
 
 #************************************************************************
-#        T E S T B I L D
+#        S H O W  B M P
 #************************************************************************
-# shows the testbild.bmp
+# shows the a given BMP or the file testbild.bmp
 #************************************************************************
 # m: hass
 # m: serial_number
+# o: xs = X-Start
+# o: xs = X-Start
+# o: filepath
 #************************************************************************
-# reads a BMP-Datei and sends it out to the WeAct Display
+# reads a BMP-file and sends it out to the WeAct Display
 #************************************************************************
-async def show_testbild(hass, serial_number):
-    bmp_path = "testbild.bmp"
-    _LOGGER.debug(f"searching for file: {bmp_path}")
+async def show_bmp(hass, serial_number, xs = None, ys = None, filepath = None):
+    _LOGGER.debug("show a bmp file...")
 
-    if not os.path.exists(bmp_path):
-        _LOGGER.error(f"Datei nicht gefunden: {bmp_path}")
+    data = hass.data[const.DOMAIN][serial_number]
+    serial_port = data.get("serial_port")
+    if not serial_port:
+        _LOGGER.warning("Display not connected")
         return
 
-    _LOGGER.debug("file found")
+    d_width = data.get("width")
+    d_height = data.get("height")
+    shadow = data.get("shadow")
 
-    # BMP öffnen
+    # Path handling
+    if filepath:
+        path = Path(filepath)
+        if not path.is_absolute():
+            path = Path(hass.config.path(filepath))
+    else:
+        path = Path(hass.config.path("custom_components","weact_display","testbild.bmp"))
+
+    if not path.exists():
+        _LOGGER.error(f"File not found: {path}")
+        return
+    else:
+        _LOGGER.debug(f"Using file: {path}")
+
+    # load BMP
+    def _load_image():
+        img = Image.open(path).convert("RGB")
+        return img
+
     try:
-        img = Image.open(bmp_path).convert("RGB")
-
-        _LOGGER.debug("opened file and loaded into memory")
-
-        width, height = img.size
-        px = width * height
-        rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
-        
-        _LOGGER.debug(f"picture has {width}x{height} pixels")
-        hex_str = " ".join(f"{b:02X}" for b in img[:40])
-        _LOGGER.debug(f"expected testbild size from coordinates should be {width}x{height} = {px} px. RGB888 = {rgb888} bytes")
-        hex_str = " ".join(f"{b:02X}" for b in img[:40])
-        _LOGGER.debug(f"need to send {len(img)} testbild Bytes for {serial_number}: {hex_str} [...]")
-
-#        await send_bitmap(hass, SERIAL, 0, 0, width, height, bytes(img))
+        img = await hass.async_add_executor_job(_load_image)
+        _LOGGER.debug("opened file {path}")
     except Exception as e:
-        _LOGGER.error(f"[{const.DOMAIN}] error while sending the testbild: {e}")
+        _LOGGER.error(f"[{const.DOMAIN}] error while opening the image {path}: {e}")
 
-    _LOGGER.debug(f"Testbild sent with {len(img)} Bytes")
+    i_width, i_height = img.size
+    px = i_width * i_height
+    rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
+
+    _LOGGER.debug(f"bmp has {i_width}x{i_height} pixels, means {px} pixels and {rgb888} RGB888 bytes. Display has {d_width}x{d_height} pixels")
+
+    if i_width > d_width or i_height > d_height:
+        def _resize():
+            img.thumbnail((d_width, d_height), Image.LANCZOS)
+            return img
+
+        img = await hass.async_add_executor_job(_resize)
+        i_width, i_height = img.size
+
+        _LOGGER.debug(f"Image resized to {i_width}x{i_height}")
+
+    # Positionierung
+    if xs is None:
+        xs = (d_width - i_width) // 2
+    if ys is None:
+        ys = (d_height - i_height) // 2
+    xs = max(0, xs)
+    ys = max(0, ys)
+
+    _LOGGER.debug(f"Image will be placed at {xs}|{ys}")
+
+    shadow.paste(img, (xs, ys))
+
+    _LOGGER.debug("pasted image into instance")
+                        
+    await send_screen(hass, serial_number)
 
 
 #************************************************************************
@@ -889,7 +930,7 @@ async def draw_line(hass, serial_number, xs, ys, xe, ye, l_color = (255, 255, 25
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     l_color = normalize_color(l_color)
 
-    _LOGGER.debug(f"l_color_after = {l_color}")
+    _LOGGER.debug(f"l_color_after={l_color}")
 
     img = data.get("shadow")
     draw = ImageDraw.Draw(img)
@@ -1056,12 +1097,15 @@ async def draw_triangle(hass, serial_number, xa, ya, xb, yb, xc, yc, t_color = N
     _LOGGER.debug("fetched image from instance")
 
     # Koordinaten anpassen (verschieben)
-    adj_points = [(xa - min_x, ya - min_y),
-                  (xb - min_x, yb - min_y),
-                  (xc - min_x, yc - min_y)]
-    draw.polygon(adj_points, fill = t_color, outline = tf_color, width = tf_width)
+#    adj_points = [(xa - min_x, ya - min_y),
+#                  (xb - min_x, yb - min_y),
+#                  (xc - min_x, yc - min_y)]
+    triangle_points = [(xa, ya),
+                  (xb, yb),
+                  (xc, yc)]
+    draw.polygon(triangle_points, fill = t_color, outline = tf_color, width = tf_width)
 
-    _LOGGER.debug(f"drew polygon points: {adj_points}")
+    _LOGGER.debug(f"drew polygon points: {triangle_points}")
 
     await send_screen(hass, serial_number)
 
@@ -1086,9 +1130,6 @@ async def draw_triangle(hass, serial_number, xa, ya, xb, yb, xc, yc, t_color = N
 # o: text-color, default = white (255, 255, 255)
 # o: rotation
 #************************************************************************
-#async def write_text(hass, serial_port, text, xs, ys, font_size = 15, font = None, align = "left", t_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
-#async def write_text(hass, serial_number, text, xs, ys, xe, ye = None, font_size = 15, t_color = (255, 255, 255), bg_color = (0, 0, 0), rotation = 0):
-#async def write_text(hass, serial_number, text, xs, ys, xe, ye = None, font_size = 15, t_color = None, bg_color = None, rotation = 0):
 async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, t_color = None, bg_color = None, rotation = 0):
     _LOGGER.debug(f"writing some text with values given: serial-number={serial_number}, text={text}, xs={xs}, ys={ys}, xe={xe}, ye={ye}, font-size={font_size}, text-color={t_color}, background-color={bg_color}, rotation={rotation}")
 
@@ -1228,10 +1269,13 @@ async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None,
 
     # ggf Wert einzeichnen
     if show_value:
-        value_str = f"{int(bar_value)}%" + val_appendix
+#        value_str = f"{int(bar_value)}%" + val_appendix
+        value_str = f"{int(bar_value)}" + val_appendix
+        font_size = int(bar_h - bf_width - bf_width - 2)
         try:
 #            font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(bar_h * 0.5))                # warum hier ein Faktor von 0,5? Ich würde ja eher sagen -4, oder?
-            font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(bar_h - bf_width - bf_width - 2))                # warum hier ein Faktor von 0,5? Ich würde ja eher sagen -4, oder?
+#            font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(bar_h - bf_width - bf_width - 2))                # warum hier ein Faktor von 0,5? Ich würde ja eher sagen -4, oder?
+            font = ImageFont.truetype("DejaVuSans-Bold.ttf", font_size)                # warum hier ein Faktor von 0,5? Ich würde ja eher sagen -4, oder?
         except Exception:
             font = ImageFont.load_default()
 
@@ -1241,7 +1285,7 @@ async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None,
         tx = (bar_w - text_w) // 2
         ty = (bar_h - text_h) // 2
 
-        _LOGGER.debug(f"show_value is given: text-width={text_w} px, text-height={text_h} px, at x={tx}, y={ty}")
+        _LOGGER.debug(f"show_value for '{value_str}' is given: text-width={text_w} px, text-height={text_h} px, at x={tx}, y={ty}")
 
         # Overlay: Wir schreiben zwei Versionen — überlagert, getrennt
         # Erst die invertierte (über gefülltem Teil)
@@ -1354,13 +1398,13 @@ async def generate_qr(hass, serial_number, data, xs, ys, show_data=False, qr_col
     _LOGGER.debug(f"qr code has {i_width}x{i_height} pixels")
     px = i_width * i_height
     rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
-    _LOGGER.debug(f"expected qr code size from coordinates should be {i_width}x{i_height} = {px} px. RGB888 = {rgb888} bytes")
+    _LOGGER.debug(f"expected qr code size from coordinates should be {i_width}x{i_height}={px} px. RGB888={rgb888} bytes")
     hex_str = " ".join(f"{b:02X}" for b in img_bytes[:40])
     _LOGGER.debug(f"prepared {len(img_bytes)} qr code bytes for {serial_port}: {hex_str} [...]")
 
     # Send to display
-    await set_orientation(hass, serial_port, 2)
     try:
+        await set_orientation(hass, serial_port, 2)
         await send_bitmap(hass, serial_port, xs, ys, xs + i_width, ys + i_height, bytes(img_bytes))  # original
     except Exception as e:
         _LOGGER.error(f"[{const.DOMAIN}] error while sending the qr code: {e}")

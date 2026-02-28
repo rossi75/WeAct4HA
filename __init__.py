@@ -53,7 +53,9 @@ from .models import DISPLAY_MODELS
 #from .const import DEFAULT_BRIGHTNESS
 from .clock import stop_clock, start_analog_clock, start_digital_clock
 #from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr, enable_humiture_reports, parse_packet
-from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr, enable_humiture_reports, parse_packet, read_firmware_version, read_who_am_i
+#from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr, enable_humiture_reports, parse_packet, read_firmware_version, read_who_am_i
+#from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_bmp, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr, enable_humiture_reports, parse_packet, read_firmware_version, read_who_am_i
+from .commands import send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_bmp, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr, enable_humiture_reports, parse_packet, read_firmware_version, read_who_am_i
 #from .commands import send_bitmap, send_full_color, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, enable_humiture_reports
 #from .draws import write_text, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr
 #from .clock import stop_clock, start_analog_clock, start_digital_clock, start_rheinturm
@@ -70,7 +72,8 @@ from .commands import send_bitmap, send_full_color, write_text, generate_random,
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    _LOGGER.debug(f"async_setup_entry called for weact_display, entry={entry}")
+    _LOGGER.info("Setting up WeAct Display integration via async_setup_entry")
+    _LOGGER.debug(f"entry={entry}")
     # reales Display beim Startup:
     # 2025-12-28 23:45:37.658 DEBUG (MainThread) [custom_components.weact_display] async_setup_entry called for weact_display, entry=<ConfigEntry entry_id=01KDDSQP0NMRXTP0DQF45ZPAD2 version=1 domain=weact_display title=WeAct Display addec74db14d state=ConfigEntryState.SETUP_IN_PROGRESS unique_id=addec74db14d>
     # Fake Display manuell:
@@ -126,7 +129,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_setup(hass: HomeAssistant, config):
-    _LOGGER.info("Starting WeAct Display integration via async_setup")
+    _LOGGER.info("Setting up WeAct Display integration via async_setup")
 
     # BMP/ICON Filepath
     const.IMG_PATH.mkdir(parents=True, exist_ok=True)
@@ -136,7 +139,7 @@ async def async_setup(hass: HomeAssistant, config):
     # Display-Suche
     ports = await asyncio.to_thread(glob.glob, "/dev/serial/by-id/*WeAct*")
     if not ports:
-        _LOGGER.debug("could not find any WeAct Display")
+        _LOGGER.info("could not find any WeAct Display")
         return False
 
     hass.data[const.DOMAIN] = {}
@@ -445,9 +448,38 @@ async def async_setup(hass: HomeAssistant, config):
         entry = registry.async_get(device)
         serial_number = entry.unique_id
 
-        await show_testbild(hass, serial_number)
+        _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}")
+
+#        await show_testbild(hass, serial_number)
+        await show_bmp(hass, serial_number)
 
     hass.services.async_register(const.DOMAIN, "show_testbild", handle_show_testbild)
+
+
+    # --------------------------------------------------------
+    # Service: Show BMP
+    # --------------------------------------------------------
+    async def handle_show_bmp(call: ServiceCall):
+        _LOGGER.debug("called service for bmp")
+        
+        device = call.data.get("display", None)
+        if device is None:
+            _LOGGER.error("missing mandatory entity id")
+            return
+        filepath = call.data.get("filepath", None)
+        xs = call.data.get("xs", None)
+        ys = call.data.get("ys", None)
+
+        # entity registry lookup
+        registry = er.async_get(hass)
+        entry = registry.async_get(device)
+        serial_number = entry.unique_id
+
+        _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, X-Start={xs}, Y-Start={ys}, filepath={filepath}")
+
+        await show_bmp(hass, serial_number, xs = xs, ys = ys, filepath = filepath)
+
+    hass.services.async_register(const.DOMAIN, "show_bmp", handle_show_bmp)
 
 
     # --------------------------------------------------------
@@ -528,7 +560,7 @@ async def async_setup(hass: HomeAssistant, config):
         entry = registry.async_get(device)
         serial_number = entry.unique_id
 
-        _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, x={xs}, y={ys}, background-color={bg_color}, digit-color={d_color}, offset={offset_hours}, digit-size={digit_size},  rotation={rotation}")
+        _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, xs={xs}, ys={ys}, background-color={bg_color}, digit-color={d_color}, offset={offset_hours}, digit-size={digit_size},  rotation={rotation}")
 
         await start_digital_clock(hass, serial_number, xs = xs, ys = ys, bg_color = bg_color, d_color = d_color, cf_color = cf_color, cf_width = cf_width, offset_hours = offset_hours, digit_size = digit_size, rotation = rotation)
 
@@ -640,9 +672,9 @@ async def async_setup(hass: HomeAssistant, config):
         entry = registry.async_get(device)
         serial_number = entry.unique_id
 
-        _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, X-start={xs}, Y-Start={ys}, X-End={xe}, Y-End={ye}, rectangle-frame-width={rf_width}, rectangle-frame-color={rf_color}, fill-color={f_color}")
+        _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, X-Start={xs}, Y-Start={ys}, X-End={xe}, Y-End={ye}, rectangle-frame-width={rf_width}, rectangle-frame-color={rf_color}, fill-color={f_color}")
 
-        await draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width, rf_color, f_color,)
+        await draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width, rf_color, f_color)
 
     hass.services.async_register(const.DOMAIN, "draw_rectangle", handle_draw_rectangle)
 
@@ -663,19 +695,18 @@ async def async_setup(hass: HomeAssistant, config):
         yb = call.data.get("y_b")
         xc = call.data.get("x_c")
         yc = call.data.get("y_c")
-        bg_color = call.data.get("bg_color")
-        t_color = call.data.get("t_color")
-        f_color = call.data.get("f_color")
-        tf_width = call.data.get("tf_width")
+        t_color = call.data.get("t_color", None)
+        tf_color = call.data.get("tf_color", None)
+        tf_width = call.data.get("tf_width", None)
 
         # entity registry lookup
         registry = er.async_get(hass)
         entry = registry.async_get(device)
         serial_number = entry.unique_id
 
-        _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, bg-color={bg_color}, triangle-color={t_color}, fill-color={f_color}, triangle-frame-width={rf-width}, X-A={xa}, Y-A={ya}, X-B={xb}, Y-B={yb}, X-C={xc}, Y-C={yc}")
+        _LOGGER.debug(f"values given: device={device}, serial-number={serial_number}, X-A={xa}, Y-A={ya}, X-B={xb}, Y-B={yb}, X-C={xc}, Y-C={yc}, triangle-color={t_color}, triange-frame-color={tf_color}, triangle-frame-width={tf_width}")
 
-        await draw_triangle(hass, serial_number, bg_color, t_color, f_color, tf_width, xa, ya, xb, yb, xc, yc)
+        await draw_triangle(hass, serial_number, xa, ya, xb, yb, xc, yc, t_color, tf_color, tf_width)
 
     hass.services.async_register(const.DOMAIN, "draw_triangle", handle_draw_triangle)
 
@@ -825,8 +856,8 @@ async def start_serial_reader_thread(hass, serial_number):
 
             except serial.SerialException:
                 _LOGGER.warning(f"WeAct Display {serial_number} disconnected")
-                hass.data[DOMAIN][serial]["online"] = False
-                hass.data[DOMAIN][serial]["state"] = "port error"
+                hass.data[const.DOMAIN][serial_number]["online"] = False
+                hass.data[const.DOMAIN][serial_number]["state"] = "port error"
                 break
 
             except Exception as e:

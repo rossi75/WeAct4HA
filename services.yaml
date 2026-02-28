@@ -470,7 +470,7 @@ draw_triangle:
         entity:
           filter:
             - integration: weact_display
-    xa_position:
+    x_a:
       name: Point A X-Position
       example: 0
       default: 0
@@ -480,7 +480,7 @@ draw_triangle:
           max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
-    ya_position:
+    y_a:
       name: Point A Y-Position
       example: 0
       default: 0
@@ -490,7 +490,7 @@ draw_triangle:
           max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
-    xb_position:
+    x_b:
       name: Point B X-Position
       example: 80
       default: 80
@@ -500,7 +500,7 @@ draw_triangle:
           max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
-    yb_position:
+    y_b:
       name: Point B Y-Position
       example: 79
       default: 79
@@ -510,7 +510,7 @@ draw_triangle:
           max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
-    xc_position:
+    x_c:
       name: Point C X-Position
       example: 159
       default: 159
@@ -520,7 +520,7 @@ draw_triangle:
           max: 479
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
-    yc_position:
+    y_c:
       name: Point C Y-Position
       example: 0
       default: 0
@@ -531,7 +531,13 @@ draw_triangle:
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
     t_color:
-      name: Triangle color
+      name: Triangle Color
+      example: [255, 255, 255]
+      default: [255, 255, 255]                         # weiss
+      selector:
+        color_rgb: {}
+    tf_color:
+      name: Triangle Frame Color
       example: [255, 255, 255]
       default: [255, 255, 255]                         # weiss
       selector:
@@ -547,18 +553,6 @@ draw_triangle:
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "pixels"
-    bg_color:
-      name: Background color
-      example: [255, 255, 255]
-      default: [255, 255, 255]                         # weiss
-      selector:
-        color_rgb: {}
-    f_color:
-      name: Fill color
-      example: [255, 255, 255]
-      default: [255, 255, 255]                         # weiss
-      selector:
-        color_rgb: {}
 
 send_bitmap_raw:
   name: raw RGB888 data
@@ -971,7 +965,6 @@ set_full_color:
 
 set_orientation:
   name: Display Orientation
-#  description: "NEVER EVER use this !! sets the orientation for the WeAct Display"
   description: "sets the orientation for the WeAct Display"
   fields:
     display:
@@ -1059,8 +1052,8 @@ start_selftest:
             - integration: weact_display
 
 show_testbild:
-  name: Testbild - do not use !
-  description: "do not use ! - shows the Testbild on the WeAct Display"
+  name: Testbild
+  description: "shows the Testbild on the WeAct Display"
   fields:
     display:
       name: Display
@@ -1070,4 +1063,42 @@ show_testbild:
           filter:
             - integration: weact_display
 
-
+show_bmp:
+  name: Show a BMP ! do not use !
+  description: "displays a BMP on the WeAct Display"
+  fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        entity:
+          filter:
+            - integration: weact_display
+    xs:
+      name: Start X-Position
+      example: 0
+      default: 0
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 479
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    ys:
+      name: Start Y-Position
+      example: 0
+      default: 0
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 479
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    text:
+      name: Filepath
+      required: true
+      default: "testbild.bmp"
+      selector:
+        text: {}
