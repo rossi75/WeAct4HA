@@ -19,7 +19,7 @@ provides a simple interface for the WeAct Display FS V1 and FS 0.96 Inch with va
 - draw a progress bar
 - show an analog clock
 - show a digital clock
-- draws an icon
+- draw an icon
 - reads temperature and humidity from displays supported
 - set brightness via slider
 - set clock-mode via selector
@@ -30,10 +30,18 @@ provides a simple interface for the WeAct Display FS V1 and FS 0.96 Inch with va
 
 ## restrictions
 - new draw/write actions only overwrite the specified area, they do not delete the whole screen. To clear the screen
-  or area, first blank it with the background color
+  or area, first draw a rectangle with the desired background color on the whole screen
 - display uses RGB565 ! ALWAYS use RGB888, as we calculate it ourself to RGB565
+
+
+## known issues
+- digital clock in portrait orientation uses wrong coordinates (!! need to fix !!)
+- analog clock in portrait orientation results in shit (!! need to fix !!)
+- does not save the orientation for each display (need to enhance it anytime)
 - display is being recognized only if plugged in at HA startup (maybe I will fix it anytime)
 - integration does not start up if NO display is being recognized (maybe I will fix it anytime)
+- cannot change clock-mode immediately once after once, need to await the next minute cycle before any further change
+  (maybe I will fix it anytime)
 
 
 ## see also:
