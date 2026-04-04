@@ -26,7 +26,8 @@ async def stop_clock(hass, serial_number):
             await show_analog_clock(hass, serial_number, sc_color = (0, 0, 0), h_color = (0, 0, 0), m_color = (0, 0, 0), scf_color = (0, 0, 0))
             _LOGGER.debug(f"deleted last analog drawing")
         if data["clock_mode"] == "digital":
-            await show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = 30, rotation = 0, d_color = (0, 255, 255), bg_color = (0, 0, 0), cf_color = (0, 255, 255), cf_width = 0, offset_hours = None, am_pm = False)
+#            await show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = 30, rotation = 0, d_color = (0, 255, 255), bg_color = (0, 0, 0), cf_color = (0, 255, 255), cf_width = 0, offset_hours = None, am_pm = False)
+            await show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = None, rotation = 0, d_color = (0, 0, 0), bg_color = (0, 0, 0), cf_color = (0, 0, 0), cf_width = 0, offset_hours = None, am_pm = False)
             _LOGGER.debug(f"deleted last digital drawing")
         if data["clock_mode"] == "rheinturm":
             await delete_rheinturm(hass, serial_number)
@@ -41,6 +42,7 @@ async def stop_clock(hass, serial_number):
 
 
 async def start_analog_clock(hass, serial_number, **kwargs):
+
     async def _update_analog(now):
         await show_analog_clock(hass, serial_number, **kwargs)
 
@@ -142,9 +144,17 @@ async def _start_rheinturm_clock(hass, serial_number, **kwargs):
 # o: rotation
 #************************************************************************
 async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None, m_color = None, scf_color = None, offset_hours = None, scale_size = None, h_shift = None, v_shift = None, rotation = None):
-    _LOGGER.debug("analog clock...")
+    _LOGGER.debug(f"analog clock for serial {serial_number}...")
 
     from .commands import normalize_color, send_screen
+
+    clock_mode = hass.data[const.DOMAIN][serial_number].get("clock_mode")
+    if clock_mode != "analog":
+        _LOGGER.info(f"Why to show clock for {serial_number} if not running? Seems I struggled in fast changes...! actual mode is {clock_mode}, stopping for safety")
+        await stop_clock(hass, serial_number)
+        return
+    else:
+        _LOGGER.debug(f"verified running the same clock-mode we are updating the display {serial_number} for: {clock_mode}")
 
     data = hass.data[const.DOMAIN][serial_number]
     d_width = data.get("width")
@@ -253,12 +263,6 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
     draw.ellipse((xs, ys, xe, ye), fill = scf_color)                                  # punkt in der Mitte
     _LOGGER.debug(f"middle point circumstances: point-size={point_size}, xs={xs}, ys={ys}, xe={xe}, ye={ye}")
 
-    # ggf das Datum, den WT oder die CPU Temp einpflanzen
-    # Text
-#    font = ImageFont.load_default()
-#    draw.text((10, 30), "Hallo Welt", fill=(255, 255, 255), font=font)
-#    _LOGGER.debug("wrote into the image")
-
     await send_screen(hass, serial_number)
 
 
@@ -280,54 +284,77 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
 # o: offset-hours
 # o: am/pm
 #************************************************************************
-async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = 30, rotation = 0, d_color = (0, 255, 255), bg_color = (0, 0, 0), cf_color = (0, 255, 255), cf_width = 0, offset_hours = None, am_pm = False):
-    _LOGGER.debug("digital clock...")
+#async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = 30, rotation = None, d_color = (0, 255, 255), bg_color = (0, 0, 0), cf_color = (0, 255, 255), cf_width = None, offset_hours = None, am_pm = False):
+async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = None, rotation = None, d_color = (0, 255, 255), bg_color = (0, 0, 0), cf_color = (0, 255, 255), cf_width = None, offset_hours = None, am_pm = False):
+    _LOGGER.debug(f"digital clock for serial {serial_number}...")
 
 #    from .commands import set_orientation, normalize_color, send_bitmap
     from .commands import normalize_color, send_screen
 
+    clock_mode = hass.data[const.DOMAIN][serial_number].get("clock_mode")
+    if clock_mode != "digital":
+        _LOGGER.warning(f"Why to show clock for {serial_number} if not running? Seems I struggled in fast changes...! actual mode is {clock_mode}, stopping for safety")
+        await stop_clock(hass, serial_number)
+        return
+    else:
+        _LOGGER.debug(f"verified running the same clock-mode we are updating the display {serial_number} for: {clock_mode}")
+   
+
     data = hass.data[const.DOMAIN][serial_number]
-#    d_width = data.get("width")
-#    d_height = data.get("height")
+    d_width = data.get("width")
+    d_height = data.get("height")
     # check rotation
 
-    # check position_shift
-    if offset_hours is None:
-        offset_hours = 0
-        _LOGGER.debug(f"offset-hours set to {offset_hours} as no value was given")
-    if cf_width is None:
-        cf_width = 0
-        _LOGGER.debug(f"cf-width set to {cf_width} as no value was given")
-        
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     d_color = normalize_color(d_color)
     cf_color = normalize_color(cf_color)
     bg_color = normalize_color(bg_color)
 
-    _LOGGER.debug(f"colors after normalize: digits={d_color}, clock-frame-color={cf_color}, clock-frame-width={cf_width}, background={bg_color}")
+    _LOGGER.debug(f"colors after normalize: digits={d_color}, clock-frame-color={cf_color}, background={bg_color}")
 
-    # vertical value check
-#    dc_width = digit_size * 3
-    dc_width = int(digit_size * 2.6)
-    dc_height = digit_size + 2 + cf_width              
-#    if dc_height > d_height:
-#        dc_height = d_height - 2 - cf_width
-#    if font_size + 2 > cf_height:
-#        font_size = cf_height - 2
-#    if font_size + 2 + cf_width > dc_height:
-#        font_size = dc_height - cf_width - 2
-#    if ys + dc_height > disp_h:
-#        ys = disp_h - dc_height
+    # check positions
+    if offset_hours is None:
+        offset_hours = 0
+        _LOGGER.debug(f"offset-hours set to {offset_hours} as no value was given")
+    if rotation is None:
+        rotation = 0
+        _LOGGER.debug(f"rotation set to {rotation} as no value was given")
+    if cf_width is None:
+        cf_width = 0
+        _LOGGER.debug(f"cf-width set to {cf_width} as no value was given")
 
-#    _LOGGER.debug(f"values after vertical check: digital-clock-height={dc_height}, font-size={font_size}, Y-Start={ys}")
-#    _LOGGER.debug(f"values after vertical check: digit-size={digit_size}, digital-clock-height={dc_height}, digital-clock-width={dc_width}")
+    _LOGGER.debug(f"attributes after check: offset-hours={offset_hours}, rotation={rotation}, cf-width={cf_width}")
 
+    # check digit_size
+    if digit_size is None:
+        digit_size = int(d_width / 2.8)
+        min(digit_size, d_height)
+        _LOGGER.debug(f"calculated digit-size to {digit_size} px as no value was given (display-width={d_width}, display-height={d_height})")
+
+    # dimensions check
+    dc_width = int(digit_size * 2.6) + 2 + cf_width
+#    dc_height = int(digit_size * 0.7) + 2 + cf_width              
+    dc_height = int(digit_size) + 2 + cf_width              
+    _LOGGER.debug(f"dimensions after check: digit-size={digit_size}, digital-clock-height={dc_height}, digital-clock-width={dc_width}")
+
+    # positions check
     if xs is None:
-        xs = (data.get("width") // 2) - dc_width - cf_width - 2
+#        xs = int((d_width // 2) - (dc_width // 2)) - cf_width - 2
+        xs = int((d_width // 2) - (dc_width // 2))
+        _LOGGER.debug(f"calculated xs to {xs} as no value was given")
     if ys is None:
-        ys = (data.get("height") // 2) - dc_height - cf_width - 2
+#        ys = int((d_height // 2) - (dc_height // 2)) - cf_width - 2
+#        ys = int((d_height // 2) + (dc_height // 2)) + cf_width + 2
+#        ys = int((d_height // 2) + (dc_height // 2)) + cf_width + 2
+        ys = int((d_height // 2) - (dc_height // 2))
+        _LOGGER.debug(f"calculated ys to {ys} as no value was given")
+    _LOGGER.debug(f"positions after check: xs={xs}, ys={ys}")
 
-    _LOGGER.debug(f"values after vertical check: digit-size={digit_size}, digital-clock-height={dc_height}, digital-clock-width={dc_width}, xs={xs}, ys={ys}")
+#calculated digit-size to 28 px as no value was given (display-width=80, display-height=160)
+#dimensions after check: digit-size=28, digital-clock-height=24, digital-clock-width=72
+#calculated xs to 2 as no value was given
+#calculated ys to 66 as no value was given
+#positions after check: xs=2, ys=66
 
     # aktuelle Zeit holen
     now = datetime.now() + timedelta(hours=offset_hours)
@@ -357,38 +384,16 @@ async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_si
     _LOGGER.debug(f"bbox: 0={bbox[0]}, 1={bbox[1]}, 2={bbox[2]}, 3={bbox[3]}")
     _LOGGER.debug(f"text_w=[2]-[0]={text_w}, text_h=[3]-[1]={text_h}")
 
-#    _LOGGER.debug(f"time-string dimensions: width={text_w}, height={text_h} px")
-
-    # Rahmen einberechnen
-#    dc_width = text_w + (cf_width * 2) + 4   # kleiner Puffer
-#    dc_height = text_h + (cf_width * 2) + 4
-
-    # Begrenzen auf Display
-#    dc_width = min(dc_width, disp_w)
-#    dc_height = min(dc_height, disp_h)
-#    dc_width = min(dc_width, d_width)
-#    dc_height = min(dc_height, d_height)
-
     # Instanzbild holen
     img = data.get("shadow")
     draw = ImageDraw.Draw(img)
-
     _LOGGER.debug("read image from instance")
 
-#    if cf_width > 0:
-#        draw.rectangle((xs, ys, xs + dc_width - 1, ys + dc_height - 1), fill = bg_color, outline=cf_color, width=cf_width)
     draw.rectangle((xs, ys, xs + dc_width - 1, ys + dc_height - 1), fill = bg_color, outline=cf_color, width=cf_width)
-
     _LOGGER.debug("drew the frame")
 
-   # Text mittig
-#    text_x = (dc_width - text_w) // 2
-#    text_y = (dc_height - text_h) // 2
-#    draw.text((text_x, text_y), time_str, fill=d_color, font=font)
-
-#    draw.text((xs + cf_width, ys + cf_width), time_str, fill=d_color, font=font)
-    draw.text((xs, ys), time_str, fill=d_color, font=font)
-
+#    draw.text((xs, ys), time_str, fill=d_color, font=font)
+    draw.text((xs, ys - int(digit_size * 0.2)), time_str, fill=d_color, font=font)
     _LOGGER.debug("wrote the time into the image")
 
     # bild ggf drehen
@@ -398,27 +403,35 @@ async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_si
     await send_screen(hass, serial_number)
 
 async def show_rheinturm(hass, serial_port, rotation = 0):
-    """zeigt die digitale Uhr an"""
-    _LOGGER.debug("rheinturm...")
+    _LOGGER.debug(f"rheinturm for serial {serial_number}...")
 
     from .commands import set_orientation, normalize_color, send_bitmap
+
+    clock_mode = hass.data[const.DOMAIN][serial_number].get("clock_mode")
+    if clock_mode != "rheinturm":
+        _LOGGER.info(f"Why to show clock for {serial_number} if not running? Seems I struggled in fast changes...! actual mode is {clock_mode}, stopping for safety")
+        await stop_clock(hass, serial_number)
+        return
+    else:
+        _LOGGER.debug(f"verified running the same clock-mode we are updating the display {serial_number} for: {clock_mode}")
 
     # check for first call
       # draw the tower
       
       # set all digits to off
     
-      # draw digits
-    
-      # time to digits
 
     # get now()
 
+    # time to digits
+
+    # draw digits
+   
+    # draw seconds
+    
     # check for s = 0
       # draw hour and minute
       
-    # draw seconds
-    
     # check rotation
 
     # calculate need dimensions

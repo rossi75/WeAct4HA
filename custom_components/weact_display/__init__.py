@@ -3,7 +3,7 @@ WeAct Display FS Integration for Home Assistant
 
 toDo:
 + random bitmap P1
-- testbild
++ testbild
 + umbau für public/github
 - qr code
 ~ send text with font/size/pos/t-color/bg-color/orientation/...
@@ -12,7 +12,7 @@ toDo:
 + clear screen
 + analog/digital clock, wird solange minütlich aktualisiert bis ein neues Kommando kommt
 - Rheinturm wird sekündlich neu gemacht, allerdings auch nur der untere Teil mit den Sekunden. Der Rest minütlich
-- pic from file
++ pic from file
 + set orientation
 + lautstärke
 + temp/humid
@@ -20,7 +20,7 @@ toDo:
 + scan for new devices regularly, list of known devices needed
 + was passiert wenn ab und dran?
 + multiple displays
-- 
+- real supported und stabiler ConfigFlow, kein Crash wenn kein Display angesteckt, keine Meldung wg inkorrekter unique-ID
 - Dokumentation der initialen Funktionsweise, der Sensoren, der verfügbaren Aktionen, ...
 """
 

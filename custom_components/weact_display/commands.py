@@ -1,37 +1,10 @@
 # open_serial wird nach tools verschoben
 # normalize und wird nach tools verschoben
 # neue fkt send_command für einfache direkte Kommandos
-# erst in den speicher schreiben, dann das komplette bild übertragen
 # https://pillow.readthedocs.io/en/stable/reference/ImageDraw.html
 #     await asyncio.sleep(4)                   # kleine Pause um direkt auf einmal verschiedene Funktionen zu testen
 
 # https://pillow.readthedocs.io/en/stable/reference/ImageDraw.html
-
-# +----------------------------------------------------------------+
-# +0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx 160+
-# +y                                                               + 
-# +y                                                               + ###########
-# +y                                                               + ########
-# +y                                                               + ########
-# +y                                                               + ###########
-# +y                                                               + 
-# +80                                                              + 
-# +----------------------------------------------------------------+
-
-# +----------------------------------------------+
-# +0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx 480+
-# +y                                             + 
-# +y                                             + 
-# +y                                             + 
-# +y                                             + 
-# +y                                             + 
-# +y                                             + 
-# +y                                             + 
-# +y                                             + 
-# +y                                             + 
-# +y                                             + 
-# +320                                           + 
-# +----------------------------------------------+
 
 import asyncio, struct, logging
 import subprocess

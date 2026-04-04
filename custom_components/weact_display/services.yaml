@@ -42,9 +42,6 @@ write_text:
           max: 1000
           step: 1
           mode: slider  # alternativ 'box' für Eingabefeld
-#    font:
-#      description: "Pfad zur Schriftdatei (TTF)"
-#      example: "/config/fonts/DejaVuSans-Bold.ttf"
     x_start:
       name: X-start
       example: 0
@@ -112,7 +109,6 @@ draw_progress_bar:
             - integration: weact_display
     bar_min:
       name: Min value
-#      example: 0
       default: 0
       selector:
         number:
@@ -131,7 +127,6 @@ draw_progress_bar:
           mode: box  # alternativ 'box' für Eingabefeld
     bar_max:
       name: Max value
-#      example: 0
       default: 775
       selector:
         number:
@@ -141,7 +136,6 @@ draw_progress_bar:
           mode: box  # alternativ 'box' für Eingabefeld
     show_value:
       name: Show Value in bar?
-#      example: 0
       default: false
       selector:
         boolean: {}
@@ -735,28 +729,24 @@ start_analog_clock:
             - integration: weact_display
     scf_color:
       name: Scale Frame Color
-#      description: "Scale Frame color"
       example: [64, 0, 0]
       default: [64, 0, 0]
       selector:
         color_rgb: {}
     sc_color:
       name: Scale Color
-#      description: "color of scale"
       example: [128, 128, 128]
       default: [128, 128, 128]                         # weiss
       selector:
         color_rgb: {}
     hh_color:
       name: Hour Pointer Color
-#      description: "color of hours"
       example: [0, 0, 0]
       default: [0, 0, 0]                        # rot
       selector:
         color_rgb: {}
     mm_color:
       name: Minutes Pointer Color
-#      description: "color of minutes"
       example: [192, 192, 192]                         # grau
       default: [192, 192, 192]                         # grau
       selector:
@@ -1064,7 +1054,7 @@ show_testbild:
             - integration: weact_display
 
 show_bmp:
-  name: Show a BMP ! do not use !
+  name: Show a BMP
   description: "displays a BMP on the WeAct Display"
   fields:
     display:
