@@ -5,6 +5,13 @@
 ~ more config flow compatible
 ~ no more crash at startup if no display attached
 
+## V0.5.4 - 18.03. - 04.04.2026
+- fixed analog clock from entity select
+- fixed digital clock from entity select
+- auto-sizing for digital clock if no value is given (was fixed to 30 px)
+- recalculate digital clock size
+- added check for clock mode while drawing clock, because if there are multiple fast clock mode changes the logic struggles at any point
+
 ## V0.5.3 - 23.-28.02.2026
 - triangle working
 - fixed analog clock from service call without parameters (shift, offset and rotation)

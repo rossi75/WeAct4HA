@@ -1,4 +1,36 @@
-### internal structure:
+### hardware layout:
+
+## FS 0.96/Landscape
+ +----------------------------------------------------------------+
+ +0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx 160+
+ +y                                                               + 
+ +y                                                               + ###########
+ +y                                                               + ########
+ +y                                                               + ########
+ +y                                                               + ###########
+ +y                                                               + 
+ +80                                                              + 
+ +----------------------------------------------------------------+
+
+## FS V1/Landscape
+ +----------------------------------------------+
+ +0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx 480+
+ +y                                             + 
+ +y                                             + 
+ +y                                             + 
+ +y                                             + 
+ +y                                             + 
+ +y                                             + 
+ +y                                             + 
+ +y                                             + 
+ +y                                             + 
+ +y                                             + 
+ +320                                           + 
+ +----------------------------------------------+
+
+
+
+### internal data structure:
 
 hass.data[weact_display][serial_number]
 
