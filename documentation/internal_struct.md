@@ -32,48 +32,86 @@
 
 ### internal data structure:
 
-hass.data[weact_display][serial_number]
+hass.data[weact_display]["devices"][serial_number]
 
-| Tupel               | Data Type  | Default Value | Sensor/Attribute         | Description                                                |
-|---------------------|------------|---------------|--------------------------|------------------------------------------------------------|
-| << state >>         | String     | initializing  |                          | [initializing\|port error\|timeout error\|ready\|busy]     |
-| online              | Boolean    |               |                          | for device state                                                           |
-| serial_port         | String     |               |                          | Serial Port description from HA                            |
-| model               | String     |               | model                    |                                                            |
-| serial_number       | String     |               | serial_number            | part of the sensors name and unique ID                     |
-| brightness          | Integer    | None          | brightness*              |                                                            |
-| width               | Integer    | None          | width                    |                                                            |
-| height              | Integer    | None          | height                   |                                                            |
-|                     | String     | None          | orientation*             | [Portrait\|Portrait Reverse\|Landscape\|Landscape Reverse] |
-| clock_mode          | String     | idle          | clock_mode*              | [idle\|analog\|digital\|rheinturm]                         |
-| clock_handle        | Function   | None          |                          | stores the handle that is called periodically              |
-| clock_select_entity | Function   | None          |                          | relation to reflect the clock_mode into select entity      |
-| humidity            | Integer    | None          | humidity**               |                                                            |
-| temperature         | Integer    | None          | temperature**            |                                                            |
-|                     | String     | °C            | temperature_unit**       |                                                            |
-| port                | String     |               | dbg_port***              | friendly name from serial port                             |
-| source              | String     | None          | dbg_source***            | [user\|import\|usb]                                        |
-| start_time          | DateTime   | init D/T      | dbg_start_time***        |                                                            |
-| who_am_i            | String     | None          | dbg_who_am_i***          |                                                            |
-| firmware_version    | String     | None          | dbg_firmware_version***  |                                                            |
-| humiture            | Boolean    | False         | dbg_humiture***          | Humiture Sensor available? [False\|True]                   |
-| orientation_value   | Integer    | None          | dbg_orientation_value*** | [0\|1\|2\|3]                                               |
-| device_id           | String     | None          | dbg_device_id***         |                                                            |
-| entry_id            | String     | None          | dbg_entry_id***          |                                                            |
-| lock                | Function   | function      |                          | used for while an image is being send, avoids collisions   |
-| shadow              | Image Data | 0x000000...   |                          | width * height * 3, the BMP itself                         |
+| Tupel                     | Data Type  | Default Value | Sensor/Attribute         | Description                                                |
+|---------------------------|------------|---------------|--------------------------|------------------------------------------------------------|
+| << state >>               | String     | initializing  |                          | [initializing\|port error\|timeout error\|ready\|busy]     |
+| online                    | Boolean    |               |                          | for device state                                                           |
+| serial_port               | String     |               |                          | Serial Port description from HA                            |
+| model                     | String     |               | model                    |                                                            |
+| serial_number             | String     |               | serial_number            | part of the sensors name and unique ID                     |
+| brightness                | Integer    | None          | brightness*              |                                                            |
+| width                     | Integer    | None          | width                    |                                                            |
+| height                    | Integer    | None          | height                   |                                                            |
+|                           | String     | None          | orientation*             | [Portrait\|Portrait Reverse\|Landscape\|Landscape Reverse] |
+| clock_mode                | String     | idle          | clock_mode*              | [idle\|analog\|digital\|rheinturm]                         |
+| clock_handle              | Function   | None          |                          | stores the handle that is called periodically              |
+| clock_select_entity       | Function   | None          |                          | relation to reflect the clock_mode into select entity      |
+| screencare                | Boolean    | True          | screencare*              | random pixels at 03:37? [False\|True]                   |
+| background_color          | Tupel      | [0, 0, 0]     | background_color*        |                                                         |
+| startup_brightness        | Integer    | 7             | startup_brightness*      | der kommt langfristig wieder weg, wird direkt wieder in konfig zurückgeschrieben !!                                                               |
+| startup_orientation_value | Integer    | True          | startup_orientation*     | der kommt langfristig wieder weg, wird direkt wieder in konfig zurückgeschrieben !!                                               |
+| humidity                  | Integer    | None          | humidity**               |                                                            |
+| temperature               | Integer    | None          | temperature**            |                                                            |
+|                           | String     | °C            | temperature_unit**       |                                                            |
+| device_path               | String     |               | dbg_dev_path***          | friendly name from serial port                             |
+| start_time                | DateTime   | init D/T      | dbg_start_time***        |                                                            |
+| who_am_i                  | String     | None          | dbg_who_am_i***          |                                                            |
+| firmware_version          | String     | None          | dbg_firmware_version***  |                                                            |
+| humiture                  | Boolean    | False         | dbg_humiture***          | Humiture Sensor available? [False\|True]                   |
+| orientation_value         | Integer    | None          | dbg_orientation_value*** | [0\|1\|2\|3]                                               |
+| entry_id                  | String     | None          | dbg_entry_id***          |                                                            |
+| lock                      | Function   | function      |                          | used for while an image is being send, avoids collisions   |
+| shadow                    | Image Data | 0x000000...   |                          | width * height * 3, the BMP itself                         |
 
 \* also available as seperate entity
 ** only available as separate entity if humiture sensor is also available
 *** (later) only if debug mode is set
 
 
+fott damit:
+hass.data[weact_display]["entries"][entry_id]
+| Tupel                     | Data Type  | Default Value | Sensor/Attribute           | Description                     |
+|---------------------------|------------|---------------|----------------------------|---------------------------------|
+| serial_number             | String     | None          | dbg_lookup_entry2serial*** | for serial lookup from entry_id |
+| startup_background_color  | Tupel      | None          | dbg_startup_bg_color***    | (0-255, 0-255, 0-255)           |
+| startup_brightness_value  | Integer    | None          | dbg_startup_b_value***     | 0-255                           |
+| startup_orientation_value | Integer    | None          | dbg_startup_o_value***     | [0\|1\|2\|3]                    |
+
+
+fott damit:
+hass.data[weact_display]["serial_map"][serial_number]
+| Tupel                     | Data Type  | Default Value | Sensor/Attribute           | Description                     |
+|---------------------------|------------|---------------|----------------------------|---------------------------------|
+| entry_id                  | String     | None          | dbg_lookup_serial2entry*** | for entry_id lookup from serial |
+
+
 ### Orientation Settings:
 
-| Orientation       | Value |
-|-------------------|-------|
-| PORTRAIT          | 0     |
-| PORTRAIT_REVERSE  | 1     |
-| LANDSCAPE         | 2     |
-| LANDSCAPE_REVERSE | 3     |
-| ROTATE            | 5     |
+| Orientation        | Value | Rot. |
+|--------------------|-------|------|
+| PORTRAIT           | 0     |    0 |
+| PORTRAIT_REVERSE   | 1     |    0 |
+| LANDSCAPE          | 2     |    0 |
+| LANDSCAPE_REVERSE  | 3     | -180 |
+| ROTATE (not impl.) | 5     |      |
+
+
+### vorhandenes Bild anhand der alten und der neuen Orientierung mehrmals um -90° drehen:
+
+ old |  90 | 270 |  0  | 180        old | 0 | 1 | 2 | 3
+ new ------------------------       new ----------------
+  90 |  -  |  2  |  3  |  1           0 | - | 2 | 3 | 1
+ 270 |  2  |  -  |  1  |  3           1 | 2 | - | 1 | 3
+   0 |  1  |  3  |  -  |  2           2 | 1 | 3 | - | 2
+ 180 |  3  |  1  |  2  |  -           3 | 3 | 1 | 2 | -
+
+resulting array-table
+ORIENTATION_CONVERSION_MAP[old][new]:
+[[0,2,3,1],
+ [2,0,1,3],
+ [1,3,0,2],
+ [3,1,2,0]]
+
+

@@ -1,11 +1,38 @@
 # changelog
 
-## V0.5.x - 2026
-~ fixed startup message complaining unique ID
+## V0.x.x - 2026
+~ fix startup message complaining unique ID
 ~ more config flow compatible
-~ no more crash at startup if no display attached
+~ fix crash at startup if no display attached
+~ to get clock into idle state, call clock handle with background colors, possible? so any custom call will also be recognized to clean up its fields
+~ improve serial initialization
 
-## V0.5.4 - 18.03. - 04.04.2026
+## V0.6.1 - 01.05.-20.05.2026
+- option for screencare draws some random pixels at 03:37:x5 every night (Siemens Gigaset restart time)
+- added hidden D/T attribute for when the module was set up
+- write orientation back into persistent storage
+- write brightness back into persistent storage
+- write screencare option back into persistent storage
+- clocks use background-color to get in idle-state
+
+## V0.6.0 - 15.04.-30.04.2026
+- changed from hass.data[DOMAIN][serial] to hass.data[DOMAIN]["devices"][serial] for runtime data
+- added hass.data[DOMAIN]["entries"][entry_id] for persistent config (and serial lookup)
+- added default brightness in config-flow
+- changed internal path variable from port to device_path
+- corrected orientation_map
+- removed attribute "device_id"
+- added option for screencare in config-flow (actually without logic behind)
+- fully (?) config-flow compatible
+
+## V0.5.5 - 05.-12.04.2026
+- added counterclockwise rotation if orientation is changed, see also table in internal_struct.md
+- services.yaml: filter for devices instead of entities
+- using entry_id instead of serial_number while initializing at startup
+- added default orientation and default background color in config-flow
+- removed attribute "source"
+
+## V0.5.4 - 18.03.-04.04.2026
 - fixed analog clock from entity select
 - fixed digital clock from entity select
 - auto-sizing for digital clock if no value is given (was fixed to 30 px)
