@@ -32,10 +32,10 @@ class Set_Brightness(NumberEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(const.DOMAIN, serial_number)},
             manufacturer="WeAct Studio",
-            model = f"Display {hass.data[const.DOMAIN][serial_number].get("model")}",
+            model = f"Display {hass.data[const.DOMAIN]["devices"][serial_number].get("model")}",
         )
 
-        value = hass.data[const.DOMAIN][serial_number].get("brightness")
+        value = hass.data[const.DOMAIN]["devices"][serial_number].get("brightness")
         if not isinstance(value, int):
             value = DEFAULT_BRIGHTNESS
         self._value = value
@@ -44,7 +44,7 @@ class Set_Brightness(NumberEntity):
 
     @property
     def native_value(self):
-        return self.hass.data[DOMAIN][self.serial_number].get("brightness")
+        return self.hass.data[DOMAIN]["devices"][self.serial_number].get("brightness")
 
     async def async_set_native_value(self, value_f: float) -> None:
         """Handle slider change."""

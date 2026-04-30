@@ -17,7 +17,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     _LOGGER.debug(f"async_setup_entry for serial-number {entry.data["serial_number"]}")
 
     serial_number = entry.data["serial_number"]
-    device = hass.data[const.DOMAIN][serial_number]
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
 
     entities = []
 
@@ -49,12 +49,12 @@ class WeActTemperatureSensor(SensorEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(const.DOMAIN, serial_number)},
             manufacturer="WeAct Studio",
-            model=f"Display {hass.data[const.DOMAIN][serial_number].get('model')}",
+            model=f"Display {hass.data[const.DOMAIN]["devices"][serial_number].get('model')}",
         )
 
     @property
     def native_value(self):
-        value = self.hass.data[const.DOMAIN][self.serial_number].get("temperature")
+        value = self.hass.data[const.DOMAIN]["devices"][self.serial_number].get("temperature")
         if value is None:
             return None
         return round(float(value), 1)
@@ -75,12 +75,12 @@ class WeActHumiditySensor(SensorEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(const.DOMAIN, serial_number)},
             manufacturer="WeAct Studio",
-            model=f"Display {hass.data[const.DOMAIN][serial_number].get('model')}",
+            model=f"Display {hass.data[const.DOMAIN]["devices"][serial_number].get('model')}",
         )
 
     @property
     def native_value(self):
-        value = self.hass.data[const.DOMAIN][self.serial_number].get("humidity")
+        value = self.hass.data[const.DOMAIN]["devices"][self.serial_number].get("humidity")
         if value is None:
             return None
         return round(float(value))
@@ -97,8 +97,10 @@ async def async_setup_platform(
 
     registry = er.async_get(hass)
     new_sensors = []
-    devices = hass.data[const.DOMAIN]
-
+    devices = {
+        k: v for k, v in hass.data[const.DOMAIN]["devices"].items()
+        if k not in ("entries")
+    }
     _LOGGER.debug(f"found {len(devices)} displays: {list(devices.keys())}")
 
     for serial_number, dev in devices.items():
@@ -109,14 +111,14 @@ async def async_setup_platform(
             _LOGGER.debug(f"Sensor already exists for {serial_number}, skipping")
             continue
         else:
-            _LOGGER.debug(f"adding new platform sensor to list: {serial_number}")
+            _LOGGER.debug(f"adding new platform sensor to device: {serial_number}")
             new_sensors.append(WeActDisplaySensor(hass, serial_number))
 
     _LOGGER.debug(f"adding {len(new_sensors)} display sensors: {list(new_sensors)}")
 
     async_add_entities(new_sensors, True)
     for entity in new_sensors:
-        hass.data[const.DOMAIN][serial_number]["entity"] = entity
+        hass.data[const.DOMAIN]["devices"][serial_number]["entity"] = entity
 
 
 class WeActDisplaySensor(SensorEntity):
@@ -124,49 +126,50 @@ class WeActDisplaySensor(SensorEntity):
     def __init__(self, hass: HomeAssistant, serial_number):
         self._hass = hass
         self._attr_unique_id = serial_number
-        model = self._hass.data[const.DOMAIN][serial_number]["model"]
+        model = self._hass.data[const.DOMAIN]["devices"][serial_number]["model"]
         self._attr_name = f"WeAct Display {model} {serial_number}"
         self._serial_number = serial_number                                  # damit es für alle Funktionen verfügbar ist
 
     # Hauptstatus
     @property
     def state(self):
-        state = self._hass.data[const.DOMAIN][self._serial_number]["state"]
+        state = self._hass.data[const.DOMAIN]["devices"][self._serial_number]["state"]
         return state
 
     # Attribute aus hass.data
     @property
     def extra_state_attributes(self):
-        data = self._hass.data[const.DOMAIN][self._serial_number]
-        _LOGGER.debug(f"serial-number={self._serial_number}, orientation-value={data.get("orientation_value")}")
+        data = self._hass.data[const.DOMAIN]["devices"][self._serial_number]
+        _LOGGER.debug(f"serial-number={self._serial_number}")
         attr = {
-            "model": data.get("model"),
-            "serial_number": data.get("serial_number"),
-            "brightness": data.get("brightness"),
-            "width": data.get("width"),
-            "height": data.get("height"),
-            "orientation": const.ORIENTATION_MAP_INV[data.get("orientation_value", 3)],
-            "clock_mode": data.get("clock_mode")
+            "model"            : data.get("model"),
+#            "serial_number": data.get("serial_number"),
+            "serial_number"    : self._serial_number,
+            "brightness"       : data.get("brightness"),
+            "width"            : data.get("width"),
+            "height"           : data.get("height"),
+            "orientation"      : const.ORIENTATION_MAP_INV[data.get("orientation_value", 3)],
+            "screencare"       : data.get("screencare"),
+            "clock_mode"       : data.get("clock_mode"),
+            "background_color" : data.get("startup_background_color")
         }
         if _LOGGER.getEffectiveLevel() == logging.DEBUG:
             if data.get("humiture") is True:
-                attr["dbg_humidity"] = data.get("humidity")
-                attr["dbg_temperature"] = data.get("temperature")
+                attr["dbg_humidity"]         = data.get("humidity")
+                attr["dbg_temperature"]      = data.get("temperature")
                 attr["dbg_temperature_unit"] = "°C"
-            attr["dbg_port"] = data.get("port")                                        # only friendly name, not serial_port with its attributes !!
-            attr["dbg_who_am_i"] = data.get("who_am_i")
-            attr["dbg_firmware_version"] = data.get("firmware_version")
-            attr["dbg_orientation_value"] = data.get("orientation_value")
-            attr["dbg_humiture"] = data.get("humiture")
-            attr["dbg_device_id"] = data.get("device_id")
-            attr["dbg_entry_id"] = data.get("entry_id")
+            attr["dbg_device_path"]          = data.get("device_path")      # only friendly name, not serial_port with its attributes !!
+            attr["dbg_who_am_i"]             = data.get("who_am_i")
+            attr["dbg_firmware_version"]     = data.get("firmware_version")
+            attr["dbg_orientation_value"]    = data.get("orientation_value")
+            attr["dbg_humiture"]             = data.get("humiture")
+            attr["dbg_entry_id"]             = data.get("entry_id")
         if True:                                                                # actually always on
-            attr["dbg_source"] = data.get("source")
-            attr["dbg_start_time"] = data.get("start_time")
+            attr["dbg_start_time"]           = data.get("start_time")
         return attr
 
     # online ?
     @property
     def available(self) -> bool:
-        data = self.hass.data[const.DOMAIN].get(self._serial_number, {})
+        data = self.hass.data[const.DOMAIN]["devices"].get(self._serial_number, {})
         return data.get("online", False)

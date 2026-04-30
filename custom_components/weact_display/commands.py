@@ -33,17 +33,17 @@ _LOGGER = logging.getLogger(__name__)
 #************************************************************************
 # m: port
 #************************************************************************
-def open_serial(port: str):
-    _LOGGER.debug(f"initializing serial port {port} ...")
+def open_serial(device_path: str):
+    _LOGGER.debug(f"initializing serial port {device_path} ...")
 
-    if not os.path.exists(port):
-        _LOGGER.error(f"Port {port} does not exist")
+    if not os.path.exists(device_path):
+        _LOGGER.error(f"serial-port {device_path} does not exist")
         return None
 
     # ---- STTY-Setup ----
     try:
         subprocess.run([
-            "stty", "-F", port,
+            "stty", "-F", device_path,
             "115200", "cs8", "-cstopb", "-parenb",
             "-crtscts", "-hupcl", "min", "1", "time", "1"
         ], check=True)
@@ -54,7 +54,7 @@ def open_serial(port: str):
     # Seriellen Port öffnen
     try:
         serial_port = serial.Serial(
-            port=port,
+            port=device_path,
             baudrate=115200,
             bytesize=serial.EIGHTBITS,
             parity=serial.PARITY_NONE,
@@ -64,21 +64,21 @@ def open_serial(port: str):
         )
 
         if serial_port.is_open:
-            _LOGGER.debug(f"opened port: {port}")
+            _LOGGER.debug(f"opened port: {device_path}")
         else:
-            _LOGGER.warning(f"could not open port {port}")
+            _LOGGER.warning(f"could not open port {device_path}")
             return None
 
-        _LOGGER.debug(f"successfully opened and initialized serial port {port}")
+        _LOGGER.debug(f"successfully opened and initialized serial port {device_path}")
 
         return serial_port
 
     except serial.SerialException as e:
-        _LOGGER.error(f"error while opening port {port}: {e}")
+        _LOGGER.error(f"error while opening port {device_path}: {e}")
         return None
 
     except Exception as e:
-        _LOGGER.error(f"Unexpected error initializing port {port}: {e}")
+        _LOGGER.error(f"Unexpected error initializing port {device_path}: {e}")
         return None
 
 
@@ -115,7 +115,7 @@ def normalize_color(value):
 async def send_screen(hass, serial_number):
     _LOGGER.debug(f"flushing the display for serial-number={serial_number}")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
     width = data.get("width")
     height = data.get("height")
 
@@ -185,7 +185,7 @@ async def set_brightness(hass, serial_number, target_brightness):
     """setzt die Lautstärke"""
     _LOGGER.debug("setting brightness...")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
     serial_port = data.get("serial_port")
     if not serial_port:
         _LOGGER.warning("Display not connected")
@@ -243,26 +243,40 @@ async def set_brightness(hass, serial_number, target_brightness):
 async def set_orientation(hass, serial_number, orientation_value):
     _LOGGER.debug("setting orientation")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
     serial_port = data.get("serial_port")
     model = data.get("model")
     if not serial_port:
         _LOGGER.warning("Display not connected")
         return
 
+    if data.get("orientation_value") == orientation_value:
+        _LOGGER.debug(f"old and new orientation are the same ({data.get("orientation_value")}={orientation_value}), nothing to change. Aborting orientation command!")
+        return
+
     params = DISPLAY_MODELS.get(model, None)
     if orientation_value in (2, 3):                                                                   # 0 oder 180°
-        hass.data[const.DOMAIN][serial_number]["width"] = params["large"]
-        hass.data[const.DOMAIN][serial_number]["height"] = params["small"]
+        hass.data[const.DOMAIN]["devices"][serial_number]["width"] = params["large"]
+        hass.data[const.DOMAIN]["devices"][serial_number]["height"] = params["small"]
     elif orientation_value in (0, 1):                                                                  # 90° oder 270°
-        hass.data[const.DOMAIN][serial_number]["width"] = params["small"]
-        hass.data[const.DOMAIN][serial_number]["height"] = params["large"]
+        hass.data[const.DOMAIN]["devices"][serial_number]["width"] = params["small"]
+        hass.data[const.DOMAIN]["devices"][serial_number]["height"] = params["large"]
     else:
         _LOGGER.error(f"unknown orientation_value {orientation_value}, not changing anything")
         return
 
-    hass.data[const.DOMAIN][serial_number]["orientation_value"] = orientation_value
+    # array-table [old][new]: [[0,2,3,1],[2,0,1,3],[1,3,0,2],[3,1,2,0]], see internal_struct.md for evidence
+    img = data.get("shadow")
+    _LOGGER.debug("read image from instance")
+    rotations = const.ORIENTATION_CONVERSION_MAP[data.get("orientation_value")][orientation_value]
+#    img.rotate(90 * rotations)
+    img = img.rotate(-90 * rotations, expand = True)
+#    _LOGGER.debug(f"rotated the BMP {rotations} times clockwise by 90° = {90 * rotations}°")
+    _LOGGER.debug(f"rotated the BMP {rotations} times counterclockwise by 90° = {-90 * rotations}°")
+    data["shadow"] = img
+    _LOGGER.debug("stored rotated image back into instance")
 
+    hass.data[const.DOMAIN]["devices"][serial_number]["orientation_value"] = orientation_value
     _LOGGER.debug(f"new orientation-value={orientation_value}, {data.get("width")}x{data.get("height")} px")
 
     packet = struct.pack(
@@ -276,6 +290,7 @@ async def set_orientation(hass, serial_number, orientation_value):
 
     await hass.async_add_executor_job(serial_port.write, packet)
     await asyncio.sleep(0.1)
+    await send_screen(hass, serial_number)
 
     _LOGGER.debug("orientation done")
 
@@ -292,7 +307,7 @@ async def set_orientation(hass, serial_number, orientation_value):
 async def enable_humiture_reports(hass, serial_number, time_interval = None):
     _LOGGER.debug("enabling humiture reports")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
     serial_port = data.get("serial_port")
     if not serial_port:
         _LOGGER.warning("Display not connected")
@@ -329,7 +344,7 @@ async def enable_humiture_reports(hass, serial_number, time_interval = None):
 async def read_firmware_version(hass, serial_number):
     _LOGGER.debug("requesting firmware version")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
     serial_port = data.get("serial_port")
     if not serial_port:
         _LOGGER.warning("Display not connected")
@@ -360,7 +375,7 @@ async def read_firmware_version(hass, serial_number):
 async def read_who_am_i(hass, serial_number):
     _LOGGER.debug("requesting who-am-i from display")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
     serial_port = data.get("serial_port")
     if not serial_port:
         _LOGGER.warning("Display not connected")
@@ -398,7 +413,7 @@ def parse_packet(hass, serial_number, packet: bytes):
         _LOGGER.info(f"Last byte is not 0x0A, so the end of the packet cannot be determined and all bytes received from serial {serial_number} must be discarded")
         return False
 
-    device = hass.data[const.DOMAIN][serial_number]
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
     cmd = packet[0]
     try:
         # -----------------------------
@@ -513,7 +528,7 @@ def parse_packet(hass, serial_number, packet: bytes):
 async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
     _LOGGER.debug("finally sending bitmap...")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
     serial_port = data.get("serial_port")
     if not serial_port:
         _LOGGER.warning("Display not connected")
@@ -577,7 +592,7 @@ async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
 
 
 async def _wait_for_display(hass, serial_number, timeout=5.0):
-    dev = hass.data[const.DOMAIN][serial_number]
+    dev = hass.data[const.DOMAIN]["devices"][serial_number]
     lock = dev["lock"]
 
     try:
@@ -594,7 +609,7 @@ async def _wait_for_display(hass, serial_number, timeout=5.0):
     return True
 
 async def _release_display(hass, serial_number):
-    dev = hass.data[const.DOMAIN][serial_number]
+    dev = hass.data[const.DOMAIN]["devices"][serial_number]
     lock = dev["lock"]
 
     if lock.locked():
@@ -620,7 +635,7 @@ async def _release_display(hass, serial_number):
 async def show_bmp(hass, serial_number, xs = None, ys = None, filepath = None):
     _LOGGER.debug("show a bmp file...")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
     serial_port = data.get("serial_port")
     if not serial_port:
         _LOGGER.warning("Display not connected")
@@ -702,7 +717,7 @@ async def show_bmp(hass, serial_number, xs = None, ys = None, filepath = None):
 async def send_full_color(hass, serial_number, color):
     _LOGGER.debug("filling display with one-color...")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
     serial_port = data.get("serial_port")
     if not serial_port:
         _LOGGER.warning("Display not connected")
@@ -771,7 +786,7 @@ async def display_selftest(hass, serial_number: str):
 async def generate_random(hass, serial_number):
     _LOGGER.debug("raising random bitmap")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
     serial_port = data.get("serial_port")
     if not serial_port:
         _LOGGER.warning("Display not connected")
@@ -814,7 +829,7 @@ async def generate_random(hass, serial_number):
 async def show_init_screen(hass, serial_number):
     _LOGGER.debug("show up initial screen")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
     serial_port = data.get("serial_port")
     if not serial_port:
         _LOGGER.warning("Display not connected")
@@ -854,7 +869,7 @@ async def show_init_screen(hass, serial_number):
 async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_color = (255, 255, 255), rotation = 0):
     _LOGGER.debug("show icon...")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     if i_color is None:
@@ -898,7 +913,7 @@ async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_col
 async def draw_line(hass, serial_number, xs, ys, xe, ye, l_color = (255, 255, 255), l_width = 1):
     _LOGGER.info("draw a line ...")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     l_color = normalize_color(l_color)
@@ -937,7 +952,7 @@ async def draw_line(hass, serial_number, xs, ys, xe, ye, l_color = (255, 255, 25
 async def draw_circle(hass, serial_number, xp, yp, r, c_color = (255, 255, 255), f_color = (255, 0, 0), cf_width = 0, e = None):
     _LOGGER.info("draw a circle ...")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
     width = data.get("width")
     height = data.get("height")
 
@@ -995,7 +1010,7 @@ async def draw_circle(hass, serial_number, xp, yp, r, c_color = (255, 255, 255),
 async def draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width = 1, rf_color = (255, 255, 255), f_color = None):
     _LOGGER.info("draw a rectangle ...")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     if rf_width is None:
@@ -1045,7 +1060,7 @@ async def draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width = 1, rf_c
 async def draw_triangle(hass, serial_number, xa, ya, xb, yb, xc, yc, t_color = None, tf_color = None, tf_width = None):
     _LOGGER.info("draw a triangle ...")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     if tf_width is None:
@@ -1106,7 +1121,7 @@ async def draw_triangle(hass, serial_number, xa, ya, xb, yb, xc, yc, t_color = N
 async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, t_color = None, bg_color = None, rotation = 0):
     _LOGGER.debug(f"writing some text with values given: serial-number={serial_number}, text={text}, xs={xs}, ys={ys}, xe={xe}, ye={ye}, font-size={font_size}, text-color={t_color}, background-color={bg_color}, rotation={rotation}")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     if t_color is None:
@@ -1190,7 +1205,7 @@ async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, 
 async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None, min_value=0, max_value=100, bf_width=1, bf_color=None, b_color=(255, 255, 255), bg_color=(0, 0, 0), rotation = 90, show_value=False, val_appendix=""):
     _LOGGER.debug(f"doing a progress with the values given: xs={xs}, ys={ys}, xe={xe}, ye={ye}, bar-value={bar_value}, min-value={min_value}, max-value={max_value}, bar-frame-width={bf_width}, bar-color={b_color}, bar-frame-color={bf_color}, background-color={bg_color}, rotation={rotation}, show-value={show_value}, value-appendix={val_appendix}")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
 
     if bf_color is None:
         bf_color = b_color

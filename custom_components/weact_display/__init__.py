@@ -44,13 +44,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import device_registry as dr
-#from homeassistant.helpers.event import async_track_event
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.discovery import async_load_platform
 
 import custom_components.weact_display.const as const
 from .models import DISPLAY_MODELS
-#from .const import DEFAULT_BRIGHTNESS
 from .clock import stop_clock, start_analog_clock, start_digital_clock
 #from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr, enable_humiture_reports, parse_packet
 #from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr, enable_humiture_reports, parse_packet, read_firmware_version, read_who_am_i
@@ -61,10 +59,6 @@ from .commands import send_full_color, write_text, generate_random, open_serial,
 #from .clock import stop_clock, start_analog_clock, start_digital_clock, start_rheinturm
 
 
-#from .const import DOMAIN, LOGGER
-#from .clock import stop_clock, CLOCK_MODE
-
-
 # ------------------------------------------------------------
 # Initialisierung
 # ------------------------------------------------------------
@@ -72,42 +66,138 @@ from .commands import send_full_color, write_text, generate_random, open_serial,
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    _LOGGER.info("Setting up WeAct Display integration via async_setup_entry")
-    _LOGGER.debug(f"entry={entry}")
+    _LOGGER.info("Setting up WeAct Display integration via async_setup_entry (from Config Flow)")
     # reales Display beim Startup:
     # 2025-12-28 23:45:37.658 DEBUG (MainThread) [custom_components.weact_display] async_setup_entry called for weact_display, entry=<ConfigEntry entry_id=01KDDSQP0NMRXTP0DQF45ZPAD2 version=1 domain=weact_display title=WeAct Display addec74db14d state=ConfigEntryState.SETUP_IN_PROGRESS unique_id=addec74db14d>
     # Fake Display manuell:
     # 2025-12-28 23:59:11.478 DEBUG (MainThread) [custom_components.weact_display] async_setup_entry called for weact_display, entry=<ConfigEntry entry_id=01KDKJZSZPNXN4CKQ03KYA1BEK version=1 domain=weact_display title=SMLIGHT SLZB-07p7 state=ConfigEntryState.SETUP_IN_PROGRESS unique_id=None>
+    _LOGGER.debug(f"entry={entry}")
+ 
+    domain_data = hass.data.setdefault(const.DOMAIN, {})
+    devices     = domain_data.setdefault("devices", {})
+#    entries     = domain_data.setdefault("entries", {})
+    serial_map  = domain_data.setdefault("serial_map", {})
 
-    serial_number = entry.data["serial_number"]
-    device_path = entry.data["device"]
+    serial_number = entry.unique_id
 
-    if not device_path:
-        _LOGGER.error(f"ConfigEntry {entry.entry_id} has no device path, aborting setup")
+    device_path               = entry.data.get("device_path", None)
+    model                     = entry.data.get("model", None)
+    startup_orientation_value = entry.options.get("startup_orientation_value", None)
+    startup_brightness_value  = int(entry.options.get("startup_brightness_value", None))
+    startup_background_color  = entry.options.get("startup_background_color", None)
+    startup_screencare        = entry.options.get("startup_screencare", None)
+
+    _LOGGER.debug(f"model={model}, device-path={device_path}, startup-background-color={startup_background_color}, startup-brightness-value={startup_brightness_value}, startup-orientation-value={startup_orientation_value}, startup-screencare={startup_screencare}")
+
+    if device_path is None:
+        _LOGGER.error(f"could not find any device-path in ConfigEntry datastore (={device_path}), aborting !")
         return False
+    if model is None:
+        _LOGGER.error(f"could not find any model in ConfigEntry datastore (={model}), aborting !")
+        return False
+    if startup_orientation_value is None:
+        startup_orientation_value = 2
+        _LOGGER.debug(f"could not find any valid value for startup-orientation-value in ConfigEntry datastore, set to {startup_orientation_value}")
+    if startup_brightness_value is None:
+        startup_brightness_value = const.DEFAULT_BRIGHTNESS
+        _LOGGER.debug(f"could not find any valid value for startup-brightness-value in ConfigEntry datastore, set to {startup_brightness_value}")
+    if startup_background_color is None:
+        startup_background_color = (0, 0, 0)
+        _LOGGER.debug(f"could not find any valid value for startup-background-color in ConfigEntry datastore, set to {startup_background_color}")
+    if startup_screencare is None:
+        screencare = True
+        _LOGGER.debug(f"could not find any valid value for startup-screencare in ConfigEntry datastore, set to {startup_screencare}")
 
-    hass.data.setdefault(const.DOMAIN, {})
-    hass.data[const.DOMAIN].setdefault(serial_number, {})
-    hass.data[const.DOMAIN][serial_number]["device"] = device_path
-    hass.data[const.DOMAIN][serial_number]["entry_id"] = entry.entry_id
+    # Parameter abfragen
+    params = DISPLAY_MODELS.get(model, None)
+    if params is None:
+        _LOGGER.error(f"unknown display type: {model}. Please ask developer or enhance models.py by yourself")
+        width = 1
+        height = 1
+        humiture = False
+    else:
+        humiture = params["humiture"]
+        large = params["large"]
+        small = params["small"]
+        _LOGGER.debug(f"read model parameters: large={large}, small={small}, humiture={humiture}")
+        if startup_orientation_value in [0, 2]:       # Landscape
+            width = large
+            height = small
+        else:                                         # Portrait
+            width = small
+            height = large
+        _LOGGER.debug(f"configured orientation [{startup_orientation_value}] to width={width}, height={height}")
+
+    # runtime Daten
+    _LOGGER.debug(f"setting up runtime values for entry-id {entry.entry_id}, serial-number {serial_number}")
+    devices.setdefault(serial_number, {})
+    devices[serial_number]["entry_id"]                  = entry.entry_id
+    devices[serial_number]["device_path"]               = device_path
+    devices[serial_number]["model"]                     = model
+    devices[serial_number]["firmware_version"]          = None
+    devices[serial_number]["who_am_i"]                  = None
+    devices[serial_number]["state"]                     = "initializing"
+    devices[serial_number]["start_time"]                = datetime.datetime.now().isoformat(timespec="seconds")
+    devices[serial_number]["startup_orientation_value"] = startup_orientation_value
+    devices[serial_number]["startup_brightness_value"]  = startup_brightness_value
+    devices[serial_number]["startup_background_color"]  = startup_background_color
+    devices[serial_number]["startup_screencare"]        = startup_screencare
+    devices[serial_number]["brightness"]                = startup_brightness_value
+    devices[serial_number]["background_color"]          = startup_background_color
+    devices[serial_number]["orientation_value"]         = startup_orientation_value
+    devices[serial_number]["width"]                     = width
+    devices[serial_number]["height"]                    = height
+    devices[serial_number]["humiture"]                  = humiture
+    devices[serial_number]["temperature"]               = None
+    devices[serial_number]["humidity"]                  = None
+    devices[serial_number]["clock_mode"]                = "idle"
+    devices[serial_number]["clock_handle"]              = None
+    devices[serial_number]["lock"]                      = asyncio.Lock()
+    devices[serial_number]["shadow"]                    = Image.new("RGB", (width, height))
+    _LOGGER.debug(f"devices={devices}")
+
+    # mapping
+    _LOGGER.debug(f"setting up serial_mapping for {serial_number}")
+    serial_map[serial_number] = entry.entry_id
+
+
+
+    #
+    #
+    #
+    # --> warum hier noch mal?
+    #
+    #
+    #
+#    hass.data[const.DOMAIN]["entries"][entry.entry_id] = {
+#            "startup_orientation_value": startup_orientation_value,
+#            "startup_brightness_value": startup_brightness_value,
+#            "startup_background_color": startup_background_color,
+#    }
+#    hass.data[const.DOMAIN]["devices"][serial_number]["device"] = device_path
+#    hass.data[const.DOMAIN]["devices"][serial_number]["entry_id"] = entry.entry_id
 
     # === DEVICE REGISTRY ===
+    _LOGGER.debug(f"registering device for {serial_number}")
     device_registry = dr.async_get(hass)
     device = device_registry.async_get_or_create(
         config_entry_id = entry.entry_id,
         identifiers = {(const.DOMAIN, serial_number)},
         manufacturer = "WeAct Studio",
-        model = f"WeAct Display type {hass.data[const.DOMAIN][serial_number].get("model")}",
-        sw_version = hass.data[const.DOMAIN][serial_number].get("firmware_version"),
+        model = f"WeAct Display type {hass.data[const.DOMAIN]["devices"][serial_number].get("model")}",
+        sw_version = hass.data[const.DOMAIN]["devices"][serial_number].get("firmware_version"),
         name = f"WeAct Display {serial_number}",
     )
 
     _LOGGER.debug(f"Registered device: name={device.name}, identifiers={device.identifiers}, manufacturer={device.manufacturer}, model={device.model}, sw_version={device.sw_version}")
 
-    hass.data[const.DOMAIN][serial_number]["online"] = True
+    hass.data[const.DOMAIN]["devices"][serial_number]["online"] = True
 
     # Plattformen laden
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "select", "number"])
+
+#    hass.loop.create_task(post_startup(hass))            # serielle Schnittstelle(n) initialisieren
+    hass.loop.create_task(post_startup(hass, entry))            # serielle Schnittstelle(n) initialisieren
 
     return True
 
@@ -123,105 +213,126 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor", "select", "number"],)
 
     if unload_ok and serial_number:
-        hass.data[const.DOMAIN].pop(serial_number, None)
+        hass.data[const.DOMAIN]["devices"].pop(serial_number, None)
 
     return unload_ok
 
 
 async def async_setup(hass: HomeAssistant, config):
-    _LOGGER.info("Setting up WeAct Display integration via async_setup")
+    _LOGGER.info("Setting up WeAct Display integration via async_setup (from Startup)")
 
     # BMP/ICON Filepath
     const.IMG_PATH.mkdir(parents=True, exist_ok=True)
     const.ICON_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     _LOGGER.debug(f"image path set to: {const.IMG_PATH}, icon path set to: {const.ICON_CACHE_DIR}")
 
+
     # Display-Suche
-    ports = await asyncio.to_thread(glob.glob, "/dev/serial/by-id/*WeAct*")
-    if not ports:
-        _LOGGER.info("could not find any WeAct Display")
-        return False
+#    ports = await asyncio.to_thread(glob.glob, "/dev/serial/by-id/*WeAct*")
+#    if not ports:
+#        _LOGGER.info("could not find any WeAct Display")
+#        return False
 
-    hass.data[const.DOMAIN] = {}
-    hass.data.setdefault(const.DOMAIN, {})
+##    hass.data[const.DOMAIN] = {}
+##    hass.data.setdefault(const.DOMAIN, {})
+#    hass.data[const.DOMAIN]["devices"] = {}
+#    hass.data.setdefault(const.DOMAIN["devices"], {})
 
-    for idx, port in enumerate(ports):
-        serial_full = os.path.basename(port)
-        serial_parts = serial_full.split("_")
-        if len(serial_parts) > 3:
-            model = "_".join(serial_parts[3:-1]).replace("_", " ") 
-        else:
-            model = "unknown"
-        if len(serial_parts) > 1:
-            serial_number = re.sub(r"-if\d+$", "", serial_parts[-1])
-        else:
-            serial_number = "n/a"
+#    for idx, port in enumerate(ports):
+#        serial_full = os.path.basename(port)
+#        serial_parts = serial_full.split("_")
+#        if len(serial_parts) > 3:
+#            model = "_".join(serial_parts[3:-1]).replace("_", " ") 
+#        else:
+#            model = "unknown"
+#        if len(serial_parts) > 1:
+#            serial_number = re.sub(r"-if\d+$", "", serial_parts[-1])
+#        else:
+#            serial_number = "n/a"
 
-        _LOGGER.debug(f"found new display #{idx} with: port={port}, model={model}, serial_number={serial_number}")
+#        _LOGGER.debug(f"found new display #{idx} with: port={port}, model={model}, serial_number={serial_number}")
 
         # Parameter abfragen
-        params = DISPLAY_MODELS.get(model, None)
-        if params is None:
-            _LOGGER.error(f"unknown display type: {model}. Please ask developer or enhance models.py by yourself")
-            width = 1
-            height = 1
-            humiture = False
-        else:
-            width = params["large"]
-            height = params["small"]
-            humiture = params["humiture"]
-            _LOGGER.debug(f"read model parameters: width={width}, height={height}, humiture={humiture}")
+#        params = DISPLAY_MODELS.get(model, None)
+#        if params is None:
+#            _LOGGER.error(f"unknown display type: {model}. Please ask developer or enhance models.py by yourself")
+#            width = 1
+#            height = 1
+#            humiture = False
+#        else:
+#            width = params["large"]
+#            height = params["small"]
+#            humiture = params["humiture"]
+#            _LOGGER.debug(f"read model parameters: width={width}, height={height}, humiture={humiture}")
 
         # Globale Datenstruktur
-        hass.data[const.DOMAIN][serial_number] = {
-            "state": "initializing",
-            "port": port,
-            "model": model,
-            "serial_number": serial_number,
-            "firmware_version": None,
-            "who_am_i": None,
-            "start_time": datetime.datetime.now().isoformat(timespec="seconds"),
-            "brightness": None,
-            "width": width,
-            "height": height,
-            "orientation_value": 2,     # hier später aus dem Speicher lesen
-            "humiture": humiture,
-            "temperature": None,
-            "humidity": None,
-            "clock_handle": None,
-            "clock_mode": "idle",
-            "lock": asyncio.Lock(),
-            "shadow": Image.new("RGB", (width, height))
-        }
+#        hass.data[const.DOMAIN]["devices"][serial_number] = {
+#            "state": "initializing",
+#            "port": port,
+#            "model": model,
+#            "serial_number": serial_number,
+#            "firmware_version": None,
+#            "who_am_i": None,
+#            "start_time": datetime.datetime.now().isoformat(timespec="seconds"),
+#            "brightness": None,
+#            "width": width,
+#            "height": height,
+#            "orientation_value": 2,     # hier später aus dem Speicher lesen
+#            "humiture": humiture,
+#            "temperature": None,
+#            "humidity": None,
+#            "clock_handle": None,
+#            "clock_mode": "idle",
+#            "startup_orientation_value": None,
+#            "startup_brightness_value": None,
+#            "startup_background_color": None,
+#            "lock": asyncio.Lock(),
+#            "shadow": Image.new("RGB", (width, height))
+#        }
+#    startup_orientation_value = entry.data.get("startup_orientation_value", None)
+#    startup_brightness_value = entry.data.get("startup_brightness_value", None)
+#    startup_background_color = entry.data.get("startup_background_color", None)
 
-        _LOGGER.debug(f"shadow image has a size of {width * height * 3} bytes")
+#    _LOGGER.debug(f"startup-background-color={startup_background_color}, startup-brightness-value={startup_brightness_value}, startup-orientation-value={startup_orientation_value}")
 
-        try:
-            _LOGGER.debug(f"Opening display on port {port}")
+#    if startup_orientation_value is None:
+#        startup_orientation_value = 2
+#        _LOGGER.debug(f"could not find any valid value for startup-orientation-value in ConfigEntry datastore, set to {startup_orientation_value}")
+#    if startup_brightness_value is None:
+#        startup_brightness_value = const.DEFAULT_BRIGHTNESS
+#        _LOGGER.debug(f"could not find any valid value for startup-brightness-value in ConfigEntry datastore, set to {startup_brightness_value}")
+#    if startup_background_color is None:
+#        startup_background_color = (0, 0, 0)
+#        _LOGGER.debug(f"could not find any valid value for startup-background-color in ConfigEntry datastore, set to {startup_background_color}")
 
-            serial_port = await hass.async_add_executor_job(open_serial, port)
-            if serial_port is None:
-                _LOGGER.error(f"serial port {port} could not be opened.")
-                hass.data[const.DOMAIN][serial_number]["state"] = "port error"
-                return False
+#        _LOGGER.debug(f"shadow image has a size of {width * height * 3} bytes")
 
-            _LOGGER.debug(f"successfully opened serial-port {port}")
+#        try:
+#            _LOGGER.debug(f"Opening display on port {port}")
 
-            hass.data[const.DOMAIN][serial_number]["serial_port"] = serial_port
-            hass.data[const.DOMAIN][serial_number]["state"] = "ready"
+#            serial_port = await hass.async_add_executor_job(open_serial, port)
+#            if serial_port is None:
+#                _LOGGER.error(f"serial port {port} could not be opened.")
+#                hass.data[const.DOMAIN]["devices"][serial_number]["state"] = "port error"
+#                return False
 
-            hass.bus.async_fire("weact_display", {"have fun with the new display at": hass.data[const.DOMAIN][serial_number]["port"]})
+#            _LOGGER.debug(f"successfully opened serial-port {port}")
 
-        except Exception as e:
-            _LOGGER.error(f"Error while initializing display: {e}")
-            return False
+#            hass.data[const.DOMAIN]["devices"][serial_number]["serial_port"] = serial_port
+#            hass.data[const.DOMAIN]["devices"][serial_number]["state"] = "ready"
 
-        _LOGGER.info(f"WeAct Display {model} is now waiting for some commands at {port}")
+#            hass.bus.async_fire("weact_display", {"have fun with the new display at": hass.data[const.DOMAIN]["devices"][serial_number]["port"]})
 
-    # Sensor-Plattform laden (Erzeugt die Entity!)
+#        except Exception as e:
+#            _LOGGER.error(f"Error while initializing display: {e}")
+#            return False
+
+#        _LOGGER.info(f"WeAct Display {model} is now waiting for some commands at {port}")
+
+#    # Sensor-Plattform laden (Erzeugt die Entity!)
     await async_load_platform(hass, "sensor", const.DOMAIN, {}, config)
 
-    hass.loop.create_task(post_startup(hass))
+#    hass.loop.create_task(post_startup(hass))
 
 
 ###
@@ -235,15 +346,15 @@ async def async_setup(hass: HomeAssistant, config):
         serial = device.get("serial_number")
         if not serial:
             return
-        if serial not in hass.data[const.DOMAIN]:
+        if serial not in hass.data[const.DOMAIN]["devices"]:
             return
 
         _LOGGER.warning(f"USB device removed: serial={serial}, device={device.device}")
 
-        hass.data[const.DOMAIN][serial]["online"] = False                        # mark device as offline
+        hass.data[const.DOMAIN]["devices"][serial]["online"] = False                        # mark device as offline
 
         # Entities informieren
-        entity = hass.data[const.DOMAIN][serial].get("entity")
+        entity = hass.data[const.DOMAIN]["devices"][serial].get("entity")
         if entity:
             entity.async_write_ha_state()
 
@@ -812,32 +923,59 @@ async def async_setup(hass: HomeAssistant, config):
     return True
 
  
-async def post_startup(hass: HomeAssistant):
+async def post_startup(hass: HomeAssistant, entry):
     await asyncio.sleep(0.1)  # kleinen Yield geben
     _LOGGER.debug("post-startup")
 
-    for serial_number, data in hass.data[const.DOMAIN].items():
-        _LOGGER.info(f"initializing display with serial-number {serial_number}")
-        await start_serial_reader_thread(hass, serial_number)
-        await asyncio.sleep(0.1)  # kleinen Yield geben
-#        await set_orientation(hass, serial_number, 2)                      # landscape setzen
-        await set_orientation(hass, serial_number, hass.data[const.DOMAIN][serial_number].get("orientation_value"))
-        await set_brightness(hass, serial_number, const.DEFAULT_BRIGHTNESS)
-        await asyncio.sleep(0.1)                                         # nur mal kurz die Welt retten
-        if hass.data[const.DOMAIN][serial_number]["humiture"]:
-            await enable_humiture_reports(hass, serial_number)
-        await read_who_am_i(hass, serial_number)
-        await read_firmware_version(hass, serial_number)
-        await display_selftest(hass, serial_number)
+    serial_number = entry.unique_id
+    device_path = entry.data.get("device_path")
+    model = entry.data.get("model")
+
+    _LOGGER.info(f"Initializing display {model} with serial {serial_number} on {device_path}")
+
+    try:
+        _LOGGER.debug(f"Opening display on port {device_path}")
+        serial_port = await hass.async_add_executor_job(open_serial, device_path)
+        if serial_port is None:
+            _LOGGER.error(f"serial port {port} could not be opened.")
+            hass.data[const.DOMAIN]["devices"][serial_number]["state"] = "port error"
+            return False
+
+        _LOGGER.debug(f"successfully opened serial-port {device_path}")
+
+        hass.data[const.DOMAIN]["devices"][serial_number]["serial_port"] = serial_port
+        hass.data[const.DOMAIN]["devices"][serial_number]["state"] = "ready"
+
+        hass.bus.async_fire("weact_display", {"have fun with the new display at": hass.data[const.DOMAIN]["devices"][serial_number]["device_path"]})
+
+    except Exception as e:
+        _LOGGER.error(f"Error while initializing display: {e}")
+        return False
+
+    await start_serial_reader_thread(hass, serial_number)
+    await asyncio.sleep(0.1)  # kleinen Yield geben
+    await set_orientation(hass, serial_number, int(hass.data[const.DOMAIN]["devices"][serial_number].get("orientation_value")))
+    await set_brightness(hass, serial_number, int(hass.data[const.DOMAIN]["devices"][serial_number].get("brightness")))
+    await asyncio.sleep(0.1)                                         # nur mal kurz die Welt retten
+    if hass.data[const.DOMAIN]["devices"][serial_number]["humiture"]:
+        await enable_humiture_reports(hass, serial_number)
+    await read_who_am_i(hass, serial_number)
+    await read_firmware_version(hass, serial_number)
+    await display_selftest(hass, serial_number)
+    await send_full_color(hass, serial_number, hass.data[const.DOMAIN]["devices"][serial_number].get("background_color"))
  
-    _LOGGER.debug("post-startup done for all actually known displays")
- 
- 
+    _LOGGER.info(f"post-startup done for serial {serial_number} on {device_path}, WeAct Display {model} is now waiting for some commands")
+
+
 async def start_serial_reader_thread(hass, serial_number):
-    device = hass.data[const.DOMAIN][serial_number]
+    _LOGGER.debug(f"starting serial-reader-thread for serial {serial_number}")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    _LOGGER.debug(f"device={device}")
+    device_path = device["device_path"]
     serial_port = device["serial_port"]
-    if serial_port is None:
-        _LOGGER.error(f"No serial-port for {serial_number}")
+
+    if device_path is None:
+        _LOGGER.error(f"No device-path for {serial_number}")
         return
  
     def reader():
@@ -852,19 +990,19 @@ async def start_serial_reader_thread(hass, serial_number):
                 _LOGGER.debug(f"RX [{serial_number}]: {data.hex(' ')}")                       # Zeige rohe Daten an (Hex + ASCII)
 
                 if not parse_packet(hass, serial_number, packet=data):
-                    _LOGGER.warning(f"could not parse the packet {data.hex(' ')} on port {serial_port}")
+                    _LOGGER.warning(f"could not parse the packet {data.hex(' ')} from {device_path}")
 
             except serial.SerialException:
                 _LOGGER.warning(f"WeAct Display {serial_number} disconnected")
-                hass.data[const.DOMAIN][serial_number]["online"] = False
-                hass.data[const.DOMAIN][serial_number]["state"] = "port error"
+                hass.data[const.DOMAIN]["devices"][serial_number]["online"] = False
+                hass.data[const.DOMAIN]["devices"][serial_number]["state"] = "port error"
                 break
 
             except Exception as e:
-                _LOGGER.error(f"Thread error for serial-port {serial_port}: {e}")
+                _LOGGER.error(f"Thread error for serial-port {device_path}: {e}")
                 break
 
-        _LOGGER.warning(f"serial reader stopped for port {serial_port} (should only reach this point while unloading !!)")
+        _LOGGER.warning(f"serial reader stopped for serial-port {device_path} (This should only be reached while unloading !!)")
  
     t = threading.Thread(target=reader, daemon=True)
     t.start()

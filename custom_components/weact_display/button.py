@@ -24,7 +24,7 @@ class Button_DisplayTest(ButtonEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(const.DOMAIN, serial_number)},
             manufacturer="WeAct Studio",
-            model = f"Display {hass.data[const.DOMAIN][self.serial_number].get("model")}",
+            model = f"Display {hass.data[const.DOMAIN]["devices"][self.serial_number].get("model")}",
         )
 
     async def async_press(self):

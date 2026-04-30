@@ -38,7 +38,7 @@ class Select_Orientation(SelectEntity):
 
         _LOGGER.debug(f"reading actual orientation")
 
-        value = hass.data[const.DOMAIN][serial_number].get("orientation_value")
+        value = hass.data[const.DOMAIN]["devices"][serial_number].get("orientation_value")
         if not isinstance(value, int) or value not in const.ORIENTATION_MAP_INV:
             value = 0  # Default: Portrait
         self._value = value
@@ -49,7 +49,7 @@ class Select_Orientation(SelectEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(const.DOMAIN, serial_number)},
             manufacturer="WeAct Studio",
-            model = f"Display {hass.data[const.DOMAIN][serial_number].get("model")}",
+            model = f"Display {hass.data[const.DOMAIN]["devices"][serial_number].get("model")}",
         )
 
     async def async_select_option(self, option: str):
@@ -60,7 +60,7 @@ class Select_Orientation(SelectEntity):
 
         await set_orientation(self.hass, self.serial_number, value)
 
-        self._attr_current_option = const.ORIENTATION_MAP_INV[self.hass.data[const.DOMAIN][self.serial_number].get("orientation_value")]
+        self._attr_current_option = const.ORIENTATION_MAP_INV[self.hass.data[const.DOMAIN]["devices"][self.serial_number].get("orientation_value")]
         self.async_write_ha_state()
 
 
@@ -76,7 +76,7 @@ class Select_ClockMode(SelectEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(const.DOMAIN, serial_number)},
             manufacturer="WeAct Studio",
-            model = f"Display {hass.data[const.DOMAIN][serial_number].get("model")}",
+            model = f"Display {hass.data[const.DOMAIN]["devices"][serial_number].get("model")}",
         )
 
     async def async_select_option(self, option: str):
@@ -93,11 +93,11 @@ class Select_ClockMode(SelectEntity):
         self.async_write_ha_state()
 
     async def async_added_to_hass(self):
-        self.hass.data[const.DOMAIN][self.serial_number]["clock_select_entity"] = self
+        self.hass.data[const.DOMAIN]["devices"][self.serial_number]["clock_select_entity"] = self
 
     @property
     def current_option(self):
-        return self.hass.data[const.DOMAIN][self.serial_number].get("clock_mode")
+        return self.hass.data[const.DOMAIN]["devices"][self.serial_number].get("clock_mode")
 
     # für um Updates auch zu erhalten wenn es vom Service gesetzt wird
     def refresh_from_data(self):

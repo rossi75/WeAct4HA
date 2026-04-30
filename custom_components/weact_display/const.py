@@ -1,7 +1,6 @@
 from pathlib import Path
 
 DOMAIN = "weact_display"
-IMG_PATH = None
 MAX_BMP_FILES = 20
 MAX_SVG_FILES = 100
 BASE_PATH = Path(__file__).parent
@@ -36,3 +35,6 @@ COMMAND_NAMES = {
     0xC2: "READ_FIRMWARE_VERSION",
     0xC3: "READ_SERIAL_NUMBER"
 }
+
+# array-table [old][new]:, see internal_struct.md for evidence
+ORIENTATION_CONVERSION_MAP = [[0,2,3,1],[2,0,1,3],[1,3,0,2],[3,1,2,0]]

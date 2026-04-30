@@ -15,7 +15,7 @@ async def stop_clock(hass, serial_number):
     """Beendet alle Uhr-Routinen"""
     _LOGGER.debug(f"stopping any running clock for serial {serial_number}...")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
     clock_mode = data.get("clock_mode")
     clock_handle = data.get("clock_handle")
 
@@ -26,7 +26,6 @@ async def stop_clock(hass, serial_number):
             await show_analog_clock(hass, serial_number, sc_color = (0, 0, 0), h_color = (0, 0, 0), m_color = (0, 0, 0), scf_color = (0, 0, 0))
             _LOGGER.debug(f"deleted last analog drawing")
         if data["clock_mode"] == "digital":
-#            await show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = 30, rotation = 0, d_color = (0, 255, 255), bg_color = (0, 0, 0), cf_color = (0, 255, 255), cf_width = 0, offset_hours = None, am_pm = False)
             await show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = None, rotation = 0, d_color = (0, 0, 0), bg_color = (0, 0, 0), cf_color = (0, 0, 0), cf_width = 0, offset_hours = None, am_pm = False)
             _LOGGER.debug(f"deleted last digital drawing")
         if data["clock_mode"] == "rheinturm":
@@ -46,13 +45,13 @@ async def start_analog_clock(hass, serial_number, **kwargs):
     async def _update_analog(now):
         await show_analog_clock(hass, serial_number, **kwargs)
 
-    clock_mode = hass.data[const.DOMAIN][serial_number].get("clock_mode")
+    clock_mode = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_mode")
     if clock_mode != "idle":
         _LOGGER.debug(f"Clock for {serial_number} already running as {clock_mode}, stopping first")
         await stop_clock(hass, serial_number)
 
-    hass.data[const.DOMAIN][serial_number]["clock_mode"] = "analog"
-    entity = hass.data[const.DOMAIN][serial_number].get("clock_select_entity")
+    hass.data[const.DOMAIN]["devices"][serial_number]["clock_mode"] = "analog"
+    entity = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_select_entity")
     if entity:
         entity.refresh_from_data()
 
@@ -63,10 +62,10 @@ async def start_analog_clock(hass, serial_number, **kwargs):
         _LOGGER.debug(f"need to wait {seconds_to_wait} seconds for the next minute")
         await asyncio.sleep(seconds_to_wait)
         await show_analog_clock(hass, serial_number, **kwargs)
-        hass.data[const.DOMAIN][serial_number]["clock_handle"] = async_track_time_interval(hass, _update_analog, timedelta(minutes=1))
+        hass.data[const.DOMAIN]["devices"][serial_number]["clock_handle"] = async_track_time_interval(hass, _update_analog, timedelta(minutes=1))
     asyncio.create_task(_task())
 
-    _LOGGER.debug(f"set clock-mode from {clock_mode} to {hass.data[const.DOMAIN][serial_number]["clock_mode"]}")
+    _LOGGER.debug(f"set clock-mode from {clock_mode} to {hass.data[const.DOMAIN]["devices"][serial_number]["clock_mode"]}")
     _LOGGER.info("Analog clock update scheduled every minute")
 
 async def start_digital_clock(hass, serial_number, **kwargs):
@@ -74,13 +73,13 @@ async def start_digital_clock(hass, serial_number, **kwargs):
     async def _update_digital(now):
         await show_digital_clock(hass, serial_number, **kwargs)
 
-    clock_mode = hass.data[const.DOMAIN][serial_number].get("clock_mode")
+    clock_mode = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_mode")
     if clock_mode != "idle":
         _LOGGER.debug(f"Clock for {serial_number} already running as {clock_mode}, stopping first")
         await stop_clock(hass, serial_number)
 
-    hass.data[const.DOMAIN][serial_number]["clock_mode"] = "digital"
-    entity = hass.data[const.DOMAIN][serial_number].get("clock_select_entity")
+    hass.data[const.DOMAIN]["devices"][serial_number]["clock_mode"] = "digital"
+    entity = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_select_entity")
     if entity:
         entity.refresh_from_data()
 
@@ -91,10 +90,10 @@ async def start_digital_clock(hass, serial_number, **kwargs):
         _LOGGER.debug(f"need to wait {seconds_to_wait} seconds for the next minute")
         await asyncio.sleep(seconds_to_wait)
         await show_digital_clock(hass, serial_number, **kwargs)
-        hass.data[const.DOMAIN][serial_number]["clock_handle"] = async_track_time_interval(hass, _update_digital, timedelta(minutes=1))
+        hass.data[const.DOMAIN]["devices"][serial_number]["clock_handle"] = async_track_time_interval(hass, _update_digital, timedelta(minutes=1))
     asyncio.create_task(_task())
 
-    _LOGGER.debug(f"set clock-mode from {clock_mode} to {hass.data[const.DOMAIN][serial_number]["clock_mode"]}")
+    _LOGGER.debug(f"set clock-mode from {clock_mode} to {hass.data[const.DOMAIN]["devices"][serial_number]["clock_mode"]}")
     _LOGGER.info("Digital clock update scheduled every minute")
 
 async def _start_rheinturm_clock(hass, serial_number, **kwargs):
@@ -102,13 +101,13 @@ async def _start_rheinturm_clock(hass, serial_number, **kwargs):
     async def _update_rheinturm(now):
         await show_rheinturm(hass, serial_number, **kwargs)
 
-    clock_mode = hass.data[const.DOMAIN][serial_number].get("clock_mode")
+    clock_mode = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_mode")
     if clock_mode != "idle":
         _LOGGER.debug(f"Clock for {serial_number} already running: {clock_mode}, stopping first")
         await stop_clock(hass, serial_number)
 
-    hass.data[const.DOMAIN][serial_number]["clock_mode"] = "rheinturm"
-    entity = hass.data[const.DOMAIN][serial_number].get("clock_select_entity")
+    hass.data[const.DOMAIN]["devices"][serial_number]["clock_mode"] = "rheinturm"
+    entity = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_select_entity")
     if entity:
         entity.refresh_from_data()
 
@@ -119,10 +118,10 @@ async def _start_rheinturm_clock(hass, serial_number, **kwargs):
         _LOGGER.debug(f"need to wait {seconds_to_wait} seconds for the next minute")
         await asyncio.sleep(seconds_to_wait)
         await show_rheinturm(hass, serial_number, **kwargs)
-        hass.data[const.DOMAIN][serial_number]["clock_handle"] = async_track_time_interval(hass, _update_rheinturm, timedelta(minutes=1))
+        hass.data[const.DOMAIN]["devices"][serial_number]["clock_handle"] = async_track_time_interval(hass, _update_rheinturm, timedelta(minutes=1))
     asyncio.create_task(_task())
 
-    _LOGGER.debug(f"set clock-mode from {clock_mode} to {hass.data[const.DOMAIN][serial_number]["clock_mode"]}")
+    _LOGGER.debug(f"set clock-mode from {clock_mode} to {hass.data[const.DOMAIN]["devices"][serial_number]["clock_mode"]}")
     _LOGGER.info("Rheinturm update scheduled every second")
 
 
@@ -148,7 +147,7 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
 
     from .commands import normalize_color, send_screen
 
-    clock_mode = hass.data[const.DOMAIN][serial_number].get("clock_mode")
+    clock_mode = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_mode")
     if clock_mode != "analog":
         _LOGGER.info(f"Why to show clock for {serial_number} if not running? Seems I struggled in fast changes...! actual mode is {clock_mode}, stopping for safety")
         await stop_clock(hass, serial_number)
@@ -156,7 +155,7 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
     else:
         _LOGGER.debug(f"verified running the same clock-mode we are updating the display {serial_number} for: {clock_mode}")
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
     d_width = data.get("width")
     d_height = data.get("height")
 
@@ -291,7 +290,7 @@ async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_si
 #    from .commands import set_orientation, normalize_color, send_bitmap
     from .commands import normalize_color, send_screen
 
-    clock_mode = hass.data[const.DOMAIN][serial_number].get("clock_mode")
+    clock_mode = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_mode")
     if clock_mode != "digital":
         _LOGGER.warning(f"Why to show clock for {serial_number} if not running? Seems I struggled in fast changes...! actual mode is {clock_mode}, stopping for safety")
         await stop_clock(hass, serial_number)
@@ -300,7 +299,7 @@ async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_si
         _LOGGER.debug(f"verified running the same clock-mode we are updating the display {serial_number} for: {clock_mode}")
    
 
-    data = hass.data[const.DOMAIN][serial_number]
+    data = hass.data[const.DOMAIN]["devices"][serial_number]
     d_width = data.get("width")
     d_height = data.get("height")
     # check rotation
@@ -407,7 +406,7 @@ async def show_rheinturm(hass, serial_port, rotation = 0):
 
     from .commands import set_orientation, normalize_color, send_bitmap
 
-    clock_mode = hass.data[const.DOMAIN][serial_number].get("clock_mode")
+    clock_mode = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_mode")
     if clock_mode != "rheinturm":
         _LOGGER.info(f"Why to show clock for {serial_number} if not running? Seems I struggled in fast changes...! actual mode is {clock_mode}, stopping for safety")
         await stop_clock(hass, serial_number)
