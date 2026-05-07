@@ -15,8 +15,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities([Select_ClockMode(hass, serial_number)])
 
     # für um Updates auch zu erhalten wenn es vom Service gesetzt wird
-    entity = Select_ClockMode(hass, serial_number)
-    async_add_entities([entity])
+#    entity = Select_ClockMode(hass, serial_number)
+#    async_add_entities([entity])
 
 
 class Select_Orientation(SelectEntity):

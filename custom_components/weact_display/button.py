@@ -8,8 +8,8 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     serial_number = entry.data["serial_number"]
-    async_add_entities([Button_DisplayTest(hass, serial_number)])
     _LOGGER.debug(f"adding button for display test for serial {serial_number}")
+    async_add_entities([Button_DisplayTest(hass, serial_number)])
 
 
 class Button_DisplayTest(ButtonEntity):

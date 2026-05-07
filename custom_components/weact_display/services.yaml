@@ -1092,3 +1092,20 @@ show_bmp:
       default: "testbild.bmp"
       selector:
         text: {}
+
+change_screencare_option:
+  name: Enable/Disable ScreenCare option
+  description: "shows some random pixels at 03:37"
+  fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        device:
+          filter:
+            - integration: weact_display
+    screencare_option:
+      name: Screencare enabled?
+      default: true
+      selector:
+        boolean: {}

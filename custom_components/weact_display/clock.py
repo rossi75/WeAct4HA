@@ -15,25 +15,25 @@ async def stop_clock(hass, serial_number):
     """Beendet alle Uhr-Routinen"""
     _LOGGER.debug(f"stopping any running clock for serial {serial_number}...")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
-    clock_mode = data.get("clock_mode")
-    clock_handle = data.get("clock_handle")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    clock_mode = device.get("clock_mode")
+    clock_handle = device.get("clock_handle")
 
     _LOGGER.debug(f"actually running clock-mode is {clock_mode}")
 
     if clock_handle is not None:
-        if data["clock_mode"] == "analog":
+        if device["clock_mode"] == "analog":
             await show_analog_clock(hass, serial_number, sc_color = (0, 0, 0), h_color = (0, 0, 0), m_color = (0, 0, 0), scf_color = (0, 0, 0))
             _LOGGER.debug(f"deleted last analog drawing")
-        if data["clock_mode"] == "digital":
+        if device["clock_mode"] == "digital":
             await show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = None, rotation = 0, d_color = (0, 0, 0), bg_color = (0, 0, 0), cf_color = (0, 0, 0), cf_width = 0, offset_hours = None, am_pm = False)
             _LOGGER.debug(f"deleted last digital drawing")
-        if data["clock_mode"] == "rheinturm":
+        if device["clock_mode"] == "rheinturm":
             await delete_rheinturm(hass, serial_number)
             _LOGGER.debug(f"deleted last rheinturm drawing")
         clock_handle()
-        data["clock_handle"] = None
-        data["clock_mode"] = "idle"
+        device["clock_handle"] = None
+        device["clock_mode"] = "idle"
         _LOGGER.debug(f"deleted clock_handle")
 
     else:
@@ -45,13 +45,18 @@ async def start_analog_clock(hass, serial_number, **kwargs):
     async def _update_analog(now):
         await show_analog_clock(hass, serial_number, **kwargs)
 
-    clock_mode = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_mode")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+
+#    clock_mode = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_mode")
+    clock_mode = device.get("clock_mode")
     if clock_mode != "idle":
         _LOGGER.debug(f"Clock for {serial_number} already running as {clock_mode}, stopping first")
         await stop_clock(hass, serial_number)
 
-    hass.data[const.DOMAIN]["devices"][serial_number]["clock_mode"] = "analog"
-    entity = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_select_entity")
+#    hass.data[const.DOMAIN]["devices"][serial_number]["clock_mode"] = "analog"
+    device["clock_mode"] = "analog"
+#    entity = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_select_entity")
+    entity = device.get("clock_select_entity")
     if entity:
         entity.refresh_from_data()
 
@@ -62,10 +67,10 @@ async def start_analog_clock(hass, serial_number, **kwargs):
         _LOGGER.debug(f"need to wait {seconds_to_wait} seconds for the next minute")
         await asyncio.sleep(seconds_to_wait)
         await show_analog_clock(hass, serial_number, **kwargs)
-        hass.data[const.DOMAIN]["devices"][serial_number]["clock_handle"] = async_track_time_interval(hass, _update_analog, timedelta(minutes=1))
+        device["clock_handle"] = async_track_time_interval(hass, _update_analog, timedelta(minutes=1))
     asyncio.create_task(_task())
 
-    _LOGGER.debug(f"set clock-mode from {clock_mode} to {hass.data[const.DOMAIN]["devices"][serial_number]["clock_mode"]}")
+    _LOGGER.debug(f"set clock-mode from {clock_mode} to {device["clock_mode"]}")
     _LOGGER.info("Analog clock update scheduled every minute")
 
 async def start_digital_clock(hass, serial_number, **kwargs):
@@ -73,13 +78,15 @@ async def start_digital_clock(hass, serial_number, **kwargs):
     async def _update_digital(now):
         await show_digital_clock(hass, serial_number, **kwargs)
 
-    clock_mode = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_mode")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+
+    clock_mode = device.get("clock_mode")
     if clock_mode != "idle":
         _LOGGER.debug(f"Clock for {serial_number} already running as {clock_mode}, stopping first")
         await stop_clock(hass, serial_number)
 
-    hass.data[const.DOMAIN]["devices"][serial_number]["clock_mode"] = "digital"
-    entity = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_select_entity")
+    device["clock_mode"] = "digital"
+    entity = device.get("clock_select_entity")
     if entity:
         entity.refresh_from_data()
 
@@ -90,10 +97,10 @@ async def start_digital_clock(hass, serial_number, **kwargs):
         _LOGGER.debug(f"need to wait {seconds_to_wait} seconds for the next minute")
         await asyncio.sleep(seconds_to_wait)
         await show_digital_clock(hass, serial_number, **kwargs)
-        hass.data[const.DOMAIN]["devices"][serial_number]["clock_handle"] = async_track_time_interval(hass, _update_digital, timedelta(minutes=1))
+        device["clock_handle"] = async_track_time_interval(hass, _update_digital, timedelta(minutes=1))
     asyncio.create_task(_task())
 
-    _LOGGER.debug(f"set clock-mode from {clock_mode} to {hass.data[const.DOMAIN]["devices"][serial_number]["clock_mode"]}")
+    _LOGGER.debug(f"set clock-mode from {clock_mode} to {device["clock_mode"]}")
     _LOGGER.info("Digital clock update scheduled every minute")
 
 async def _start_rheinturm_clock(hass, serial_number, **kwargs):
@@ -146,18 +153,18 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
     _LOGGER.debug(f"analog clock for serial {serial_number}...")
 
     from .commands import normalize_color, send_screen
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
 
-    clock_mode = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_mode")
+    clock_mode = device.get("clock_mode")
     if clock_mode != "analog":
-        _LOGGER.info(f"Why to show clock for {serial_number} if not running? Seems I struggled in fast changes...! actual mode is {clock_mode}, stopping for safety")
+        _LOGGER.info(f"Why to show analog clock for {serial_number} if not running? Seems I struggled in fast changes...! actual mode is {clock_mode}, stopping for safety")
         await stop_clock(hass, serial_number)
         return
     else:
         _LOGGER.debug(f"verified running the same clock-mode we are updating the display {serial_number} for: {clock_mode}")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
-    d_width = data.get("width")
-    d_height = data.get("height")
+    d_width = device.get("width")
+    d_height = device.get("height")
 
     if scale_size is None:
         scale_size = min(d_width, d_height)
@@ -218,7 +225,7 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
     _LOGGER.debug(f"colors after normalize: scale={sc_color}, scale-frame={scf_color}, hours={h_color}, minutes={m_color}")
 
     # Instanzbild holen
-    img = data.get("shadow")
+    img = device.get("shadow")
     draw = ImageDraw.Draw(img)
 
     _LOGGER.debug("read image from instance")
@@ -283,14 +290,14 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
 # o: offset-hours
 # o: am/pm
 #************************************************************************
-#async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = 30, rotation = None, d_color = (0, 255, 255), bg_color = (0, 0, 0), cf_color = (0, 255, 255), cf_width = None, offset_hours = None, am_pm = False):
 async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = None, rotation = None, d_color = (0, 255, 255), bg_color = (0, 0, 0), cf_color = (0, 255, 255), cf_width = None, offset_hours = None, am_pm = False):
     _LOGGER.debug(f"digital clock for serial {serial_number}...")
 
 #    from .commands import set_orientation, normalize_color, send_bitmap
     from .commands import normalize_color, send_screen
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
 
-    clock_mode = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_mode")
+    clock_mode = device.get("clock_mode")
     if clock_mode != "digital":
         _LOGGER.warning(f"Why to show clock for {serial_number} if not running? Seems I struggled in fast changes...! actual mode is {clock_mode}, stopping for safety")
         await stop_clock(hass, serial_number)
@@ -299,13 +306,12 @@ async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_si
         _LOGGER.debug(f"verified running the same clock-mode we are updating the display {serial_number} for: {clock_mode}")
    
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
-    d_width = data.get("width")
-    d_height = data.get("height")
+    d_width  = device.get("width")
+    d_height = device.get("height")
     # check rotation
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
-    d_color = normalize_color(d_color)
+    d_color  = normalize_color(d_color)
     cf_color = normalize_color(cf_color)
     bg_color = normalize_color(bg_color)
 
@@ -332,28 +338,22 @@ async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_si
 
     # dimensions check
     dc_width = int(digit_size * 2.6) + 2 + cf_width
-#    dc_height = int(digit_size * 0.7) + 2 + cf_width              
     dc_height = int(digit_size) + 2 + cf_width              
     _LOGGER.debug(f"dimensions after check: digit-size={digit_size}, digital-clock-height={dc_height}, digital-clock-width={dc_width}")
 
     # positions check
     if xs is None:
-#        xs = int((d_width // 2) - (dc_width // 2)) - cf_width - 2
         xs = int((d_width // 2) - (dc_width // 2))
         _LOGGER.debug(f"calculated xs to {xs} as no value was given")
     if ys is None:
-#        ys = int((d_height // 2) - (dc_height // 2)) - cf_width - 2
-#        ys = int((d_height // 2) + (dc_height // 2)) + cf_width + 2
-#        ys = int((d_height // 2) + (dc_height // 2)) + cf_width + 2
         ys = int((d_height // 2) - (dc_height // 2))
         _LOGGER.debug(f"calculated ys to {ys} as no value was given")
     _LOGGER.debug(f"positions after check: xs={xs}, ys={ys}")
-
-#calculated digit-size to 28 px as no value was given (display-width=80, display-height=160)
-#dimensions after check: digit-size=28, digital-clock-height=24, digital-clock-width=72
-#calculated xs to 2 as no value was given
-#calculated ys to 66 as no value was given
-#positions after check: xs=2, ys=66
+    #calculated digit-size to 28 px as no value was given (display-width=80, display-height=160)
+    #dimensions after check: digit-size=28, digital-clock-height=24, digital-clock-width=72
+    #calculated xs to 2 as no value was given
+    #calculated ys to 66 as no value was given
+    #positions after check: xs=2, ys=66
 
     # aktuelle Zeit holen
     now = datetime.now() + timedelta(hours=offset_hours)
@@ -384,14 +384,13 @@ async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_si
     _LOGGER.debug(f"text_w=[2]-[0]={text_w}, text_h=[3]-[1]={text_h}")
 
     # Instanzbild holen
-    img = data.get("shadow")
+    img = device.get("shadow")
     draw = ImageDraw.Draw(img)
     _LOGGER.debug("read image from instance")
 
     draw.rectangle((xs, ys, xs + dc_width - 1, ys + dc_height - 1), fill = bg_color, outline=cf_color, width=cf_width)
     _LOGGER.debug("drew the frame")
 
-#    draw.text((xs, ys), time_str, fill=d_color, font=font)
     draw.text((xs, ys - int(digit_size * 0.2)), time_str, fill=d_color, font=font)
     _LOGGER.debug("wrote the time into the image")
 

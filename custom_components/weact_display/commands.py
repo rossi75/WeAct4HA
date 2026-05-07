@@ -115,11 +115,11 @@ def normalize_color(value):
 async def send_screen(hass, serial_number):
     _LOGGER.debug(f"flushing the display for serial-number={serial_number}")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
-    width = data.get("width")
-    height = data.get("height")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    width = device.get("width")
+    height = device.get("height")
 
-    img = data.get("shadow")
+    img = device.get("shadow")
     i_width, i_height = img.size
     img_bytes = img.tobytes()       # Bild extrahieren, ergibt z.B. 160 * 80 * 3 = 38400 Bytes (RGB888)
 
@@ -175,7 +175,7 @@ async def send_screen(hass, serial_number):
 #        B R I G H T N E S S
 #************************************************************************
 # changes the brightness of the display
-# and afterwards requests the actual brightness 
+# and afterwards polls the actual brightness 
 #************************************************************************
 # m: hass
 # m: serial_number
@@ -185,11 +185,27 @@ async def set_brightness(hass, serial_number, target_brightness):
     """setzt die Lautstärke"""
     _LOGGER.debug("setting brightness...")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = data.get("serial_port")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    serial_port = device.get("serial_port")
     if not serial_port:
-        _LOGGER.warning("Display not connected")
+        _LOGGER.warning(f"Display {serial_number} not connected")
         return
+
+    # entry-data lookup
+    entry_id = device.get("entry_id")
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if not entry:
+        _LOGGER.error(f"no config entry found for serial {serial_number}")
+        return
+
+    # Config aktualisieren, runtime wird durchs Polling erledigt
+    new_options = {
+        **entry.options,
+        "brightness": target_brightness,
+    }
+    hass.config_entries.async_update_entry(entry, options=new_options)
+
+    _LOGGER.debug(f"stored new brightness-value for serial {serial_number} to {entry.options.get("brightness")}")
 
     packet = struct.pack(
         "<BBHB",
@@ -202,21 +218,21 @@ async def set_brightness(hass, serial_number, target_brightness):
     _LOGGER.debug(f"having {len(packet)} Bytes for {serial_number}: {hex_str}")
 
     await hass.async_add_executor_job(serial_port.write, packet)
-    timeout = 15    # Sekunden
-    start = time.monotonic()
 
-    packet = struct.pack("<BB", 0x83, 0x0A)
+    packet = struct.pack("<BB", 0x83, 0x0A)                   # Brightness Request
     hex_str = " ".join(f"{b:02X}" for b in packet)
 
     _LOGGER.debug(f"prepared polling with {len(packet)} Bytes for {serial_number}: {hex_str}")
 
+    timeout = 15    # Sekunden
+    start = time.monotonic()
     while True:
         # Helligkeit abfragen
         _LOGGER.debug("requesting brightness...")
 
         await hass.async_add_executor_job(serial_port.write, packet)
         await asyncio.sleep(1)
-        current_brightness = data.get("brightness")
+        current_brightness = device.get("brightness")
 
         _LOGGER.debug(f"polled brightness for serial {serial_number}: target-brightness={target_brightness}, current-brightness={current_brightness}")
 
@@ -225,7 +241,7 @@ async def set_brightness(hass, serial_number, target_brightness):
             break
 
         if time.monotonic() - start > timeout:
-            _LOGGER.warning("brightness fade timeout reached for serial {serial_number}")
+            _LOGGER.warning(f"brightness fade timeout reached for serial {serial_number}")
             break
 
     _LOGGER.debug("brightness done")
@@ -238,46 +254,64 @@ async def set_brightness(hass, serial_number, target_brightness):
 #************************************************************************
 # m: hass
 # m: serial_number
-# o: orientation, default = 2 (landscape)
+# m: orientation, default = 2 (landscape)
+# o: force, default = false, no check for actual orientation if set (startup)
 #************************************************************************
-async def set_orientation(hass, serial_number, orientation_value):
+async def set_orientation(hass, serial_number, orientation_value, force = False):
     _LOGGER.debug("setting orientation")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = data.get("serial_port")
-    model = data.get("model")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    serial_port = device.get("serial_port")
+    model = device.get("model")
     if not serial_port:
-        _LOGGER.warning("Display not connected")
+        _LOGGER.warning(f"Display {serial_number} not connected")
         return
 
-    if data.get("orientation_value") == orientation_value:
-        _LOGGER.debug(f"old and new orientation are the same ({data.get("orientation_value")}={orientation_value}), nothing to change. Aborting orientation command!")
-        return
+    if device.get("orientation_value") == orientation_value:
+        _LOGGER.debug(f"old ({device.get("orientation_value")}) and new orientation ({orientation_value}) are the same, nothing to change. Aborting orientation command!")
+        if force is False:
+            return
+        else:
+            _LOGGER.debug(f"oops, I was forced to override the orientation check, continuing")
 
     params = DISPLAY_MODELS.get(model, None)
     if orientation_value in (2, 3):                                                                   # 0 oder 180°
-        hass.data[const.DOMAIN]["devices"][serial_number]["width"] = params["large"]
-        hass.data[const.DOMAIN]["devices"][serial_number]["height"] = params["small"]
+        device["width"] = params["large"]
+        device["height"] = params["small"]
     elif orientation_value in (0, 1):                                                                  # 90° oder 270°
-        hass.data[const.DOMAIN]["devices"][serial_number]["width"] = params["small"]
-        hass.data[const.DOMAIN]["devices"][serial_number]["height"] = params["large"]
+        device["width"] = params["small"]
+        device["height"] = params["large"]
     else:
         _LOGGER.error(f"unknown orientation_value {orientation_value}, not changing anything")
         return
 
     # array-table [old][new]: [[0,2,3,1],[2,0,1,3],[1,3,0,2],[3,1,2,0]], see internal_struct.md for evidence
-    img = data.get("shadow")
+    img = device.get("shadow")
     _LOGGER.debug("read image from instance")
-    rotations = const.ORIENTATION_CONVERSION_MAP[data.get("orientation_value")][orientation_value]
-#    img.rotate(90 * rotations)
+    rotations = const.ORIENTATION_CONVERSION_MAP[device.get("orientation_value")][orientation_value]
     img = img.rotate(-90 * rotations, expand = True)
-#    _LOGGER.debug(f"rotated the BMP {rotations} times clockwise by 90° = {90 * rotations}°")
     _LOGGER.debug(f"rotated the BMP {rotations} times counterclockwise by 90° = {-90 * rotations}°")
-    data["shadow"] = img
+    device["shadow"] = img
     _LOGGER.debug("stored rotated image back into instance")
 
-    hass.data[const.DOMAIN]["devices"][serial_number]["orientation_value"] = orientation_value
-    _LOGGER.debug(f"new orientation-value={orientation_value}, {data.get("width")}x{data.get("height")} px")
+    device["orientation_value"] = orientation_value
+    _LOGGER.debug(f"new orientation-value={orientation_value}, {device.get("width")}x{device.get("height")} px")
+
+    # entry-data lookup
+    entry_id = device.get("entry_id")
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if not entry:
+        _LOGGER.error(f"no config entry found for serial {serial_number}")
+        return
+
+    # Config aktualisieren, runtime wird durchs Polling erledigt
+    new_options = {
+        **entry.options,
+        "orientation_value": orientation_value,
+    }
+    hass.config_entries.async_update_entry(entry, options=new_options)
+
+    _LOGGER.debug(f"stored new orientation-value for serial {serial_number} to {entry.options.get("orientation_value")}")
 
     packet = struct.pack(
         "<BBB",
@@ -307,11 +341,13 @@ async def set_orientation(hass, serial_number, orientation_value):
 async def enable_humiture_reports(hass, serial_number, time_interval = None):
     _LOGGER.debug("enabling humiture reports")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = data.get("serial_port")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    serial_port = device.get("serial_port")
+
     if not serial_port:
-        _LOGGER.warning("Display not connected")
+        _LOGGER.warning(f"Display {serial_number} not connected")
         return
+
     if time_interval is None:
         time_interval = 60
         _LOGGER.debug("no value given for time-interval, set to 60 seconds")
@@ -344,10 +380,10 @@ async def enable_humiture_reports(hass, serial_number, time_interval = None):
 async def read_firmware_version(hass, serial_number):
     _LOGGER.debug("requesting firmware version")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = data.get("serial_port")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    serial_port = device.get("serial_port")
     if not serial_port:
-        _LOGGER.warning("Display not connected")
+        _LOGGER.warning(f"Display {serial_number} not connected")
         return
 
     packet = struct.pack(
@@ -363,7 +399,6 @@ async def read_firmware_version(hass, serial_number):
     await asyncio.sleep(0.1)
 
 
-
 #************************************************************************
 #        R E A D  W H O  A M  I
 #************************************************************************
@@ -375,8 +410,8 @@ async def read_firmware_version(hass, serial_number):
 async def read_who_am_i(hass, serial_number):
     _LOGGER.debug("requesting who-am-i from display")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = data.get("serial_port")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    serial_port = device.get("serial_port")
     if not serial_port:
         _LOGGER.warning("Display not connected")
         return
@@ -528,10 +563,10 @@ def parse_packet(hass, serial_number, packet: bytes):
 async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
     _LOGGER.debug("finally sending bitmap...")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = data.get("serial_port")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    serial_port = device.get("serial_port")
     if not serial_port:
-        _LOGGER.warning("Display not connected")
+        _LOGGER.warning(f"Display {serial_number} not connected")
         return
 
     header = struct.pack(
@@ -563,11 +598,9 @@ async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
         data_565.append(rgb565 & 0xFF)
         data_565.append((rgb565 >> 8) & 0xFF)
 
-
     if not await _wait_for_display(hass, serial_number):
         _LOGGER.error(f"seems that display {serial_number} is permanently blocked. Please restart integration")
         return
-
 
     hex_str = " ".join(f"{b:02X}" for b in header)
     _LOGGER.debug(f"need to send {len(header)} header bytes for {serial_number}: {hex_str}")
@@ -635,15 +668,15 @@ async def _release_display(hass, serial_number):
 async def show_bmp(hass, serial_number, xs = None, ys = None, filepath = None):
     _LOGGER.debug("show a bmp file...")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = data.get("serial_port")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    serial_port = device.get("serial_port")
     if not serial_port:
-        _LOGGER.warning("Display not connected")
+        _LOGGER.warning(f"Display {serial_number} not connected")
         return
 
-    d_width = data.get("width")
-    d_height = data.get("height")
-    shadow = data.get("shadow")
+    d_width  = device.get("width")
+    d_height = device.get("height")
+    shadow   = device.get("shadow")
 
     # Path handling
     if filepath:
@@ -706,25 +739,24 @@ async def show_bmp(hass, serial_number, xs = None, ys = None, filepath = None):
 #************************************************************************
 #        F U L L  C O L O R
 #************************************************************************
-# shows a section ot the complete screen in one color
+# shows the complete screen in one color
+# direct function, does NOT write into shadow memory
 #************************************************************************
 # m: hass
 # m: serial_number
 # m: color
-# o: width
-# o: height
 #************************************************************************
 async def send_full_color(hass, serial_number, color):
     _LOGGER.debug("filling display with one-color...")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = data.get("serial_port")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    serial_port = device.get("serial_port")
     if not serial_port:
-        _LOGGER.warning("Display not connected")
+        _LOGGER.warning(f"Display {serial_number} not connected")
         return
 
-    width = data.get("width")
-    height = data.get("height")
+    width = device.get("width")
+    height = device.get("height")
 
     r, g, b = color
 
@@ -757,16 +789,15 @@ async def send_full_color(hass, serial_number, color):
 async def display_selftest(hass, serial_number: str):
     _LOGGER.debug("Starting display self test")
 
+    background_color = hass.data[const.DOMAIN]["devices"][serial_number].get("background_color")     # hier steht definitv schon ein Fallback-Wert drin !
     colors = [
-        (0, 0, 0),        # Schwarz (Start)
-        (255, 0, 0),      # Rot
-        (0, 255, 0),      # Grün
-        (0, 0, 255),      # Blau
-        (255, 255, 255),  # Weiß
-        (0, 0, 0)         # Schwarz (Ende)
+        (0, 0, 0),                           # Schwarz (Start)
+        (255, 0, 0),                         # Rot
+        (0, 255, 0),                         # Grün
+        (0, 0, 255),                         # Blau
+        (255, 255, 255),                     # Weiß
+        normalize_color(background_color)    # Background-Color = Finale
     ]
-
-    await set_orientation(hass, serial_number, 2)                   # o=2, w=160, h=80 --> komplettes Display wird getestet
 
     for color in colors:
         await send_full_color(hass, serial_number, color)
@@ -782,22 +813,27 @@ async def display_selftest(hass, serial_number: str):
 #************************************************************************
 # m: hass
 # m: serial_number
+# o: suppress_delete
 #************************************************************************
-async def generate_random(hass, serial_number):
+async def generate_random(hass, serial_number, suppress_delete=False):
+#def generate_random(hass, serial_number):
     _LOGGER.debug("raising random bitmap")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = data.get("serial_port")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    serial_port = device.get("serial_port")
+
     if not serial_port:
-        _LOGGER.warning("Display not connected")
+        _LOGGER.warning(f"Display {serial_number} not connected")
         return
-    width = data.get("width")
-    height = data.get("height")
+
+    width = device.get("width")
+    height = device.get("height")
 
     # delete screen
-    _LOGGER.debug("clearing screen")
-    black = [0, 0, 0]
-    await send_full_color(hass, serial_number, black)
+    if not suppress_delete:
+        _LOGGER.debug("clearing screen")
+        black = [0, 0, 0]
+        await send_full_color(hass, serial_number, black)
 
     _LOGGER.debug(f"generating random image with {width} x {height} pixel")
     try:
@@ -811,7 +847,6 @@ async def generate_random(hass, serial_number):
         hex_str = " ".join(f"{b:02X}" for b in buf[:40])
         _LOGGER.debug(f"generated {len(buf)} Bytes for {serial_number}: {hex_str} [...]")
 
-        await set_orientation(hass, serial_number, 2)
         await send_bitmap(hass, serial_number, 0, 0, width, height, bytes(buf))
     except Exception as e:
         _LOGGER.error(f"[{const.DOMAIN}] error while sending (or generating?) the image: {e}")
@@ -829,10 +864,11 @@ async def generate_random(hass, serial_number):
 async def show_init_screen(hass, serial_number):
     _LOGGER.debug("show up initial screen")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = data.get("serial_port")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    serial_port = device.get("serial_port")
+
     if not serial_port:
-        _LOGGER.warning("Display not connected")
+        _LOGGER.warning(f"Display {serial_number} not connected")
         return
 
     packet = struct.pack(
@@ -861,7 +897,6 @@ async def show_init_screen(hass, serial_number):
 # m: Y start
 # o: size, 32 px if no value given
 # o: icon-color, default = white (255, 255, 255)
-# o: background-color, default = black (0, 0, 0)
 # o: rotation
 #************************************************************************
 # rotate from: https://stackoverflow.com/questions/45179820/draw-text-on-an-angle-rotated-in-python
@@ -869,7 +904,7 @@ async def show_init_screen(hass, serial_number):
 async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_color = (255, 255, 255), rotation = 0):
     _LOGGER.debug("show icon...")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     if i_color is None:
@@ -885,7 +920,7 @@ async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_col
 
     _LOGGER.debug(f"icon parameters: xs={xs}, ys={ys}, icon-size={i_size}x{i_size}, rotation={rotation}, icon-bytes={len(icon.tobytes())}")
 
-    shadow = data.get("shadow")
+    shadow = device.get("shadow")
 
     _LOGGER.debug("read image from instance")
 
@@ -913,14 +948,14 @@ async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_col
 async def draw_line(hass, serial_number, xs, ys, xe, ye, l_color = (255, 255, 255), l_width = 1):
     _LOGGER.info("draw a line ...")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     l_color = normalize_color(l_color)
 
     _LOGGER.debug(f"l_color_after={l_color}")
 
-    img = data.get("shadow")
+    img = device.get("shadow")
     draw = ImageDraw.Draw(img)
 
     _LOGGER.debug("read image from instance")
@@ -943,18 +978,17 @@ async def draw_line(hass, serial_number, xs, ys, xe, ye, l_color = (255, 255, 25
 # m: X center point
 # m: Y center point
 # m: radius
-# o: background-color, default = black (0, 0, 0)
+# o: ellipse, set to radius if not given
 # o: circle-color, default = white (255, 255, 255)
 # o: fill-color, default = red (255, 0, 0)
 # o: circle-frame width, default = 1
-# o: ellipse, set to radius if not given
 #************************************************************************
-async def draw_circle(hass, serial_number, xp, yp, r, c_color = (255, 255, 255), f_color = (255, 0, 0), cf_width = 0, e = None):
+async def draw_circle(hass, serial_number, xp, yp, r, e = None, c_color = (255, 255, 255), f_color = (255, 0, 0), cf_width = 0):
     _LOGGER.info("draw a circle ...")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
-    width = data.get("width")
-    height = data.get("height")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    width = device.get("width")
+    height = device.get("height")
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     c_color = normalize_color(c_color)
@@ -979,7 +1013,7 @@ async def draw_circle(hass, serial_number, xp, yp, r, c_color = (255, 255, 255),
     _LOGGER.debug(f"calculated where to place the circle: xs={xs}, ys={ys}, xe={xe}, ye={ye}")
 
     # Schattenbild abholen
-    img = data.get("shadow")
+    img = device.get("shadow")
     draw = ImageDraw.Draw(img)
 
     _LOGGER.debug("fetched image from instance")
@@ -1010,7 +1044,7 @@ async def draw_circle(hass, serial_number, xp, yp, r, c_color = (255, 255, 255),
 async def draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width = 1, rf_color = (255, 255, 255), f_color = None):
     _LOGGER.info("draw a rectangle ...")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     if rf_width is None:
@@ -1027,7 +1061,7 @@ async def draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width = 1, rf_c
     _LOGGER.debug(f"colors after normalize: rectangle-frame-color={rf_color}, fill-color={f_color} + rectangle-frame-width={rf_width}")
 
     # Schattenbild abholen
-    img = data.get("shadow")
+    img = device.get("shadow")
     draw = ImageDraw.Draw(img)
 
     _LOGGER.debug("fetched image from instance")
@@ -1036,7 +1070,7 @@ async def draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width = 1, rf_c
     draw.rectangle((xs, ys, xe, ye), width = rf_width, outline = rf_color)
     if f_color is not None:
         draw.rectangle((xs + rf_width, ys + rf_width, xe - rf_width, ye - rf_width), fill = f_color)
-
+    
     await send_screen(hass, serial_number)
 
 
@@ -1060,7 +1094,7 @@ async def draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width = 1, rf_c
 async def draw_triangle(hass, serial_number, xa, ya, xb, yb, xc, yc, t_color = None, tf_color = None, tf_width = None):
     _LOGGER.info("draw a triangle ...")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     if tf_width is None:
@@ -1079,7 +1113,7 @@ async def draw_triangle(hass, serial_number, xa, ya, xb, yb, xc, yc, t_color = N
     _LOGGER.debug(f"colors after normalize: triangle-color={t_color}, triangle-frame-color={tf_color} + triangle-frame-width={tf_width}")
 
     # Schattenbild abholen
-    img = data.get("shadow")
+    img = device.get("shadow")
     draw = ImageDraw.Draw(img)
 
     _LOGGER.debug("fetched image from instance")
@@ -1114,14 +1148,14 @@ async def draw_triangle(hass, serial_number, xa, ya, xb, yb, xc, yc, t_color = N
 # m: Y end
 # end to optional if calculated
 # o: font size
-# o: background-color, default = black (0, 0, 0)
+# o: background-color
 # o: text-color, default = white (255, 255, 255)
 # o: rotation
 #************************************************************************
 async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, t_color = None, bg_color = None, rotation = 0):
     _LOGGER.debug(f"writing some text with values given: serial-number={serial_number}, text={text}, xs={xs}, ys={ys}, xe={xe}, ye={ye}, font-size={font_size}, text-color={t_color}, background-color={bg_color}, rotation={rotation}")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     if t_color is None:
@@ -1130,8 +1164,8 @@ async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, 
     else:
         t_color = normalize_color(t_color)
     if bg_color is None:
-        bg_color = (0, 0, 0)
-        _LOGGER.debug(f"set background-color to {bg_color} as no parameter is given")
+        bg_color = normalize_color(device.get("background_color"))
+        _LOGGER.debug(f"set background-color to displays' default bg-color {bg_color} as no parameter is given")
     else:
         bg_color = normalize_color(bg_color)
 
@@ -1163,7 +1197,7 @@ async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, 
 #    width = abs(xe - xs + 1)
 #    height = abs(ye - ys + 1)
 
-    img = data.get("shadow")
+    img = device.get("shadow")
     draw = ImageDraw.Draw(img)
 
     _LOGGER.debug("fetched image from instance")
@@ -1199,17 +1233,20 @@ async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, 
 # o: max-value, default = 100
 # o: bar-color, default = white (255, 255, 255)
 # o: bar-outline, default = True
-# o: background-color, default = black (0, 0, 0)
+# o: background-color
 # o: rotation, default = 90
 #************************************************************************
-async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None, min_value=0, max_value=100, bf_width=1, bf_color=None, b_color=(255, 255, 255), bg_color=(0, 0, 0), rotation = 90, show_value=False, val_appendix=""):
+async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None, min_value=0, max_value=100, bf_width=1, bf_color=None, b_color=(255, 255, 255), bg_color=None, rotation = 90, show_value=False, val_appendix=""):
     _LOGGER.debug(f"doing a progress with the values given: xs={xs}, ys={ys}, xe={xe}, ye={ye}, bar-value={bar_value}, min-value={min_value}, max-value={max_value}, bar-frame-width={bf_width}, bar-color={b_color}, bar-frame-color={bf_color}, background-color={bg_color}, rotation={rotation}, show-value={show_value}, value-appendix={val_appendix}")
 
-    data = hass.data[const.DOMAIN]["devices"][serial_number]
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
 
     if bf_color is None:
         bf_color = b_color
         _LOGGER.debug("no value given for bar-frame-color, taking bar-color for frame")
+    if bg_color is None:
+        bg_color = normalize_color(device.get("background_color"))
+        _LOGGER.debug(f"set background-color to displays' default bg-color {bg_color} as no parameter is given")
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     b_color = normalize_color(b_color)
@@ -1240,7 +1277,7 @@ async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None,
     _LOGGER.debug(f"fill-ratio={fill_ratio}, fill-width={fill_w}")
 
     # Bild aus der Instanz ziehen
-    img = data.get("shadow")
+    img = device.get("shadow")
     draw = ImageDraw.Draw(img)
 
     _LOGGER.debug("fetched image from instance")
@@ -1310,11 +1347,11 @@ async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None,
 # o: pixel_size (1-4)
 # o: show_data
 # o: qr-color, default = white (255, 255, 255)
-# o: background-color, default = black (0, 0, 0)
+# o: background-color
 #************************************************************************
 # QR code with Progress bar with solid background and outline
 #************************************************************************
-async def generate_qr(hass, serial_number, data, xs, ys, show_data=False, qr_color=(255, 255, 255), bg_color=(0, 0, 0)):
+async def generate_qr(hass, serial_number, data, xs, ys, show_data=False, qr_color=(255, 255, 255), bg_color=None):
     _LOGGER.info(f"generating a qr code")
     _LOGGER.debug(f"given values: data={data}, xs={xs}, ys={ys}, show-data={show_data}, qr-color={qr_color}, background-color={bg_color}")
 
@@ -1330,7 +1367,6 @@ async def generate_qr(hass, serial_number, data, xs, ys, show_data=False, qr_col
         error_correction=qrcode.constants.ERROR_CORRECT_M,
         box_size=1,
         border=1,
-#        border=4,
     )
     qr.add_data(data)
     qr.make(fit=True)

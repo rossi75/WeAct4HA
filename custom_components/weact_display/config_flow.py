@@ -3,12 +3,15 @@ from __future__ import annotations
 import voluptuous as vol
 import logging
 import asyncio
+from datetime import datetime, timedelta
 from homeassistant import config_entries
 from homeassistant.components import usb
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import selector
-#from .const import DOMAIN, ORIENTATION_MAP
+from homeassistant.loader import async_get_integration
+#from custom_components.weact_display.commands import normalize_color
+from .commands import normalize_color
 import custom_components.weact_display.const as const
 
 _LOGGER = logging.getLogger(__name__)
@@ -83,10 +86,10 @@ class WeActDisplayConfigFlow(config_entries.ConfigFlow, domain=const.DOMAIN):
         schema = vol.Schema(
             {
                 vol.Required("device_path"): vol.In(options),
-                vol.Required("startup_orientation_value", default="Landscape"): selector.SelectSelector(selector.SelectSelectorConfig(options=list(const.ORIENTATION_MAP.keys()),mode="dropdown")),
-                vol.Required("startup_brightness_value", default=const.DEFAULT_BRIGHTNESS): selector.NumberSelector(selector.NumberSelectorConfig(min=0, max=255, mode="slider")),
-                vol.Required("startup_screencare", default=True): selector.BooleanSelector(),
-                vol.Required("startup_background_color", default=[0, 0, 0]): selector.ColorRGBSelector(),
+                vol.Required("orientation_text", default="Landscape"): selector.SelectSelector(selector.SelectSelectorConfig(options=list(const.ORIENTATION_MAP.keys()),mode="dropdown")),
+                vol.Required("brightness", default=const.DEFAULT_BRIGHTNESS): selector.NumberSelector(selector.NumberSelectorConfig(min=0, max=255, mode="slider")),
+                vol.Required("screencare", default=True): selector.BooleanSelector(),
+                vol.Required("background_color", default=[0, 0, 0]): selector.ColorRGBSelector(),
             }
         )
 
@@ -94,13 +97,13 @@ class WeActDisplayConfigFlow(config_entries.ConfigFlow, domain=const.DOMAIN):
             device_path               = user_input["device_path"]
             selection                 = devices[device_path]
             serial_number             = selection.get("serial_number")
-            startup_brightness_value  = user_input["startup_brightness_value"]
-            startup_background_color  = user_input["startup_background_color"]
-            startup_screencare        = user_input["startup_screencare"]
-            orientation_text          = user_input["startup_orientation_value"]
-            startup_orientation_value = const.ORIENTATION_MAP[orientation_text]
+            brightness                = user_input["brightness"]
+            background_color          = user_input["background_color"]
+            screencare                = user_input["screencare"]
+            orientation_text          = user_input["orientation_text"]
+            orientation_value         = const.ORIENTATION_MAP[orientation_text]
 
-            _LOGGER.debug(f"user input: selection={selection}, serial-number={serial_number}, device-path={device_path}, orientation-text={orientation_text}, orientation-value={startup_orientation_value}, brightness-value={startup_brightness_value}, background={startup_background_color}, screencare={startup_screencare}")
+            _LOGGER.debug(f"user input: selection={selection}, serial-number={serial_number}, device-path={device_path}, orientation-text={orientation_text}, orientation-value={orientation_value}, brightness={brightness}, background={background_color}, screencare={screencare}")
 
             if not selection.get("device_path"):
                 _LOGGER.error("device does not have a device-path")
@@ -122,19 +125,24 @@ class WeActDisplayConfigFlow(config_entries.ConfigFlow, domain=const.DOMAIN):
                 model = "unknown"
             _LOGGER.debug(f"serial-parts={serial_parts}, model={model}")
 
+
+            integration = await async_get_integration(self.hass, const.DOMAIN)
+            version = integration.version
             data = {
-                "device_path":   device_path,
+                "device_path"  : device_path,
                 "serial_number": serial_number,
-                "model":         model
+                "model"        : model,
+                "setup_dt"     : datetime.now().isoformat(timespec="seconds"),
+                "setup_version": version
             }
 
             _LOGGER.debug(f"data={data}")
 
             options = {
-                "startup_brightness_value":  startup_brightness_value,
-                "startup_orientation_value": startup_orientation_value,
-                "startup_background_color":  tuple(startup_background_color),  # wichtig!
-                "startup_screencare":        startup_screencare
+                "brightness"        : int(brightness),
+                "orientation_value" : orientation_value,
+                "background_color"  : normalize_color(tuple(background_color)),  # wichtig!
+                "screencare"        : screencare
             }
 
             _LOGGER.debug(f"options={options}")
@@ -157,25 +165,3 @@ class WeActDisplayConfigFlow(config_entries.ConfigFlow, domain=const.DOMAIN):
             errors = errors,
             description_placeholders={"info": "please choose one not recognized device to add"},
         )
-
-    # __-Test ob diese Fkt noch benötigt wird, 27.04.2026
-    async def asfdaksdjfklaejf_async_step_confirm_(self, user_input=None):
-        _LOGGER.debug(f"async_step_confirm with user-input {user_input}")
-        if user_input is not None:
-            return self.async_create_entry(
-                title="Choose new device to add as new display",
-                data={
-                    "device_path": self.port,
-                },
-            )
-
-        return self.async_show_form(
-            step_id="confirm",
-            description_placeholders={
-                "device_path": self.port,
-            },
-            data_schema=vol.Schema({}),
-        )
-
-
-

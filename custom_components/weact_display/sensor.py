@@ -122,7 +122,6 @@ async def async_setup_platform(
 
 
 class WeActDisplaySensor(SensorEntity):
-    # Ein Sensor pro Display. Enthält alle Attribute
     def __init__(self, hass: HomeAssistant, serial_number):
         self._hass = hass
         self._attr_unique_id = serial_number
@@ -140,30 +139,31 @@ class WeActDisplaySensor(SensorEntity):
     @property
     def extra_state_attributes(self):
         data = self._hass.data[const.DOMAIN]["devices"][self._serial_number]
-        _LOGGER.debug(f"serial-number={self._serial_number}")
         attr = {
             "model"            : data.get("model"),
-#            "serial_number": data.get("serial_number"),
-            "serial_number"    : self._serial_number,
+            "serial_number"    : data.get("unique_id"),
             "brightness"       : data.get("brightness"),
             "width"            : data.get("width"),
             "height"           : data.get("height"),
             "orientation"      : const.ORIENTATION_MAP_INV[data.get("orientation_value", 3)],
             "screencare"       : data.get("screencare"),
             "clock_mode"       : data.get("clock_mode"),
-            "background_color" : data.get("startup_background_color")
+            "background_color" : data.get("background_color")
         }
         if _LOGGER.getEffectiveLevel() == logging.DEBUG:
             if data.get("humiture") is True:
                 attr["dbg_humidity"]         = data.get("humidity")
                 attr["dbg_temperature"]      = data.get("temperature")
                 attr["dbg_temperature_unit"] = "°C"
+            attr["dbg_setup_dt"]             = data.get("setup_dt")
+            attr["dbg_setup_version"]        = data.get("setup_version")
             attr["dbg_device_path"]          = data.get("device_path")      # only friendly name, not serial_port with its attributes !!
             attr["dbg_who_am_i"]             = data.get("who_am_i")
             attr["dbg_firmware_version"]     = data.get("firmware_version")
             attr["dbg_orientation_value"]    = data.get("orientation_value")
             attr["dbg_humiture"]             = data.get("humiture")
             attr["dbg_entry_id"]             = data.get("entry_id")
+            attr["dbg_device_id"]            = data.get("device_id")
         if True:                                                                # actually always on
             attr["dbg_start_time"]           = data.get("start_time")
         return attr
