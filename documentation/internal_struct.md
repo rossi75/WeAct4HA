@@ -29,7 +29,6 @@
  +----------------------------------------------+
 
 
-
 ### internal data structure:
 
 hass.data[weact_display]["devices"][serial_number]
@@ -49,9 +48,8 @@ hass.data[weact_display]["devices"][serial_number]
 | clock_handle              | Function   | None          |                          | stores the handle that is called periodically              |
 | clock_select_entity       | Function   | None          |                          | relation to reflect the clock_mode into select entity      |
 | screencare                | Boolean    | True          | screencare*              | random pixels at 03:37? [False\|True]                   |
+--| screencare_handle         | Function   | None          |                          |                                                         |
 | background_color          | Tupel      | [0, 0, 0]     | background_color*        |                                                         |
-| startup_brightness        | Integer    | 7             | startup_brightness*      | der kommt langfristig wieder weg, wird direkt wieder in konfig zurückgeschrieben !!                                                               |
-| startup_orientation_value | Integer    | True          | startup_orientation*     | der kommt langfristig wieder weg, wird direkt wieder in konfig zurückgeschrieben !!                                               |
 | humidity                  | Integer    | None          | humidity**               |                                                            |
 | temperature               | Integer    | None          | temperature**            |                                                            |
 |                           | String     | °C            | temperature_unit**       |                                                            |
@@ -70,31 +68,46 @@ hass.data[weact_display]["devices"][serial_number]
 *** (later) only if debug mode is set
 
 
-fott damit:
-hass.data[weact_display]["entries"][entry_id]
+hass.data[weact_display]["serial_map"][entry_id] --> aktuell deaktiviert da ungenutzt
 | Tupel                     | Data Type  | Default Value | Sensor/Attribute           | Description                     |
 |---------------------------|------------|---------------|----------------------------|---------------------------------|
 | serial_number             | String     | None          | dbg_lookup_entry2serial*** | for serial lookup from entry_id |
-| startup_background_color  | Tupel      | None          | dbg_startup_bg_color***    | (0-255, 0-255, 0-255)           |
-| startup_brightness_value  | Integer    | None          | dbg_startup_b_value***     | 0-255                           |
-| startup_orientation_value | Integer    | None          | dbg_startup_o_value***     | [0\|1\|2\|3]                    |
 
 
-fott damit:
-hass.data[weact_display]["serial_map"][serial_number]
-| Tupel                     | Data Type  | Default Value | Sensor/Attribute           | Description                     |
-|---------------------------|------------|---------------|----------------------------|---------------------------------|
-| entry_id                  | String     | None          | dbg_lookup_serial2entry*** | for entry_id lookup from serial |
+hass.data[weact_display]["device_id_map"][device_id]
+| Tupel                     | Data Type  | Default Value | Sensor/Attribute | Description                      |
+|---------------------------|------------|---------------|------------------|----------------------------------|
+| serial_number             | String     | None          |                  | for serial lookup from device_id |
+
+
+entry.data.
+| Tupel                     | since version | Data Type  | Example           | Description                              |
+|---------------------------|---------------|------------|-------------------|------------------------------------------|
+| entry_id                  | 0.6.0         | String     |                   |                                          |
+| device_path               | 0.6.0         | String     |                   |                                          |
+| serial_number             | 0.6.0         | String     | 987321654s12      |                                          |
+| model                     | 0.6.0         | String     | FS 0.96 Inch      |                                          |
+| setup_dt                  | 0.6.1         | String     | 20260502T11:46:00 |                                          |
+| setup_version             | 0.6.1         | String     | 0.6.1             |                                          |
+
+
+entry.options.
+| Tupel             | since version | Data Type | Default   | Description                     |
+|-------------------|---------------|-----------|-----------|---------------------------------|
+| entry_id          | 0.6.0         | String    |           |                                 |
+| orientation_value | 0.5.5         | String    | 2         |                                 |
+| background_color  | 0.5.5         | Tupel     | (0, 0, 0) |                                 |
+| brightness_value  | 0.6.0         | String    | 7         |                                 |
+| screencare        | 0.6.0         | String    | True      | [True/False]                    |
 
 
 ### Orientation Settings:
-
 | Orientation        | Value | Rot. |
 |--------------------|-------|------|
 | PORTRAIT           | 0     |    0 |
-| PORTRAIT_REVERSE   | 1     |    0 |
-| LANDSCAPE          | 2     |    0 |
-| LANDSCAPE_REVERSE  | 3     | -180 |
+| PORTRAIT_REVERSE   | 1     | -180 |
+| LANDSCAPE          | 2     |  -90 |
+| LANDSCAPE_REVERSE  | 3     | -270 |
 | ROTATE (not impl.) | 5     |      |
 
 

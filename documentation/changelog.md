@@ -3,17 +3,32 @@
 ## V0.x.x - 2026
 ~ fix startup message complaining unique ID
 ~ more config flow compatible
-~ fix crash at startup if no display attached
 ~ to get clock into idle state, call clock handle with background colors, possible? so any custom call will also be recognized to clean up its fields
 ~ improve serial initialization
+~ respond to unplug if possible or to exit from serial_reader()
+~ screencare into screencareutils.py
+~ change background color in GUI as sensor, not only via 1st administration
 
-## V0.6.1 - 01.05.-20.05.2026
-- option for screencare draws some random pixels at 03:37:x5 every night (Siemens Gigaset restart time)
-- added hidden D/T attribute for when the module was set up
-- write orientation back into persistent storage
-- write brightness back into persistent storage
-- write screencare option back into persistent storage
-- clocks use background-color to get in idle-state
+## V0.6.1 - 01.05.-07.05.2026
+! maybe the display needs to be deleted and re-added to work with orientation and/or brightness
+- improved message if not connected when trying to send
+- added hidden D/T attribute and version attribute for when and with which version the module was set up, only seeable in debug mode
+- write screencare option back into persistent storage if changed from UI
+- renamed startup_orientation_value to orientation_value
+- renamed startup_brightness_value to brightness_value
+- corrected serial_map
+- filtering for devices needed new mapping for device_id, otherwise the services won't work anymore
+- set_orientation with optional force parameter, overrides the check for actual vs new orientation
+- option for screencare draws some random pixels at 03:37:xx every night
+  (Siemens Gigaset restart time, see also https://www.chrischmi.de/2009/12/siemens-gigaset-sx353-um-337-uhr/)
+- generate_random() with optional parameter to supress previous screen blanking
+- if debug is enabled, dbg_next_screencare is available as attribute for the screencare sensor
+- renamed brightness_value to brightness
+- write brightness directly back into persistent storage
+- all routines use background-color from device if no other background-color is given
+- startup finishes with its displays' background-color (from display-selftest)
+- save background-color directly as tupel (x, y, z) at setup
+- write orientation directly back into persistent storage
 
 ## V0.6.0 - 15.04.-30.04.2026
 - changed from hass.data[DOMAIN][serial] to hass.data[DOMAIN]["devices"][serial] for runtime data
@@ -23,7 +38,9 @@
 - corrected orientation_map
 - removed attribute "device_id"
 - added option for screencare in config-flow (actually without logic behind)
-- fully (?) config-flow compatible
+- fully (?) config-flow compatible:
+  if no display is being recognized at startup, the integration does not crash
+  as soon as display is plugged in, a ha-popup reminds to administer the new display
 
 ## V0.5.5 - 05.-12.04.2026
 - added counterclockwise rotation if orientation is changed, see also table in internal_struct.md
