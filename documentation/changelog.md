@@ -1,11 +1,11 @@
 # changelog
 
 ## V0.x.x - 2026
-~ fix startup message complaining non-unique ID
-~ respond to unplug if possible or to exit from serial_reader()
-~ screencare into screencare.py
-~ improve serial initialization
-~ serial communication from __init__.py and commands.py into serial.py
+~ fix startup message complaining non-unique ID  
+~ respond to unplug if possible or to exit from serial_reader()  
+~ screencare into screencare.py  
+~ improve serial initialization  
+~ serial communication from __init__.py and commands.py into serial.py  
 
 ## V0.6.2 - 08.-15.05.2026
 - improved Config Flow dialog texts
