@@ -41,11 +41,12 @@ provides a simple interface for the WeAct Display FS V1 and FS 0.96 Inch with va
 ## known issues
 - digital clock in portrait orientation uses wrong coordinates (!! need to fix !!) --> __init__.py, bei set_orientation() muss das Bild neu definiert und gezeichnet werden
 - analog clock in portrait orientation results in shit (!! need to fix !!) --> same as before
-- does not save the orientation for each display (need to enhance it anytime) --> set a startup orientation and background
 - if display is newly connected, HA needs a restart to reflect the clock-mode accurate (need to fix)
 - cannot change clock-mode immediately once after once, need to await the next minute cycle before any further change
   (maybe I will fix it anytime)
+- change background color not possible via GUI after 1st administration. Either use or service/action or delete and re-add the display
 
+- does not save the orientation for each display (need to enhance it anytime) -> fixed in v0.6.1 !
 - display is being recognized only if plugged in at HA startup (maybe I will fix it anytime -> v0.6.0)
 - integration does not start up if NO display is being recognized (maybe I will fix it anytime -> v0.6.0)
 
