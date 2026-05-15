@@ -1,0 +1,27 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add a WeAct Display",
+        "description": "Please choose a display to add and to configure",
+        "data": {
+          "device_path": "Device",
+          "orientation_text": "Display Orientation",
+          "brightness": "Brightness",
+          "screencare": "Activate Screencare",
+          "background_color": "Background Color"
+        },
+        "data_description": {
+          "screencare": "Activates the Screencare at 03:37 in the night",
+          "background_color": "Startup and Background Color"
+        }
+      }
+    },
+    "error": {
+      "no_serial_number": "Keine Seriennummer gefunden"
+    },
+    "abort": {
+      "no_new_devices": "Keine neuen Displays gefunden"
+    }
+  }
+}
