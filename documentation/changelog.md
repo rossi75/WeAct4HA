@@ -1,16 +1,26 @@
 # changelog
 
 ## V0.x.x - 2026
-~ fix startup message complaining unique ID
-~ more config flow compatible
-~ to get clock into idle state, call clock handle with background colors, possible? so any custom call will also be recognized to clean up its fields
-~ improve serial initialization
+~ fix startup message complaining non-unique ID
 ~ respond to unplug if possible or to exit from serial_reader()
-~ screencare into screencareutils.py
-~ change background color in GUI as sensor, not only via 1st administration
+~ screencare into screencare.py
+~ improve serial initialization
+~ serial communication from __init__.py and commands.py into serial.py
+
+## V0.6.2 - 08.-15.05.2026
+- improved Config Flow dialog texts
+- if screencare is enabled, screencare-switch entity now has an extra-attribute named "next_screencare", no more "dbg_next_screencare"
+- Config Flow settings for all settings but the device itself are no longer marked as mandatory
+- added german language for UI setup (config flow, cache reload necessary)
+- screencare-trigger was never set due to race condition (HA startup was done before finish trigger was reached to set screencare trigger)
+- corrected orientation_values at startup [0|2] to [2|3] for landscape detection in async_setup_entry
+- to get clock into idle state, call clock handle with background colors, possible? so any custom call will also be recognized to clean up its fields properly
+- orientation options in small letters, no capitals
+- icon and logo (HomeAssistant 2026.3 or later needed)
+- corrected orientation_map once again...
 
 ## V0.6.1 - 01.05.-07.05.2026
-! maybe the display needs to be deleted and re-added to work with orientation and/or brightness
+- ! maybe the display needs to be deleted and re-added to work with orientation and/or brightness (because of renaming persistent entries)
 - improved message if not connected when trying to send
 - added hidden D/T attribute and version attribute for when and with which version the module was set up, only seeable in debug mode
 - write screencare option back into persistent storage if changed from UI
