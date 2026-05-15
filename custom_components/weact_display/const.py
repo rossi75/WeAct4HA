@@ -11,10 +11,10 @@ IGNORE_WEACT_FILTER = False
 DEFAULT_BRIGHTNESS = 7
 
 ORIENTATION_MAP = {
-    "Portrait": 0,
-    "Portrait Reverse": 1,
-    "Landscape": 2,
-    "Landscape Reverse": 3,
+    "portrait": 0,
+    "portrait reverse": 1,
+    "landscape": 2,
+    "landscape reverse": 3,
 #    "Rotate": 5
 }
 
@@ -37,4 +37,5 @@ COMMAND_NAMES = {
 }
 
 # array-table [old][new]:, see internal_struct.md for evidence
-ORIENTATION_CONVERSION_MAP = [[0,2,3,1],[2,0,1,3],[1,3,0,2],[3,1,2,0]]
+ORIENTATION_CONVERSION_MAP_060_061 = [ [0,2,3,1], [2,0,1,3], [1,3,0,2], [3,1,2,0] ]               # von 0.6.0 bis 0.6.1
+ORIENTATION_CONVERSION_MAP         = [ [0,2,1,3], [2,0,3,1], [3,1,0,2], [1,3,2,0] ]               # von 0.6.2 bis ...

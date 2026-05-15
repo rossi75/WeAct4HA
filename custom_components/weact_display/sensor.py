@@ -145,7 +145,7 @@ class WeActDisplaySensor(SensorEntity):
             "brightness"       : data.get("brightness"),
             "width"            : data.get("width"),
             "height"           : data.get("height"),
-            "orientation"      : const.ORIENTATION_MAP_INV[data.get("orientation_value", 3)],
+            "orientation"      : const.ORIENTATION_MAP_INV[data.get("orientation_value", 2)],
             "screencare"       : data.get("screencare"),
             "clock_mode"       : data.get("clock_mode"),
             "background_color" : data.get("background_color")
@@ -164,7 +164,6 @@ class WeActDisplaySensor(SensorEntity):
             attr["dbg_humiture"]             = data.get("humiture")
             attr["dbg_entry_id"]             = data.get("entry_id")
             attr["dbg_device_id"]            = data.get("device_id")
-        if True:                                                                # actually always on
             attr["dbg_start_time"]           = data.get("start_time")
         return attr
 

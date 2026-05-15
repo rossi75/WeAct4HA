@@ -128,7 +128,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         large = params["large"]
         small = params["small"]
         _LOGGER.debug(f"read model parameters: large={large}, small={small}, humiture={humiture}")
-        if orientation_value in [0, 2]:       # Landscape
+        if orientation_value in [2, 3]:       # Landscape
             width = large
             height = small
         else:                                         # Portrait
@@ -875,8 +875,6 @@ async def async_setup(hass: HomeAssistant, config):
 
         _LOGGER.debug(f"values given: device-id={device_id}, serial-number={serial_number}, screencare={screencare_option}")
 
-#        await switch_screencare_option(hass, serial_number, screencare_option)
-
     hass.services.async_register(const.DOMAIN, "change_screencare_option", handle_change_screencare_option)
 
 
@@ -961,14 +959,9 @@ async def post_startup(hass: HomeAssistant, entry):
     height = device.get("height")
     background_color = device.get("background_color")
     await draw_rectangle(hass, serial_number, xs=0, ys=0, xe=width-1, ye=height-1, rf_width=0, rf_color=background_color, f_color=background_color)
+    await setup_screencare(hass, serial_number)
 
     _LOGGER.info(f"post-startup done for serial {serial_number} on {device_path}, WeAct Display {model} is now waiting for some commands")
-
-    async def _start_when_ready(event):
-        await asyncio.sleep(0.5)  # kleinen Yield geben
-        await setup_screencare(hass, serial_number)
-
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _start_when_ready)
 
 
 async def start_serial_reader_thread(hass, serial_number):
@@ -1018,14 +1011,29 @@ async def setup_screencare(hass, serial_number):
     @callback
     async def _screencare_callback(now):
         _LOGGER.debug(f"screencare triggered for {serial_number}")
+
+        entry_id = device.get("entry_id")
+        entry = hass.config_entries.async_get_entry(entry_id)
+        if not entry:
+            _LOGGER.error(f"no config entry for serial {serial_number}")
+            return
+
+        if not entry.options.get("screencare", False):
+            _LOGGER.debug(f"screencare not set for serial {serial_number}, aborting")
+            return
+        else:
+            _LOGGER.info(f"running screencare for serial {serial_number}")
+        
         try:
             hass.async_create_task(run_screencare(hass, serial_number))
-            await setup_screencare(hass, serial_number)              # direkt nächsten Tag planen
         except Exception as e:
             _LOGGER.exception(f"screencare callback failed with {e}")
+        
+        await setup_screencare(hass, serial_number)              # direkt nächsten Tag planen
 
     await asyncio.sleep(2)
     now = datetime.now(zoneinfo.ZoneInfo("Europe/Berlin"))
+    #target = now.replace(hour=10, minute=19, second=2, microsecond=0)
     target = now.replace(hour=3, minute=37, second=2, microsecond=0)
 
     if target <= now:
@@ -1045,18 +1053,13 @@ async def run_screencare(hass, serial_number):
     device = hass.data[const.DOMAIN]["devices"][serial_number]
     entry_id = device.get("entry_id")
     entry = hass.config_entries.async_get_entry(entry_id)
-    if not entry.options.get("screencare", False):
-        _LOGGER.debug(f"screencare not set for serial {serial_number}, aborting")
-        return
-    else:
-        _LOGGER.info(f"running screencare for serial {serial_number}")
 
     # backup ziehen
     shadow = device.get("shadow")
     backup = shadow.copy()
 
     # screencare
-    for i in range(7):
+    for i in range(6):
         await generate_random(hass, serial_number, suppress_delete=True)
         await asyncio.sleep(6)
 

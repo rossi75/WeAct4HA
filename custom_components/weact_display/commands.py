@@ -43,15 +43,36 @@ def open_serial(device_path: str):
     # ---- STTY-Setup ----
     try:
         subprocess.run([
-            "stty", "-F", device_path,
-            "115200", "cs8", "-cstopb", "-parenb",
-            "-crtscts", "-hupcl", "min", "1", "time", "1"
+            "stty",
+            "-F",
+            device_path,
+            "115200",
+            "cs8",
+            "-cstopb",
+            "-parenb",
+            "-crtscts",
+            "-hupcl",
+            "min",
+            "1",
+            "time",
+            "1"
         ], check=True)
         _LOGGER.debug(f"STTY Setup successfully done")
     except subprocess.CalledProcessError as e:
         _LOGGER.warning(f"STTY Setup has some issue: {e}")
 
     # Seriellen Port öffnen
+    # 'serial_port':
+    #   Serial<id=0x7f837e0044c0, open=True>
+    #     (port='/dev/serial/by-id/usb-WeAct_Studio_Display_FS_V1_abde230e698a-if00',
+    #      baudrate=115200,               # +
+    #      bytesize=8,                    # +
+    #      parity='N',                    # +
+    #      stopbits=1,                    # +
+    #      timeout=0.1,                   # +
+    #      xonxoff=False,
+    #      rtscts=False,
+    #      dsrdtr=False)
     try:
         serial_port = serial.Serial(
             port=device_path,
@@ -64,12 +85,14 @@ def open_serial(device_path: str):
         )
 
         if serial_port.is_open:
-            _LOGGER.debug(f"opened port: {device_path}")
+#            _LOGGER.debug(f"opened port: {device_path}")
+            _LOGGER.debug(f"opened serial-port {serial_port} with device-path {device_path}")
         else:
-            _LOGGER.warning(f"could not open port {device_path}")
+#            _LOGGER.warning(f"could not open port {device_path}")
+            _LOGGER.warning(f"could not open serial-port {serial_port} with device-path {device_path}")
             return None
 
-        _LOGGER.debug(f"successfully opened and initialized serial port {device_path}")
+#        _LOGGER.debug(f"successfully opened and initialized serial port {device_path}")
 
         return serial_port
 
@@ -275,10 +298,10 @@ async def set_orientation(hass, serial_number, orientation_value, force = False)
             _LOGGER.debug(f"oops, I was forced to override the orientation check, continuing")
 
     params = DISPLAY_MODELS.get(model, None)
-    if orientation_value in (2, 3):                                                                   # 0 oder 180°
+    if orientation_value in (2, 3):                                                                   # Landscape
         device["width"] = params["large"]
         device["height"] = params["small"]
-    elif orientation_value in (0, 1):                                                                  # 90° oder 270°
+    elif orientation_value in (0, 1):                                                                  # Portrait
         device["width"] = params["small"]
         device["height"] = params["large"]
     else:

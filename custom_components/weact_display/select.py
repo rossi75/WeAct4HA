@@ -14,11 +14,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
     _LOGGER.debug(f"adding clock mode select for serial {serial_number}")
     async_add_entities([Select_ClockMode(hass, serial_number)])
 
-    # für um Updates auch zu erhalten wenn es vom Service gesetzt wird
-#    entity = Select_ClockMode(hass, serial_number)
-#    async_add_entities([entity])
-
-
 class Select_Orientation(SelectEntity):
     _attr_has_entity_name = True
     _attr_name = "Orientation"
@@ -40,7 +35,8 @@ class Select_Orientation(SelectEntity):
 
         value = hass.data[const.DOMAIN]["devices"][serial_number].get("orientation_value")
         if not isinstance(value, int) or value not in const.ORIENTATION_MAP_INV:
-            value = 0  # Default: Portrait
+#            value = 0  # Default: Portrait
+            value = 2  # Default: Landscape
         self._value = value
         self._attr_current_option = const.ORIENTATION_MAP_INV[value]
 

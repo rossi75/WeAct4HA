@@ -968,17 +968,17 @@ set_orientation:
       name: Orientation
       description: choose the desired orientation
       required: true
-      default: "Landscape"
+      default: "landscape"
       selector:
         select:
           options:
-            - label: "Portrait"
+            - label: "portrait"
               value: "0"
-            - label: "Portrait Reverse"
+            - label: "portrait reverse"
               value: "1"
-            - label: "Landscape"
+            - label: "landscape"
               value: "2"
-            - label: "Landscape Reverse"
+            - label: "landscape reverse"
               value: "3"
 
 set_brightness:
@@ -1094,7 +1094,7 @@ show_bmp:
         text: {}
 
 change_screencare_option:
-  name: Enable/Disable ScreenCare option
+  name: Enable/Disable Screencare Option
   description: "shows some random pixels at 03:37"
   fields:
     display:

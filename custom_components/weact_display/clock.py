@@ -18,15 +18,16 @@ async def stop_clock(hass, serial_number):
     device = hass.data[const.DOMAIN]["devices"][serial_number]
     clock_mode = device.get("clock_mode")
     clock_handle = device.get("clock_handle")
+    bg_color = device.get("background_color")
 
     _LOGGER.debug(f"actually running clock-mode is {clock_mode}")
 
     if clock_handle is not None:
         if device["clock_mode"] == "analog":
-            await show_analog_clock(hass, serial_number, sc_color = (0, 0, 0), h_color = (0, 0, 0), m_color = (0, 0, 0), scf_color = (0, 0, 0))
+            await show_analog_clock(hass, serial_number, sc_color = bg_color, h_color = bg_color, m_color = bg_color, scf_color = bg_color)
             _LOGGER.debug(f"deleted last analog drawing")
         if device["clock_mode"] == "digital":
-            await show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = None, rotation = 0, d_color = (0, 0, 0), bg_color = (0, 0, 0), cf_color = (0, 0, 0), cf_width = 0, offset_hours = None, am_pm = False)
+            await show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = None, rotation = 0, d_color = bg_color, bg_color = bg_color, cf_color = bg_color, cf_width = 0, offset_hours = None, am_pm = False)
             _LOGGER.debug(f"deleted last digital drawing")
         if device["clock_mode"] == "rheinturm":
             await delete_rheinturm(hass, serial_number)
@@ -47,15 +48,12 @@ async def start_analog_clock(hass, serial_number, **kwargs):
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
-#    clock_mode = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_mode")
     clock_mode = device.get("clock_mode")
     if clock_mode != "idle":
         _LOGGER.debug(f"Clock for {serial_number} already running as {clock_mode}, stopping first")
         await stop_clock(hass, serial_number)
 
-#    hass.data[const.DOMAIN]["devices"][serial_number]["clock_mode"] = "analog"
     device["clock_mode"] = "analog"
-#    entity = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_select_entity")
     entity = device.get("clock_select_entity")
     if entity:
         entity.refresh_from_data()

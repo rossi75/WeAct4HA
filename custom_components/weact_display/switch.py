@@ -2,8 +2,6 @@
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.entity import DeviceInfo
 from .commands import set_orientation
-from .clock import stop_clock, start_analog_clock, start_digital_clock
-from .const import DOMAIN
 import custom_components.weact_display.const as const
 import logging
 
@@ -13,34 +11,32 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass, entry, async_add_entities):
     serial_number = entry.data["serial_number"]
     _LOGGER.debug(f"adding screencare switch for serial {serial_number}")
-    data = hass.data[DOMAIN]["devices"][serial_number]
-    async_add_entities([WeActScreenCareSwitch(hass, entry, data)])
-
-    # für um Updates auch zu erhalten wenn es vom Service gesetzt wird
-#    entity = Select_ClockMode(hass, serial_number)
-#    async_add_entities([entity])
+    async_add_entities([WeActScreenCareSwitch(hass, entry)])
 
 class WeActScreenCareSwitch(SwitchEntity):
 
-    def __init__(self, hass, entry, data):
+    def __init__(self, hass, entry):
         self._hass = hass
         self._serial_number = entry.unique_id
         self._attr_unique_id = f"weact_{self._serial_number}_screencare"
-        self._attr_name = "Screen Care"
+        self._attr_name = "Screencare"
         self._entry = entry
-        self._entry_id = hass.data[const.DOMAIN]["devices"][self._serial_number].get("entry_id")
+
+        device = hass.data[const.DOMAIN]["devices"][self._serial_number]
         self._attr_device_info = DeviceInfo(
             identifiers={(const.DOMAIN, self._serial_number)},
             manufacturer="WeAct Studio",
-            model = f"Display {hass.data[const.DOMAIN]["devices"][self._serial_number].get("model")}",
+            model = f"Display {device.get("model")}",
         )
 
-        value = hass.data[const.DOMAIN]["devices"][self._serial_number].get("screencare")
-        if not isinstance(value, bool):
-            value = True
-        self._value = value
+        screencare = device.get("screencare")
+        if not isinstance(screencare, bool):
+            screencare = True
+        self._value = screencare
 
         _LOGGER.debug(f"init-screencare for serial {self._serial_number} set to {self._value}")
+
+
 
     @property
     def is_on(self):
@@ -51,17 +47,12 @@ class WeActScreenCareSwitch(SwitchEntity):
     # Attribute aus hass.data
     @property
     def extra_state_attributes(self):
-        if _LOGGER.getEffectiveLevel() == logging.DEBUG:
-            data = self._hass.data[DOMAIN]["devices"].get(self._serial_number, {})
-            return {
-                "dbg_next_screencare": data.get("screencare_target")
-            }
+        device = self._hass.data[const.DOMAIN]["devices"][self._serial_number]
+        screencare = device.get("screencare")
+        if screencare is True:
+            return {"next_screencare" : device.get("screencare_target")}
         else:
             return {}
-#            data = self._hass.data[const.DOMAIN]["devices"][self._serial_number]
-#            attr = {
-#                "dbg_screencare_target" : data.get("screencare_target")
-#            }
 
     async def async_turn_on(self, **kwargs):
         _LOGGER.debug(f"enabled screencare for serial {self._serial_number}")

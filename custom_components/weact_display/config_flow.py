@@ -86,10 +86,10 @@ class WeActDisplayConfigFlow(config_entries.ConfigFlow, domain=const.DOMAIN):
         schema = vol.Schema(
             {
                 vol.Required("device_path"): vol.In(options),
-                vol.Required("orientation_text", default="Landscape"): selector.SelectSelector(selector.SelectSelectorConfig(options=list(const.ORIENTATION_MAP.keys()),mode="dropdown")),
-                vol.Required("brightness", default=const.DEFAULT_BRIGHTNESS): selector.NumberSelector(selector.NumberSelectorConfig(min=0, max=255, mode="slider")),
-                vol.Required("screencare", default=True): selector.BooleanSelector(),
-                vol.Required("background_color", default=[0, 0, 0]): selector.ColorRGBSelector(),
+                vol.Optional("orientation_text", default="landscape"): selector.SelectSelector(selector.SelectSelectorConfig(options=list(const.ORIENTATION_MAP.keys()),mode="dropdown")),
+                vol.Optional("brightness", default=const.DEFAULT_BRIGHTNESS): selector.NumberSelector(selector.NumberSelectorConfig(min=0, max=255, mode="slider")),
+                vol.Optional("background_color", default=[0, 0, 0]): selector.ColorRGBSelector(),
+                vol.Optional("screencare", default=True): selector.BooleanSelector(),
             }
         )
 
