@@ -3,21 +3,21 @@
 ## V0.x.x - 2026
 ~ fix startup message complaining non-unique ID  
 ~ respond to unplug if possible or to exit from serial_reader()  
-~ screencare into screencare.py  
+~ screencare into ``screencare.py``  
 ~ improve serial initialization  
-~ serial communication from __init__.py and commands.py into serial.py  
+~ serial communication from ``__init__.py`` and ``commands.py`` into ``serial.py``  
 
 ## V0.6.2 - 08.-15.05.2026
 - improved Config Flow dialog texts
-- if screencare is enabled, screencare-switch entity now has an extra-attribute named "next_screencare", no more "dbg_next_screencare"
+- if screencare is enabled, screencare-switch entity now has an extra-attribute named ``next_screencare``, no more ``dbg_next_screencare``
 - Config Flow settings for all settings but the device itself are no longer marked as mandatory
-- added german language for UI setup (config flow, cache reload necessary)
+- added german language for UI setup (Config Flow, cache reload necessary)
 - screencare-trigger was never set due to race condition (HA startup was done before finish trigger was reached to set screencare trigger)
-- corrected orientation_values at startup [0|2] to [2|3] for landscape detection in async_setup_entry
-- to get clock into idle state, call clock handle with background colors, possible? so any custom call will also be recognized to clean up its fields properly
+- corrected ``orientation_values`` at startup [0|2] to [2|3] for landscape detection in async_setup_entry
+- to get clock into idle state, calling clock handle with background colors to clean up its fields properly
 - orientation options in small letters, no capitals
 - icon and logo (HomeAssistant 2026.3 or later needed)
-- corrected orientation_map once again...
+- corrected ``orientation_map`` once again...
 
 ## V0.6.1 - 01.05.-07.05.2026
 - ! maybe the display needs to be deleted and re-added to work with orientation and/or brightness (because of renaming persistent entries)
