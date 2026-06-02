@@ -55,6 +55,7 @@ hass.data[weact_display]["devices"][serial_number]
 | screencare_target         | DateTime   | None          | next_screencare          | only if screencare is enabled                              |
 | background_color          | Tupel      | [0, 0, 0]     | background_color*        |                                                            |
 | humidity                  | Integer    | None          | humidity**               |                                                            |
+| fastlz                    | Boolean    | False         | dbg_fastlz***            |                                                            |
 | temperature               | Integer    | None          | temperature**            |                                                            |
 |                           | String     | °C            | temperature_unit**       |                                                            |
 | device_path               | String     |               | dbg_dev_path***          | friendly name from serial port                             |
@@ -102,7 +103,8 @@ entry.options.
 | orientation_value | 0.5.5         | String    | 2         |                                 |
 | background_color  | 0.5.5         | Tupel     | (0, 0, 0) |                                 |
 | brightness        | 0.6.0         | String    | 7         |                                 |
-| screencare        | 0.6.0         | String    | True      | [True/False]                    |
+| screencare        | 0.6.0         | Boolean   | True      | [True/False]                    |
+| fastlz            | 0.6.3         | Boolean   | False     | [True/False] actually unused    |
 
 
 ### Orientation Settings:
