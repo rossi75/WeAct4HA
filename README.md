@@ -32,6 +32,7 @@ provides a simple interface for the WeAct Display FS V1 and FS 0.96 Inch with va
 - entity to set background color via rgb-selector, writing back to persistent store since 0.6.1
 - entity to set screencare via switch, writing back to persistent store since 0.6.1
 - automatic detection (pop-up) if plugged in in runtime, no further crash if no display is plugged in at startup
+- service to draw a QR code
 
 ## restrictions
 - any draw/write actions only overwrite the specified area, they do not delete the whole screen. To clear the screen
