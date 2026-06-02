@@ -5,10 +5,11 @@
         "title": "Add a WeAct Display",
         "description": "Please choose a display to add and to configure",
         "data": {
-          "device_path": "Device",
+          "device_path"     : "Device",
           "orientation_text": "Display Orientation",
-          "brightness": "Brightness",
-          "screencare": "Activate Screencare",
+          "brightness"      : "Brightness",
+          "screencare"      : "Activate Screencare",
+          "fastlz"          : "Enable Fast Transmission",
           "background_color": "Background Color"
         },
         "data_description": {

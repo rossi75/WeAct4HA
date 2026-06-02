@@ -5,10 +5,11 @@
         "title": "Ein WeAct Display hinzufügen",
         "description": "Bitte ein Display auswählen und konfigurieren",
         "data": {
-          "device_path": "Gerät",
+          "device_path"     : "Gerät",
           "orientation_text": "Orientierung",
-          "brightness": "Helligkeit",
-          "screencare": "Screencare aktivieren",
+          "brightness"      : "Helligkeit",
+          "screencare"      : "Screencare aktivieren",
+          "fastlz"          : "schnelle Übertragung",
           "background_color": "Hintergrundfarbe"
         },
         "data_description": {
