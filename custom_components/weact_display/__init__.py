@@ -5,7 +5,7 @@ toDo:
 + random bitmap P1
 + testbild
 + umbau für public/github
-- qr code
++ qr code
 ~ send text with font/size/pos/t-color/bg-color/orientation/...
 ~ draw lines, circles, rectangles, triangles
 + show icon
@@ -20,12 +20,12 @@ toDo:
 + scan for new devices regularly, list of known devices needed
 + was passiert wenn ab und dran?
 + multiple displays
-- real supported und stabiler ConfigFlow, kein Crash wenn kein Display angesteckt, keine Meldung wg inkorrekter unique-ID
++ real supported und stabiler ConfigFlow, kein Crash wenn kein Display angesteckt
+- keine Meldung wg inkorrekter unique-ID
 - Dokumentation der initialen Funktionsweise, der Sensoren, der verfügbaren Aktionen, ...
 """
 
 import asyncio
-#import datetime
 import glob
 import logging
 import os
@@ -46,10 +46,8 @@ from homeassistant.core import HomeAssistant, ServiceCall, callback, EVENT_HOMEA
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.discovery import async_load_platform
-#from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.helpers.typing import ConfigType
-#from datetime import datetime, time, timedelta
 from datetime import datetime, timedelta
 
 import custom_components.weact_display.const as const
@@ -57,10 +55,7 @@ from .models import DISPLAY_MODELS
 from .clock import start_analog_clock, start_digital_clock, stop_clock
 from .commands import normalize_color
 #from .clock import stop_clock, start_analog_clock, start_digital_clock, start_rheinturm
-#from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr, enable_humiture_reports, parse_packet
-#from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_testbild, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr, enable_humiture_reports, parse_packet, read_firmware_version, read_who_am_i
-#from .commands import send_bitmap, send_full_color, write_text, generate_random, open_serial, display_selftest, show_init_screen, set_orientation, set_brightness, show_bmp, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr, enable_humiture_reports, parse_packet, read_firmware_version, read_who_am_i
-from .commands import display_selftest, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, enable_humiture_reports, generate_random, generate_qr, open_serial, parse_packet, read_firmware_version, read_who_am_i, send_full_color, send_screen, set_brightness, set_orientation, show_bmp, show_icon, show_init_screen, write_text
+from .commands import display_selftest, draw_circle, draw_line, draw_line_chart, draw_rectangle, draw_triangle, draw_progress_bar, enable_humiture_reports, generate_random, generate_qr, open_serial, parse_packet, read_firmware_version, read_who_am_i, replace_bg_color, send_full_color, send_screen, set_brightness, set_orientation, show_bmp, show_icon, show_init_screen, write_text
 #from .draws import write_text, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr
 
 # ------------------------------------------------------------
@@ -90,8 +85,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     brightness        = entry.options.get("brightness", None)
     background_color  = entry.options.get("background_color", None)
     screencare        = entry.options.get("screencare", None)
+    fastlz            = entry.options.get("fastlz", None)
 
-    _LOGGER.debug(f"read values from entry-data: model={model}, device-path={device_path}, background-color={background_color}, brightness={brightness}, orientation-value={orientation_value}, screencare={screencare}")
+    _LOGGER.debug(f"read values from entry-data: model={model}, device-path={device_path}, background-color={background_color}, brightness={brightness}, orientation-value={orientation_value}, screencare={screencare}, fastlz={fastlz}")
 
     if device_path is None:
         _LOGGER.error(f"could not find any device-path in ConfigEntry datastore (={device_path}), aborting !")
@@ -112,6 +108,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if screencare is None:
         screencare = True
         _LOGGER.debug(f"could not find any valid value for screencare in ConfigEntry datastore, set to {screencare}")
+    if fastlz is None:
+        fastlz = False
+        _LOGGER.debug(f"could not find any valid value for fastlz in ConfigEntry datastore, set to {fastlz}")
 
     # Parameter abfragen
     params   = DISPLAY_MODELS.get(model, None)
@@ -158,6 +157,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     devices[serial_number]["humiture"]                  = humiture
     devices[serial_number]["temperature"]               = None
     devices[serial_number]["humidity"]                  = None
+    devices[serial_number]["fastlz"]                    = fastlz
     devices[serial_number]["clock_mode"]                = "idle"
     devices[serial_number]["clock_handle"]              = None
     devices[serial_number]["screencare_handle"]         = None
@@ -224,10 +224,6 @@ async def async_setup(hass: HomeAssistant, config):
     const.IMG_PATH.mkdir(parents=True, exist_ok=True)
     const.ICON_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     _LOGGER.debug(f"image path set to: {const.IMG_PATH}, icon path set to: {const.ICON_CACHE_DIR}")
-
-    # Sensor-Plattform laden (Erzeugt die Entity!)
-    await async_load_platform(hass, "sensor", const.DOMAIN, {}, config)
-
 
 
 ###
@@ -448,11 +444,6 @@ async def async_setup(hass: HomeAssistant, config):
             return
 
         color_value = call.data.get("color")
-
-        # entity registry lookup
-#        registry = er.async_get(hass)
-#        entry = registry.async_get(device)
-#        serial_number = entry.unique_id
 
         # device registry lookup
         serial_number = hass.data[const.DOMAIN]["device_id_map"][device_id].get("serial_number")
@@ -790,7 +781,7 @@ async def async_setup(hass: HomeAssistant, config):
             _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
             return
 
-        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, X-Start={xs}, Y-Start={ys}, X-End={xe}, Y-End={ye}, line-color={l_color}, line-width={l_width}")
+        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, x-start={xs}, y-start={ys}, x-end={xe}, y-end={ye}, line-color={l_color}, line-width={l_width}")
 
         await draw_line(hass, serial_number, xs, ys, xe, ye, l_color, l_width)
 
@@ -828,7 +819,7 @@ async def async_setup(hass: HomeAssistant, config):
             _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
             return
 
-        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, X-start={xs}, Y-Start={ys}, X-End={xe}, Y-End={ye}, bar-min={bar_min}, bar-value={bar_value}, bar-max={bar_max}, bar-frame-width={bf_width}, bar-frame-color={bf_color}, bar-color={b_color}, background-color={bg_color}, rotation={rotation}, show_value={show_value}")
+        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, x-start={xs}, y-start={ys}, x-end={xe}, y-end={ye}, bar-min={bar_min}, bar-value={bar_value}, bar-max={bar_max}, bar-frame-width={bf_width}, bar-frame-color={bf_color}, bar-color={b_color}, background-color={bg_color}, rotation={rotation}, show_value={show_value}")
 
         await draw_progress_bar(hass, serial_number, xs, ys, xe, ye, min_value=bar_min, bar_value=bar_value, max_value=bar_max, bf_width=bf_width, b_color=b_color, bf_color=bf_color, bg_color=bg_color, rotation=rotation, show_value=show_value)
 
@@ -889,10 +880,10 @@ async def async_setup(hass: HomeAssistant, config):
             _LOGGER.error("missing mandatory device id")
             return
 
-        data = call.data.get("data")
-        xs = call.data.get("xs", 0)
-        ys = call.data.get("ys", 0)
-        show_data = call.data.get("show_data", False)
+        data     = call.data.get("data")
+        xs       = call.data.get("xs", 0)
+        ys       = call.data.get("ys", 0)
+        size     = call.data.get("size", None)    # width and height need to be the same !!
         qr_color = call.data.get("qr_color", None)
         bg_color = call.data.get("bg_color", None)
 
@@ -902,11 +893,105 @@ async def async_setup(hass: HomeAssistant, config):
             _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
             return
 
-        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, Data={data}, X-start={xs}, Y-Start={ys}, show-data={show_data}, qr-color={qr_color}, background-color={bg_color}")
+        device = hass.data[const.DOMAIN]["devices"][serial_number]
 
-        await generate_qr(hass, serial_number, data, xs, ys, show_data, qr_color, bg_color)
+        # entry-data lookup
+        entry_id = device.get("entry_id")
+        entry = hass.config_entries.async_get_entry(entry_id)
+        if not entry:
+            _LOGGER.error(f"no config entry found for serial {serial_number}")
+            return
+
+        _LOGGER.debug(f"values given: device-id={device_id}, serial-number={serial_number}, data={data}, x-start={xs}, y-start={ys}, size={size}, qr-color={qr_color}, background-color={bg_color}")
+
+        await generate_qr(hass, serial_number, data, xs, ys, size, qr_color, bg_color)
 
     hass.services.async_register(const.DOMAIN, "generate_qr", handle_generate_qr)
+
+
+    # --------------------------------------------------------
+    # Service: set background color
+    # --------------------------------------------------------
+    async def handle_set_background_color(call: ServiceCall):
+        _LOGGER.debug("called service to set new background color")
+
+        device_id = call.data.get("display", None)
+        if device_id is None:
+            _LOGGER.error("missing mandatory device id")
+            return
+
+        bg_color = call.data.get("bg_color", None)
+        if bg_color is None:
+            _LOGGER.error("missing mandatory background-color")
+            return
+        replace = call.data.get("replace", None)
+
+        # device registry lookup
+        serial_number = hass.data[const.DOMAIN]["device_id_map"][device_id].get("serial_number")
+        if not serial_number:
+            _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
+            return
+
+        device = hass.data[const.DOMAIN]["devices"][serial_number]
+        old_color = device["background_color"]
+
+        _LOGGER.debug(f"values given: device-id={device_id}, serial-number={serial_number}, bg-color={bg_color}, replace={replace}, old-color={old_color}")
+
+        # entry-data lookup
+        entry_id = device.get("entry_id")
+        entry = hass.config_entries.async_get_entry(entry_id)
+        if not entry:
+            _LOGGER.error(f"no config entry found for serial {serial_number}")
+            return
+
+        # Config + runtime aktualisieren
+        new_options = {
+            **entry.options,
+            "background_color": bg_color,
+        }
+        hass.config_entries.async_update_entry(entry, options=new_options)
+        device["background_color"] = bg_color
+        
+        if replace is True:
+            await replace_bg_color(hass, serial_number, old_color)
+
+    hass.services.async_register(const.DOMAIN, "set_background_color", handle_set_background_color)
+
+    # --------------------------------------------------------
+    # Service: draw line chart
+    # --------------------------------------------------------
+    async def handle_draw_line_chart(call: ServiceCall):
+        _LOGGER.debug("called service to draw a line chart")
+ 
+        device_id = call.data.get("display", None)
+        if device_id is None:
+            _LOGGER.error("missing mandatory device id")
+            return
+
+        xs = call.data.get("x_start")
+        ys = call.data.get("y_start")
+        xe = call.data.get("x_end")
+        ye = call.data.get("y_end")
+        line_values = call.data.get("line_values")
+        line_width = call.data.get("line_width", None)
+        line_color = call.data.get("line_color", None)
+        axis_color = call.data.get("axis_color", None)
+        bg_color = call.data.get("bg_color", None)
+        mark_points = call.data.get("mark_points", None)
+        show_axis = call.data.get("show_axis", None)
+        ground_to_zero = call.data.get("ground_to_zero", None)
+
+        # device registry lookup
+        serial_number = hass.data[const.DOMAIN]["device_id_map"][device_id].get("serial_number")
+        if not serial_number:
+            _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
+            return
+
+        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, x-start={xs}, y-start={ys}, x-end={xe}, y-end={ye}, line-values={line_values}, line-width={line_width}, line-color={line_color}, axis-color={axis_color}, background-color={bg_color}, mark-points={mark_points}, show-axis={show_axis}, ground-to-zero={ground_to_zero}")
+
+        await draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values=line_values, line_width=line_width, line_color=line_color, axis_color=axis_color, bg_color=bg_color, mark_points=mark_points, show_axis=show_axis, ground_to_zero=ground_to_zero)
+
+    hass.services.async_register(const.DOMAIN, "draw_line_chart", handle_draw_line_chart)
 
 
     # --------------------------------------------------------
@@ -958,6 +1043,7 @@ async def post_startup(hass: HomeAssistant, entry):
     width  = device.get("width")
     height = device.get("height")
     background_color = device.get("background_color")
+    _LOGGER.debug(f"painting initial background ({background_color})")
     await draw_rectangle(hass, serial_number, xs=0, ys=0, xe=width-1, ye=height-1, rf_width=0, rf_color=background_color, f_color=background_color)
     await setup_screencare(hass, serial_number)
 

@@ -35,7 +35,6 @@ class Select_Orientation(SelectEntity):
 
         value = hass.data[const.DOMAIN]["devices"][serial_number].get("orientation_value")
         if not isinstance(value, int) or value not in const.ORIENTATION_MAP_INV:
-#            value = 0  # Default: Portrait
             value = 2  # Default: Landscape
         self._value = value
         self._attr_current_option = const.ORIENTATION_MAP_INV[value]

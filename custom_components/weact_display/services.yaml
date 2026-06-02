@@ -799,10 +799,9 @@ start_analog_clock:
           max: 23
           step: 0.5
           mode: slider  # alternativ 'box' für Eingabefeld
-#scale_size = None
 
 generate_qr:
-  name: Generate QR Code - not finished yet
+  name: Generate QR Code
   description: Displays a QR code on the WeAct display.
   fields:
     display:
@@ -816,15 +815,13 @@ generate_qr:
       name: Data
       description: Text or data to encode
       required: true
-      default: "https://homeassistant.local:8080"
-      example: "https://homeassistant.local:8080"
+      default: "http://homeassistant.local:8123"
       selector:
         text: {}
     xs:
-      name: X start
+      name: X Start
       description: X coordinate where QR starts
       required: true
-      example: 0
       default: 0
       selector:
         number:
@@ -832,29 +829,32 @@ generate_qr:
           max: 479
           mode: slider  # alternativ 'box' für Eingabefeld
     ys:
-      name: Y start
-      example: 0
+      name: Y Start
+      description: X coordinate where QR starts
+      required: true
       default: 0
       selector:
         number:
           min: 0
           max: 479
           mode: slider  # alternativ 'box' für Eingabefeld
-    show_data:
-      name: Show data under QR
+    size:
+      name: Size in X x X pixels
       required: false
-      default: false
       selector:
-        boolean: {}
+        number:
+          min: 0
+          max: 479
+          mode: slider  # alternativ 'box' für Eingabefeld
     qr_color:
-      name: QR color
+      name: QR code color
       example: [255, 255, 255]
       default: [255, 255, 255]                         # weiss
       selector:
         color_rgb: {}
     bg_color:
-      name: Background
-      description: "background color"
+      name: QR background color
+      required: false
       example: [0, 0, 0]
       default: [0, 0, 0]                          # schwarz
       selector:
@@ -1107,5 +1107,130 @@ change_screencare_option:
     screencare_option:
       name: Screencare enabled?
       default: true
+      selector:
+        boolean: {}
+
+set_background_color:
+  name: Set New Background Color
+  fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        device:
+          filter:
+            - integration: weact_display
+    bg_color:
+      name: Background Color
+      description: "-> does not reflect the actual background color <-"
+      default: [0, 0, 0]
+      selector:
+        color_rgb: {}
+    replace:
+      name: Replace Background Now?
+      description: be careful, replaces ALL pixels with the old background-color to the new background-color and sends the new image to the display
+      default: true
+      selector:
+        boolean: {}
+
+draw_line_chart:
+  name: Line chart
+  description: "draw a line chart on the WeAct Display"
+  fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        device:
+          filter:
+            - integration: weact_display
+    x_start:
+      name: X-start
+      required: true
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 479
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    y_start:
+      name: Y-start
+      required: true
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 479
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    x_end:
+      name: X-end
+      required: true
+      example: 10
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 479
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    y_end:
+      name: Y-end
+      required: true
+      example: 10
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 479
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    line_values:
+      name: Line values
+      required: true
+      default: [15, 18, 12, 5, 9, 25, 14]
+      selector:
+        text: {}
+    line_width:
+      name: Line Width
+      default: 1
+      selector:
+        number:
+          min: 0
+          max: 1000
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "px"
+    line_color:
+      name: Line color
+      default: [255, 255, 255]
+      selector:
+        color_rgb: {}
+    axis_color:
+      name: Axis color
+      default: [255, 255, 255]
+      selector:
+        color_rgb: {}
+    bg_color:
+      name: Background color
+      default: [0, 0, 0]
+      selector:
+        color_rgb: {}
+    mark_points:
+      name: Mark points in chart?
+      default: false
+      selector:
+        boolean: {}
+    show_axis:
+      name: Show x and y axis in chart?
+      default: false
+      selector:
+        boolean: {}
+    ground_to_zero:
+      name: Ground the diagram to zero?
+      default: false
       selector:
         boolean: {}

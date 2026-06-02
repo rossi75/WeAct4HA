@@ -10,7 +10,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import selector
 from homeassistant.loader import async_get_integration
-#from custom_components.weact_display.commands import normalize_color
 from .commands import normalize_color
 import custom_components.weact_display.const as const
 
@@ -90,6 +89,7 @@ class WeActDisplayConfigFlow(config_entries.ConfigFlow, domain=const.DOMAIN):
                 vol.Optional("brightness", default=const.DEFAULT_BRIGHTNESS): selector.NumberSelector(selector.NumberSelectorConfig(min=0, max=255, mode="slider")),
                 vol.Optional("background_color", default=[0, 0, 0]): selector.ColorRGBSelector(),
                 vol.Optional("screencare", default=True): selector.BooleanSelector(),
+                #vol.Optional("fastlz", default=False): selector.BooleanSelector(),
             }
         )
 
@@ -100,10 +100,12 @@ class WeActDisplayConfigFlow(config_entries.ConfigFlow, domain=const.DOMAIN):
             brightness                = user_input["brightness"]
             background_color          = user_input["background_color"]
             screencare                = user_input["screencare"]
+            #fastlz                    = user_input["fastlz"]
+            fastlz                    = False
             orientation_text          = user_input["orientation_text"]
             orientation_value         = const.ORIENTATION_MAP[orientation_text]
 
-            _LOGGER.debug(f"user input: selection={selection}, serial-number={serial_number}, device-path={device_path}, orientation-text={orientation_text}, orientation-value={orientation_value}, brightness={brightness}, background={background_color}, screencare={screencare}")
+            _LOGGER.debug(f"user input: selection={selection}, serial-number={serial_number}, device-path={device_path}, orientation-text={orientation_text}, orientation-value={orientation_value}, brightness={brightness}, background={background_color}, screencare={screencare}, fastlz={fastlz}")
 
             if not selection.get("device_path"):
                 _LOGGER.error("device does not have a device-path")
@@ -125,7 +127,6 @@ class WeActDisplayConfigFlow(config_entries.ConfigFlow, domain=const.DOMAIN):
                 model = "unknown"
             _LOGGER.debug(f"serial-parts={serial_parts}, model={model}")
 
-
             integration = await async_get_integration(self.hass, const.DOMAIN)
             version = integration.version
             data = {
@@ -142,7 +143,8 @@ class WeActDisplayConfigFlow(config_entries.ConfigFlow, domain=const.DOMAIN):
                 "brightness"        : int(brightness),
                 "orientation_value" : orientation_value,
                 "background_color"  : normalize_color(tuple(background_color)),  # wichtig!
-                "screencare"        : screencare
+                "screencare"        : screencare,
+                "fastlz"            : fastlz
             }
 
             _LOGGER.debug(f"options={options}")

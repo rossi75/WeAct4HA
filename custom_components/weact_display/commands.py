@@ -6,15 +6,18 @@
 
 # https://pillow.readthedocs.io/en/stable/reference/ImageDraw.html
 
+import ast
 import asyncio, struct, logging
+import io
+import math
+import os
+import qrcode
+import random
 import subprocess
 import serial
 import time
-import os
-import random
-import io
-import math
-import qrcode
+import zlib  # V1
+
 import custom_components.weact_display.const as const
 from PIL import Image, ImageDraw, ImageFont, ImageColor
 from datetime import datetime, timedelta
@@ -40,39 +43,6 @@ def open_serial(device_path: str):
         _LOGGER.error(f"serial-port {device_path} does not exist")
         return None
 
-    # ---- STTY-Setup ----
-    try:
-        subprocess.run([
-            "stty",
-            "-F",
-            device_path,
-            "115200",
-            "cs8",
-            "-cstopb",
-            "-parenb",
-            "-crtscts",
-            "-hupcl",
-            "min",
-            "1",
-            "time",
-            "1"
-        ], check=True)
-        _LOGGER.debug(f"STTY Setup successfully done")
-    except subprocess.CalledProcessError as e:
-        _LOGGER.warning(f"STTY Setup has some issue: {e}")
-
-    # Seriellen Port öffnen
-    # 'serial_port':
-    #   Serial<id=0x7f837e0044c0, open=True>
-    #     (port='/dev/serial/by-id/usb-WeAct_Studio_Display_FS_V1_abde230e698a-if00',
-    #      baudrate=115200,               # +
-    #      bytesize=8,                    # +
-    #      parity='N',                    # +
-    #      stopbits=1,                    # +
-    #      timeout=0.1,                   # +
-    #      xonxoff=False,
-    #      rtscts=False,
-    #      dsrdtr=False)
     try:
         serial_port = serial.Serial(
             port=device_path,
@@ -81,18 +51,17 @@ def open_serial(device_path: str):
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
             timeout=0.1,
-            write_timeout=1
+            write_timeout=1,
+            xonxoff=False,           # +
+            rtscts=False,            # +
+            dsrdtr=False             # +
         )
 
         if serial_port.is_open:
-#            _LOGGER.debug(f"opened port: {device_path}")
             _LOGGER.debug(f"opened serial-port {serial_port} with device-path {device_path}")
         else:
-#            _LOGGER.warning(f"could not open port {device_path}")
             _LOGGER.warning(f"could not open serial-port {serial_port} with device-path {device_path}")
             return None
-
-#        _LOGGER.debug(f"successfully opened and initialized serial port {device_path}")
 
         return serial_port
 
@@ -139,6 +108,7 @@ async def send_screen(hass, serial_number):
     _LOGGER.debug(f"flushing the display for serial-number={serial_number}")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
+
     width = device.get("width")
     height = device.get("height")
 
@@ -209,7 +179,8 @@ async def set_brightness(hass, serial_number, target_brightness):
     _LOGGER.debug("setting brightness...")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = device.get("serial_port")
+
+    serial_port = device.get("serial_port")           # check needed due to direct command
     if not serial_port:
         _LOGGER.warning(f"Display {serial_number} not connected")
         return
@@ -284,8 +255,10 @@ async def set_orientation(hass, serial_number, orientation_value, force = False)
     _LOGGER.debug("setting orientation")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = device.get("serial_port")
+
     model = device.get("model")
+
+    serial_port = device.get("serial_port")           # check needed due to direct command
     if not serial_port:
         _LOGGER.warning(f"Display {serial_number} not connected")
         return
@@ -365,8 +338,8 @@ async def enable_humiture_reports(hass, serial_number, time_interval = None):
     _LOGGER.debug("enabling humiture reports")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = device.get("serial_port")
 
+    serial_port = device.get("serial_port")           # check needed due to direct command
     if not serial_port:
         _LOGGER.warning(f"Display {serial_number} not connected")
         return
@@ -404,7 +377,8 @@ async def read_firmware_version(hass, serial_number):
     _LOGGER.debug("requesting firmware version")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = device.get("serial_port")
+
+    serial_port = device.get("serial_port")           # check needed due to direct command
     if not serial_port:
         _LOGGER.warning(f"Display {serial_number} not connected")
         return
@@ -434,9 +408,10 @@ async def read_who_am_i(hass, serial_number):
     _LOGGER.debug("requesting who-am-i from display")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = device.get("serial_port")
+
+    serial_port = device.get("serial_port")           # check needed due to direct command
     if not serial_port:
-        _LOGGER.warning("Display not connected")
+        _LOGGER.warning(f"Display {serial_number} not connected")
         return
 
     packet = struct.pack(
@@ -571,7 +546,7 @@ def parse_packet(hass, serial_number, packet: bytes):
 
 
 #************************************************************************
-#        B I T M A P
+#        S E N D  B I T M A P
 #************************************************************************
 # sends out a bitmap
 #************************************************************************
@@ -587,25 +562,23 @@ async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
     _LOGGER.debug("finally sending bitmap...")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = device.get("serial_port")
+
+    #fastlz = device.get("fastlz", False)
+    #fastlz = True
+    fastlz = False              # mandatory NO !
+
+    serial_port = device.get("serial_port")           # check needed due to direct command
     if not serial_port:
         _LOGGER.warning(f"Display {serial_number} not connected")
         return
-
-    header = struct.pack(
-        "<BHHHHB",
-        0x05, xs, ys, xe-1, ye-1, 0x0A
-    )
 
     width = xe - xs
     height = ye - ys
     px = width * height
     rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
     rgb565 = px * 2  # anzahl bytes RGB565 (8-3 + 8-3 + 8-3 = 16 bit = 2 byte pro pixel)
-    CHUNK_SIZE = width * 2  # empirisch aus USB-Sniffing
 
     _LOGGER.debug(f"expected bitmap size from coordinates should be {width}x{height}={px} px. RGB888={rgb888} bytes, RGB565={rgb565} bytes")
-    _LOGGER.debug(f"chunk size is {CHUNK_SIZE} bytes per write")
 
     # data: bytes oder bytearray mit RGB888 (R,G,B) Werten
     # erzeugt data_565: bytes in RGB565 little-endian
@@ -621,30 +594,56 @@ async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
         data_565.append(rgb565 & 0xFF)
         data_565.append((rgb565 >> 8) & 0xFF)
 
-    if not await _wait_for_display(hass, serial_number):
-        _LOGGER.error(f"seems that display {serial_number} is permanently blocked. Please restart integration")
-        return
+    if fastlz is True:
+        command = const.CMD_SET_BITMAP_FASTLZ
+        CHUNK_SIZE = width * 4
+        _LOGGER.debug(f"using FASTLZ for serial communication")
+    else:
+        command = const.CMD_SET_BITMAP
+        CHUNK_SIZE = width * 2  # empirisch aus USB-Sniffing
+        _LOGGER.debug(f"using classic data transmission speed for serial communication")
+
+    _LOGGER.debug(f"chunk size is {CHUNK_SIZE} bytes per write")
+
+    header = struct.pack("<BHHHHB", command, xs, ys, xe-1, ye-1, 0x0A)
 
     hex_str = " ".join(f"{b:02X}" for b in header)
     _LOGGER.debug(f"need to send {len(header)} header bytes for {serial_number}: {hex_str}")
     hex_str = " ".join(f"{b:02X}" for b in data_565[:40])
     _LOGGER.debug(f"... and {len(data_565)} bitmap bytes as RGB565 for {serial_number}: {hex_str} [...]")
 
+    if not await _wait_for_display(hass, serial_number):                 # Display sperren
+        _LOGGER.error(f"seems that display {serial_number} is permanently blocked. Please restart integration")
+        return
+
     await hass.async_add_executor_job(serial_port.write, header)
     _LOGGER.debug("header write done")
     await hass.async_add_executor_job(serial_port.flush)
     _LOGGER.debug("header flush done")
 
-    # Nun die Bilddaten in 640-Byte-Blöcken senden
+    # Nun die Bilddaten in Blöcken senden
     await asyncio.sleep(0.05)
-    for i in range(0, len(data_565), CHUNK_SIZE):
-        chunk = data_565[i:i + CHUNK_SIZE]
-        await hass.async_add_executor_job(serial_port.write, chunk)
-        await hass.async_add_executor_job(serial_port.flush)
-        await asyncio.sleep(0.001)  # kleine Pause zwischen den Chunks
-    await _release_display(hass, serial_number)
+    j = 1
+    if fastlz is True:
+        compressed_len = 0
+        for i in range(0, len(data_565), CHUNK_SIZE):
+            chunk = data_565[i:i + CHUNK_SIZE]
+            compressed_chunk  = zlib.compress(chunk)
+            compressed_len   += len(compressed_chunk)
+            chunk_with_header = struct.pack("<HH", len(chunk), len(compressed_chunk[4:])) + compressed_chunk[4:]
+            await hass.async_add_executor_job(serial_port.write, chunk_with_header)
+            j += 1
+        _LOGGER.debug(f"Sent {compressed_len} bytes in {j} chunks of {CHUNK_SIZE} bytes")
+    else:
+        for i in range(0, len(data_565), CHUNK_SIZE):
+            chunk = data_565[i:i + CHUNK_SIZE]
+            await hass.async_add_executor_job(serial_port.write, chunk)
+            await hass.async_add_executor_job(serial_port.flush)
+            await asyncio.sleep(0.001)  # kleine Pause zwischen den Chunks
+            j += 1
+        _LOGGER.debug(f"Sent {len(data_565)} bytes in {j} chunks of {CHUNK_SIZE} bytes")
 
-    _LOGGER.debug(f"Sent {len(data_565)} bytes in chunks of {CHUNK_SIZE} bytes")
+    await _release_display(hass, serial_number)               # Display wieder freigeben
 
 
 async def _wait_for_display(hass, serial_number, timeout=5.0):
@@ -692,10 +691,6 @@ async def show_bmp(hass, serial_number, xs = None, ys = None, filepath = None):
     _LOGGER.debug("show a bmp file...")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = device.get("serial_port")
-    if not serial_port:
-        _LOGGER.warning(f"Display {serial_number} not connected")
-        return
 
     d_width  = device.get("width")
     d_height = device.get("height")
@@ -773,7 +768,8 @@ async def send_full_color(hass, serial_number, color):
     _LOGGER.debug("filling display with one-color...")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = device.get("serial_port")
+
+    serial_port = device.get("serial_port")           # check needed due to direct command
     if not serial_port:
         _LOGGER.warning(f"Display {serial_number} not connected")
         return
@@ -802,9 +798,44 @@ async def send_full_color(hass, serial_number, color):
 
 
 #************************************************************************
+#        R E P L A C E  B A C K G R O U N D  C O L O R
+#************************************************************************
+# replaces all pixels with the old color to the new color.
+# no need to supply the new color as it is within the data struct,
+# but the old color we do not know...
+#************************************************************************
+# m: hass
+# m: serial_number
+# m: old_color
+#************************************************************************
+async def replace_bg_color(hass, serial_number, old_color):
+    _LOGGER.debug("Replacing background")
+
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+
+    old_color = normalize_color(old_color)
+    bg_color = normalize_color(device.get("background_color"))
+    _LOGGER.debug(f"colors after normalize: old-color={old_color}, bg-color={bg_color}")
+
+    # Schattenbild abholen
+    img = device.get("shadow")
+    _LOGGER.debug("fetched image from instance")
+
+    pixels = img.load()
+    i = 1
+    for y in range(img.height):
+        for x in range(img.width):
+            if pixels[x, y] == old_color:
+                pixels[x, y] = bg_color
+                i += 1
+    _LOGGER.debug(f"replaced {i} background px for serial {serial_number}")
+
+    await send_screen(hass, serial_number)
+
+#************************************************************************
 #        S E L F  T E S T
 #************************************************************************
-# shows all native colors, white and black
+# shows black, all native colors, white, background-color
 #************************************************************************
 # m: hass
 # m: serial_number
@@ -843,11 +874,6 @@ async def generate_random(hass, serial_number, suppress_delete=False):
     _LOGGER.debug("raising random bitmap")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = device.get("serial_port")
-
-    if not serial_port:
-        _LOGGER.warning(f"Display {serial_number} not connected")
-        return
 
     width = device.get("width")
     height = device.get("height")
@@ -888,8 +914,8 @@ async def show_init_screen(hass, serial_number):
     _LOGGER.debug("show up initial screen")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
-    serial_port = device.get("serial_port")
 
+    serial_port = device.get("serial_port")           # check needed due to direct command
     if not serial_port:
         _LOGGER.warning(f"Display {serial_number} not connected")
         return
@@ -935,7 +961,6 @@ async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_col
         _LOGGER.debug(f"set icon-color to {i_color} as no parameter is given")
     else:
         i_color = normalize_color(i_color)
-
     _LOGGER.debug(f"colors after normalize: icon-color={i_color}")
 
     icon = await load_icon(hass, i_name = i_name, i_size = i_size, i_color = i_color, rotation = rotation)
@@ -1010,6 +1035,7 @@ async def draw_circle(hass, serial_number, xp, yp, r, e = None, c_color = (255, 
     _LOGGER.info("draw a circle ...")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
+
     width = device.get("width")
     height = device.get("height")
 
@@ -1081,7 +1107,7 @@ async def draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width = 1, rf_c
     if f_color is not None:
         f_color = normalize_color(f_color)
 
-    _LOGGER.debug(f"colors after normalize: rectangle-frame-color={rf_color}, fill-color={f_color} + rectangle-frame-width={rf_width}")
+    _LOGGER.debug(f"colors after normalize: rectangle-frame-color={rf_color}, fill-color={f_color}")
 
     # Schattenbild abholen
     img = device.get("shadow")
@@ -1091,9 +1117,11 @@ async def draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width = 1, rf_c
 
     # Rahmen & Füllung zeichnen
     draw.rectangle((xs, ys, xe, ye), width = rf_width, outline = rf_color)
+    _LOGGER.debug(f"drew rectangle with xs={xs}, ys={ys}, xe={xe}, ye={ye}, rf-width={rf_width}, rf-color={rf_color}")
     if f_color is not None:
         draw.rectangle((xs + rf_width, ys + rf_width, xe - rf_width, ye - rf_width), fill = f_color)
-    
+        _LOGGER.debug(f"filled rectangle with rf-width={rf_width}, f-color={f_color}")
+
     await send_screen(hass, serial_number)
 
 
@@ -1141,10 +1169,6 @@ async def draw_triangle(hass, serial_number, xa, ya, xb, yb, xc, yc, t_color = N
 
     _LOGGER.debug("fetched image from instance")
 
-    # Koordinaten anpassen (verschieben)
-#    adj_points = [(xa - min_x, ya - min_y),
-#                  (xb - min_x, yb - min_y),
-#                  (xc - min_x, yc - min_y)]
     triangle_points = [(xa, ya),
                   (xb, yb),
                   (xc, yc)]
@@ -1367,94 +1391,165 @@ async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None,
 # m: data
 # m: xs
 # m: ys
-# o: pixel_size (1-4)
-# o: show_data
+# o: size
 # o: qr-color, default = white (255, 255, 255)
 # o: background-color
 #************************************************************************
-# QR code with Progress bar with solid background and outline
-#************************************************************************
-async def generate_qr(hass, serial_number, data, xs, ys, show_data=False, qr_color=(255, 255, 255), bg_color=None):
+async def generate_qr(hass, serial_number, data, xs, ys, size=None, qr_color=None, bg_color=None):
     _LOGGER.info(f"generating a qr code")
-    _LOGGER.debug(f"given values: data={data}, xs={xs}, ys={ys}, show-data={show_data}, qr-color={qr_color}, background-color={bg_color}")
+    _LOGGER.debug(f"given values: data={data}, xs={xs}, ys={ys}, size={size}, qr-color={qr_color}, background-color={bg_color}")
+
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+
+    if qr_color is None:
+        qr_color = (255, 255, 255)
+        _LOGGER.debug(f"set qr-color to {qr_color} as no parameter is given")
+    if bg_color is None:
+        bg_color = normalize_color(device.get("background_color"))
+        _LOGGER.debug(f"set background-color to displays' default bg-color {bg_color} as no parameter is given")
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     qr_color = normalize_color(qr_color)
     bg_color = normalize_color(bg_color)                     
-
     _LOGGER.debug(f"colors after normalize: qr-color={qr_color}, background-color={bg_color}")
 
-    # Autoselect QR version (up to v13)
-    qr = qrcode.QRCode(
-        version=None,         # auto
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=1,
-        border=1,
-    )
+    qr = qrcode.QRCode(border=1, box_size=1, error_correction=qrcode.constants.ERROR_CORRECT_M)
     qr.add_data(data)
     qr.make(fit=True)
+    img = qr.make_image(fill_color = qr_color, back_color = bg_color).convert("RGB")     # take a look at the colors, but they need to be in that order !
+    _LOGGER.debug(f"produced QR code, fc=qr, bc=bg")
 
-    version = qr.version
-    if version > 13:
-        raise ValueError(f"QR version {version} is needed for the amount of data, which is too large for 80x80 display. Try shorter text.")
+    # check boundaries
+    qr_width, qr_height = img.size
+    if size is None:
+        size = qr_width
+        _LOGGER.debug(f"set qr size to same as qr-width ({qr_width}), as no value is given for size")
+    scale_x = size // qr_width
+    scale_y = size // qr_height
+    scale = min(scale_x, scale_y)
+    _LOGGER.debug(f"dimensions: qr-width={qr_width}, qr-height={qr_height}, scale-x={scale_x}, scale-y={scale_y}, scale={scale}")
 
-    _LOGGER.debug(f"Selected QR version {version}")
+    if (scale < 1):
+        _LOGGER.warning(f"for the given data ({data}) we would need {qr_width} x {qr_height} px, but this does not fit into given size of {size} x {size} px")
+        return False
+    if (xs + size) > device.get("width"):
+        _LOGGER.warning(f"At this X-position ({xs}), the QR image ({size} px) would exceed the image width dimensions ({device.get("width")} px), cancelling !")
+        return False
+    if (ys + size) > device.get("height"):
+        _LOGGER.warning(f"At this Y-position ({ys}), the QR image ({size} px) would exceed the image width dimensions ({device.get("height")} px), cancelling !")
+        return False
 
-    # Create 1px QR matrix
-    qr_img = qr.make_image(fill_color=qr_color, back_color=bg_color)
-    qr_img = qr_img.convert("RGB")
+    img = img.resize((qr_width * scale, qr_height * scale), Image.NEAREST)
+    qr_width_resized, qr_height_resized = img.size
+    _LOGGER.debug(f"dimensions after resize: qr-width={qr_width_resized}, qr-height={qr_height_resized}")
 
-    # Calculate pixel_size to fit in 80px
-    modules = qr_img.size[0]
-    total = modules + 2 # border*2
+    shadow = device.get("shadow")
+    _LOGGER.debug("read image from instance")
 
-    max_pixel_size = 80 // total
-    if max_pixel_size < 1:
-        raise ValueError("QR code cannot fit even with pixel_size=1")
+    shadow.paste(img, (xs, ys))
+    _LOGGER.debug(f"pasted QR code into image")
+    
+    await send_screen(hass, serial_number)
 
-    pixel_size = max_pixel_size
-    _LOGGER.debug(f"pixel-size selected: {pixel_size}")
 
-    # Scale QR
-    qr_scaled = qr_img.resize((modules * pixel_size, modules * pixel_size), Image.NEAREST)
+#************************************************************************
+#        D R A W  A  L I N E  C H A R T
+#************************************************************************
+# draws a line chart
+#************************************************************************
+# m: hass
+# m: serial_number
+# m: data
+# m: xs
+# m: ys
+# m: xe
+# m: ye
+# m: line_values
+# m: line_width
+# o: line_color
+# o: bg_color
+# o: mark_points
+# o: show_axis
+#************************************************************************
+async def draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values, line_width=None, line_color=None, axis_color=None, bg_color=None, mark_points=None, show_axis=None, ground_to_zero=None):
+    _LOGGER.info(f"drawing a line chart")
+    _LOGGER.debug(f"given values: xs={xs}, ys={ys}, xe={xe}, ye={ye}, line-values={line_values}, line-width={line_width}, line-color={line_color}, axis-color={axis_color}, background-color={bg_color}, mark-points={mark_points}, show-axis={show_axis}, ground-to-zero={ground_to_zero}")
 
-    # Optional: add text underneath
-    if show_text:
-        font = ImageFont.load_default()
-        text_h = 12
-        new_h = qr_scaled.height + text_h
-        img = Image.new("RGB", (qr_scaled.width, new_h), (0,0,0))
-        img.paste(qr_scaled, (0, 0))
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
 
-        draw = ImageDraw.Draw(img)
-        draw.text((0, qr_scaled.height), data[:20], fill=(255,255,255), font=font)
-    else:
-        img = qr_scaled
+    if line_color is None:
+        line_color = (255, 255, 255)
+        _LOGGER.debug(f"set line-color to {line_color} as no parameter is given")
+    if line_width is None:
+        line_width = 1
+        _LOGGER.debug(f"set line-width to {line_width} as no parameter is given")
+    if bg_color is None:
+        bg_color = normalize_color(device.get("background_color"))
+        _LOGGER.debug(f"set background-color to displays' default bg-color {bg_color} as no parameter is given")
+    if axis_color is None:
+        axis_color = (128, 128, 128)
+        _LOGGER.debug(f"set axis-color to {axis_color} as no parameter is given")
+    if mark_points is None:
+        mark_points = False
+        _LOGGER.debug(f"set mark-points to {mark_points} as no parameter is given")
+    if show_axis is None:
+        show_axis = False
+        _LOGGER.debug(f"set show-axis to {show_axis} as no parameter is given")
+    if ground_to_zero is None:
+        ground_to_zero = True
+        _LOGGER.debug(f"set ground-to-zero to {ground_to_zero} as no parameter is given")
 
-    # Convert to bytes + debug save
-    i_width, i_height = img.size
-    img_bytes = img.tobytes()
+    # Konvertiere mögliche Stringfarben in RGB-Tupel
+    line_color = normalize_color(line_color)
+    bg_color = normalize_color(bg_color)                     
+    _LOGGER.debug(f"colors after normalize: line-color={line_color}, background-color={bg_color}")
 
-    # Save the image
-    try:
-        _LOGGER.debug(f"Saving qr code to {const.IMG_PATH}")
-        await asyncio.to_thread(lambda: final.save(const.IMG_PATH / "qr.bmp"))
-    except Exception as e:
-        _LOGGER.error(f"[{const.DOMAIN}] error while saving the qr code to {const.IMG_PATH}: {e}")
+    # Konvertiere mögliche Line_value-Strings in Line_value-Tupel
+    _LOGGER.debug(f"BEFORE CONVERT: line_values={line_values!r}, type={type(line_values)}")
+    line_values = ast.literal_eval(line_values)
+    _LOGGER.debug(f"AFTER CONVERT: line_values={line_values!r}, type={type(line_values)}")
 
-    _LOGGER.debug(f"qr code has {i_width}x{i_height} pixels")
-    px = i_width * i_height
-    rgb888 = px * 3  # anzahl bytes RGB888 (8 + 8 + 8 = 24 bit = 3 byte pro pixel)
-    _LOGGER.debug(f"expected qr code size from coordinates should be {i_width}x{i_height}={px} px. RGB888={rgb888} bytes")
-    hex_str = " ".join(f"{b:02X}" for b in img_bytes[:40])
-    _LOGGER.debug(f"prepared {len(img_bytes)} qr code bytes for {serial_port}: {hex_str} [...]")
+    values_min = min(line_values)
+    values_max = max(line_values)
+    _LOGGER.debug(f"value-boundaries: min={values_min}, max={values_max}")
+    if values_min == values_max:
+        values_max += 1
+        _LOGGER.debug(f"min and max are the same, adding 1 to max-value: {values_max}")
+    if ground_to_zero is True:
+        if values_min > 0:
+            values_min = 0
+            _LOGGER.debug(f"forced values_min to {values_min}")
 
-    # Send to display
-    try:
-        await set_orientation(hass, serial_port, 2)
-        await send_bitmap(hass, serial_port, xs, ys, xs + i_width, ys + i_height, bytes(img_bytes))  # original
-    except Exception as e:
-        _LOGGER.error(f"[{const.DOMAIN}] error while sending the qr code: {e}")
+    step_size = (xe - xs) / (len(line_values) - 1)
+    chart_height = ye - ys
+    _LOGGER.debug(f"calculated step-size to {step_size} and chart-height to {chart_height}")
+
+    line_chart_points = []
+    for idx, value in enumerate(line_values):
+        px = xs + idx * step_size
+        py = ye - ((value - values_min) / (values_max - values_min) * chart_height)
+        line_chart_points.append((px, py))
+    _LOGGER.debug(f"accumulated points: {line_chart_points}")
+
+    # Schattenbild abholen
+    img = device.get("shadow")
+    draw = ImageDraw.Draw(img)
+    _LOGGER.debug("fetched image from instance")
+
+    draw.line(line_chart_points, fill=line_color, width=line_width)
+    _LOGGER.debug(f"drew line chart points: {line_chart_points}")
+
+    if mark_points is True:
+        for px, py in line_chart_points:
+            draw.ellipse((px - 2, py - 2, px + 2, py + 2), fill=line_color)
+        _LOGGER.debug(f"marked points")
+
+    if show_axis is True:
+        draw.line((xs, ys, xs, ye), fill=axis_color)           # Y-Axis
+        draw.line((xs, ye, xe, ye), fill=axis_color)           # X-Axis
+        _LOGGER.debug(f"drew axis")
+
+    await send_screen(hass, serial_number)
 
 
 async def _async_update_firmware_device(hass, serial_number, firmware_version):

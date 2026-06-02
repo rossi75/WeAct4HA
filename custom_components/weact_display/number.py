@@ -8,7 +8,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .commands import set_brightness
 import custom_components.weact_display.const as const
-#from .const import DOMAIN, DEFAULT_BRIGHTNESS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,7 +36,6 @@ class Set_Brightness(NumberEntity):
 
         value = hass.data[const.DOMAIN]["devices"][serial_number].get("brightness")
         if not isinstance(value, int):
-#            value = DEFAULT_BRIGHTNESS
             value = const.DEFAULT_BRIGHTNESS
         self._value = value
 

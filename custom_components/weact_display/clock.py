@@ -11,8 +11,16 @@ import custom_components.weact_display.const as const
 
 _LOGGER = logging.getLogger(__name__)
 
+
+#************************************************************************
+#        S T O P  C L O C K
+#************************************************************************
+# stops any running clock
+#************************************************************************
+# m: hass
+# m: serial_number
+#************************************************************************
 async def stop_clock(hass, serial_number):
-    """Beendet alle Uhr-Routinen"""
     _LOGGER.debug(f"stopping any running clock for serial {serial_number}...")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
@@ -41,6 +49,15 @@ async def stop_clock(hass, serial_number):
         _LOGGER.debug(f"unplanned stop-call as no clock was active or planned call while startup")
 
 
+#************************************************************************
+#        S T A R T  A N A L O G  C L O C K
+#************************************************************************
+# starts analog clock
+#************************************************************************
+# m: hass
+# m: serial_number
+# m: kwargs
+#************************************************************************
 async def start_analog_clock(hass, serial_number, **kwargs):
 
     async def _update_analog(now):
@@ -71,6 +88,16 @@ async def start_analog_clock(hass, serial_number, **kwargs):
     _LOGGER.debug(f"set clock-mode from {clock_mode} to {device["clock_mode"]}")
     _LOGGER.info("Analog clock update scheduled every minute")
 
+
+#************************************************************************
+#        S T A R T  D I G I T A L  C L O C K
+#************************************************************************
+# starts digital clock
+#************************************************************************
+# m: hass
+# m: serial_number
+# m: kwargs
+#************************************************************************
 async def start_digital_clock(hass, serial_number, **kwargs):
 
     async def _update_digital(now):
@@ -291,7 +318,6 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
 async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = None, rotation = None, d_color = (0, 255, 255), bg_color = (0, 0, 0), cf_color = (0, 255, 255), cf_width = None, offset_hours = None, am_pm = False):
     _LOGGER.debug(f"digital clock for serial {serial_number}...")
 
-#    from .commands import set_orientation, normalize_color, send_bitmap
     from .commands import normalize_color, send_screen
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
@@ -347,11 +373,6 @@ async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_si
         ys = int((d_height // 2) - (dc_height // 2))
         _LOGGER.debug(f"calculated ys to {ys} as no value was given")
     _LOGGER.debug(f"positions after check: xs={xs}, ys={ys}")
-    #calculated digit-size to 28 px as no value was given (display-width=80, display-height=160)
-    #dimensions after check: digit-size=28, digital-clock-height=24, digital-clock-width=72
-    #calculated xs to 2 as no value was given
-    #calculated ys to 66 as no value was given
-    #positions after check: xs=2, ys=66
 
     # aktuelle Zeit holen
     now = datetime.now() + timedelta(hours=offset_hours)
