@@ -5,7 +5,7 @@
 ~ respond to unplug if possible or to exit from serial_reader()  
 ~ move screencare into screencare.py  
 ~ move serial communication from __init__.py and commands.py into serial.py  
-~ add service to display a bar chart 
+~ add service to display a bar chart  
 ~ speed-up serial communication 
 
 ## V0.6.3 - 31.05.-02.06.2026
