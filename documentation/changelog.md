@@ -6,14 +6,23 @@
 ~ move screencare into screencare.py  
 ~ move serial communication from __init__.py and commands.py into serial.py  
 ~ add service to display a bar chart  
-~ speed-up serial communication 
+~ speed-up serial communication  
+~ order alignment all the same in services > init > commands  
+~ digital clock (background) colors should also be "None"  
+
+## V0.6.4 - 12.06.-11.07.2026
+- all options available in .py are now reachable also via services
+- line chart could not show axis, as the colors were not normalized
+- added option for line chart to clear the workspace before drawing (enabled by default). So you can, if disabled, display several diagrams into one chart
+- improved stability for line chart values, accepted formats: 15;12;14;17;... or 15,12,14,17,... or [15,12,14,17,...] or (15,12,14,17,...)
+- removed background-color, added new option for workspace color. If no workspace color is given, but workspace should be cleared, displays background-color will be taken
+- removed unneccessary services "send bitmap raw" and "send bitmap"
 
 ## V0.6.3 - 31.05.-02.06.2026
 - added service to display a QR code, uses the devices background-color if no value given
-- added service to change the background-color into persistent storage,
-  option to replace pixels with old_color to new_color and update screen immediately
+- added service to change the background-color into persistent storage, with an option to replace pixels with old_color to new_color and update screen immediately
 - added service to display a line chart
-- HA popup only pops up if a first device is connected. All other devices need to be set up via "add entry" wihtin the integration
+- HA popup only pops up if a first device is connected. All other devices need to be set up via "add entry" within the integration
 - improved serial initialization, skipping initial STTY-setup
 - prepared fastlz option (but need to find the correct fastlz algorithm and chunk-size),
   would not (!) speed up the display itself, only the transmission, which results in less busy-time
