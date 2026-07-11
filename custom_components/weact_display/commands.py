@@ -1000,15 +1000,13 @@ async def draw_line(hass, serial_number, xs, ys, xe, ye, l_color = (255, 255, 25
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     l_color = normalize_color(l_color)
-
-    _LOGGER.debug(f"l_color_after={l_color}")
+    _LOGGER.debug(f"colors after normalize: l-color={l_color}")
 
     img = device.get("shadow")
     draw = ImageDraw.Draw(img)
 
     _LOGGER.debug("read image from instance")
 
-    # Linie mit angepassten Koordinaten zeichnen
     draw.line([(xs, ys), (xe, ye)], fill = l_color, width = l_width)
 
     _LOGGER.debug("drew the line")
@@ -1042,7 +1040,6 @@ async def draw_circle(hass, serial_number, xp, yp, r, e = None, c_color = (255, 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     c_color = normalize_color(c_color)
     f_color = normalize_color(f_color)
-
     _LOGGER.debug(f"colors after normalize: c_color={c_color}, f_color={f_color}")
 
     if e is None:
@@ -1160,13 +1157,11 @@ async def draw_triangle(hass, serial_number, xa, ya, xb, yb, xc, yc, t_color = N
         _LOGGER.debug(f"set triangle-frame-color to {tf_color} as no parameter is given")
     else:
         tf_color = normalize_color(tf_color)
-
     _LOGGER.debug(f"colors after normalize: triangle-color={t_color}, triangle-frame-color={tf_color} + triangle-frame-width={tf_width}")
 
     # Schattenbild abholen
     img = device.get("shadow")
     draw = ImageDraw.Draw(img)
-
     _LOGGER.debug("fetched image from instance")
 
     triangle_points = [(xa, ya),
@@ -1299,14 +1294,12 @@ async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None,
     b_color = normalize_color(b_color)
     bf_color = normalize_color(bf_color)
     bg_color = normalize_color(bg_color)                     
-
     _LOGGER.debug(f"colors after normalize: bar-color={b_color}, bar-frame-color={bf_color}, background-color={bg_color}")
 
     # check for dimensions out-of-range
     bar_w = xe - xs
     bar_h = ye - ys
     p_bar_w = bar_w - bf_width - bf_width
-
     _LOGGER.debug(f"final bar dimensions: bar-width={bar_w}, height-height={bar_h}, progress-bar-width={p_bar_w}")
 
     # Prozentwert clampen ---
@@ -1314,29 +1307,24 @@ async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None,
         bar_value = min_value
     if bar_value > max_value:
         bar_value = max_value
-
     _LOGGER.debug(f"bar-value after min/max range check: {bar_value}")
 
     # Balkenfüllstand berechnen
     fill_ratio = (bar_value - min_value) / (max_value - min_value)
     fill_w = int(p_bar_w * fill_ratio)
-
     _LOGGER.debug(f"fill-ratio={fill_ratio}, fill-width={fill_w}")
 
     # Bild aus der Instanz ziehen
     img = device.get("shadow")
     draw = ImageDraw.Draw(img)
-
     _LOGGER.debug("fetched image from instance")
 
     # Rahmen zeichnen
     draw.rectangle((xs, ys, xs + bar_w, ys + bar_h), width = bf_width, outline = bf_color, fill = bg_color)
-
     _LOGGER.debug(f"drew the frame")
 
     # Füllung zeichnen
     draw.rectangle((xs + bf_width, ys + bf_width, xs + bf_width + fill_w, ys + bar_h - bf_width), fill=b_color)
-
     _LOGGER.debug(f"drew the bar")
 
     # ggf Wert einzeichnen
@@ -1401,16 +1389,17 @@ async def generate_qr(hass, serial_number, data, xs, ys, size=None, qr_color=Non
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
+    # Konvertiere mögliche Stringfarben in RGB-Tupel
     if qr_color is None:
         qr_color = (255, 255, 255)
         _LOGGER.debug(f"set qr-color to {qr_color} as no parameter is given")
+    else:
+        qr_color = normalize_color(qr_color)
     if bg_color is None:
         bg_color = normalize_color(device.get("background_color"))
         _LOGGER.debug(f"set background-color to displays' default bg-color {bg_color} as no parameter is given")
-
-    # Konvertiere mögliche Stringfarben in RGB-Tupel
-    qr_color = normalize_color(qr_color)
-    bg_color = normalize_color(bg_color)                     
+    else:
+        bg_color = normalize_color(bg_color)                     
     _LOGGER.debug(f"colors after normalize: qr-color={qr_color}, background-color={bg_color}")
 
     qr = qrcode.QRCode(border=1, box_size=1, error_correction=qrcode.constants.ERROR_CORRECT_M)
@@ -1467,13 +1456,15 @@ async def generate_qr(hass, serial_number, data, xs, ys, size=None, qr_color=Non
 # m: line_values
 # m: line_width
 # o: line_color
-# o: bg_color
+# o: axis_color
+# o: workspace_color
 # o: mark_points
-# o: show_axis
+# o: clear_workspace
+# o: ground_to_min_val
 #************************************************************************
-async def draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values, line_width=None, line_color=None, axis_color=None, bg_color=None, mark_points=None, show_axis=None, ground_to_zero=None):
+async def draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values, line_width=None, line_color=None, axis_color=None, workspace_color=None, mark_points=None, clear_workspace=None, ground_to_zero=None):
     _LOGGER.info(f"drawing a line chart")
-    _LOGGER.debug(f"given values: xs={xs}, ys={ys}, xe={xe}, ye={ye}, line-values={line_values}, line-width={line_width}, line-color={line_color}, axis-color={axis_color}, background-color={bg_color}, mark-points={mark_points}, show-axis={show_axis}, ground-to-zero={ground_to_zero}")
+    _LOGGER.debug(f"given values: xs={xs}, ys={ys}, xe={xe}, ye={ye}, line-values={line_values}, line-width={line_width}, line-color={line_color}, axis-color={axis_color}, workspace-color={workspace_color}, mark-points={mark_points}, clear-workspace={clear_workspace}, ground-to-zero={ground_to_zero}")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
@@ -1483,32 +1474,50 @@ async def draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values, line
     if line_width is None:
         line_width = 1
         _LOGGER.debug(f"set line-width to {line_width} as no parameter is given")
-    if bg_color is None:
-        bg_color = normalize_color(device.get("background_color"))
-        _LOGGER.debug(f"set background-color to displays' default bg-color {bg_color} as no parameter is given")
-    if axis_color is None:
-        axis_color = (128, 128, 128)
-        _LOGGER.debug(f"set axis-color to {axis_color} as no parameter is given")
+    if workspace_color is None:
+        workspace_color = device.get("background_color")
+        _LOGGER.debug(f"set workspace-color to displays' default bg-color {workspace_color} as no parameter is given")
     if mark_points is None:
         mark_points = False
         _LOGGER.debug(f"set mark-points to {mark_points} as no parameter is given")
-    if show_axis is None:
-        show_axis = False
-        _LOGGER.debug(f"set show-axis to {show_axis} as no parameter is given")
+    if clear_workspace is None:
+        clear_workspace = True
+        _LOGGER.debug(f"set clear-workspace to {clear_workspace} as no parameter is given")
     if ground_to_zero is None:
         ground_to_zero = True
+        #ground_to_zero = False
         _LOGGER.debug(f"set ground-to-zero to {ground_to_zero} as no parameter is given")
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     line_color = normalize_color(line_color)
-    bg_color = normalize_color(bg_color)                     
-    _LOGGER.debug(f"colors after normalize: line-color={line_color}, background-color={bg_color}")
+    workspace_color = normalize_color(workspace_color)
+    if axis_color is not None:                       # Farbwerte für Achse wurden übermittelt, also sollen die Achsen angezeigt werden
+        axis_color = normalize_color(axis_color)
+    _LOGGER.debug(f"colors after normalize: line-color={line_color}, workspace-color={workspace_color}, axis-color={axis_color}")
 
     # Konvertiere mögliche Line_value-Strings in Line_value-Tupel
-    _LOGGER.debug(f"BEFORE CONVERT: line_values={line_values!r}, type={type(line_values)}")
-    line_values = ast.literal_eval(line_values)
-    _LOGGER.debug(f"AFTER CONVERT: line_values={line_values!r}, type={type(line_values)}")
+    _LOGGER.debug(f"BEFORE normalize: line-values={line_values!r}, type={type(line_values)}")
+    if isinstance(line_values, str):
+        line_values = line_values.strip()
+        if ";" in line_values:                        # CSV aus Helper
+            _LOGGER.debug("found csv data in line-values")
+            line_values = [
+                float(v)
+                for v in line_values.split(";")
+                if v.strip()
+            ]
+        else:                                         # Python-Liste oder Tupel
+            try:
+                line_values = ast.literal_eval(line_values)
+            except Exception:
+                line_values = [
+                    float(v)
+                    for v in line_values.split(",")
+                    if v.strip()
+                ]
+    _LOGGER.debug(f"AFTER normalize: line-values={line_values!r}, type={type(line_values)}")
 
+    # Konvertiere mögliche Line_value-Strings in Line_value-Tupel
     values_min = min(line_values)
     values_max = max(line_values)
     _LOGGER.debug(f"value-boundaries: min={values_min}, max={values_max}")
@@ -1536,18 +1545,22 @@ async def draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values, line
     draw = ImageDraw.Draw(img)
     _LOGGER.debug("fetched image from instance")
 
+    if clear_workspace is True:
+        draw.rectangle((xs, ys, xe, ye), fill = workspace_color)
+        _LOGGER.debug(f"cleared workspace xs={xs}, ys={ys}, xe={xe}, ye={ye} with workspace-color={workspace_color}")
+
     draw.line(line_chart_points, fill=line_color, width=line_width)
-    _LOGGER.debug(f"drew line chart points: {line_chart_points}")
+    _LOGGER.debug(f"drew line chart points")
 
     if mark_points is True:
         for px, py in line_chart_points:
             draw.ellipse((px - 2, py - 2, px + 2, py + 2), fill=line_color)
         _LOGGER.debug(f"marked points")
 
-    if show_axis is True:
+    if axis_color is not None:                       # Achse soll nur angezeigt werden, wenn eine Farbe dafür übergeben wurde
         draw.line((xs, ys, xs, ye), fill=axis_color)           # Y-Axis
         draw.line((xs, ye, xe, ye), fill=axis_color)           # X-Axis
-        _LOGGER.debug(f"drew axis")
+        _LOGGER.debug(f"drew both axis with color {axis_color}")
 
     await send_screen(hass, serial_number)
 

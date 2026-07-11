@@ -296,13 +296,15 @@ async def async_setup(hass: HomeAssistant, config):
             _LOGGER.error("missing mandatory device id")
             return
 
+        suppress_delete = call.data.get("suppress_delete", None)
+
         # device registry lookup
         serial_number = hass.data[const.DOMAIN]["device_id_map"][device_id].get("serial_number")
         if not serial_number:
             _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
             return
 
-        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}")
+        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, suppress-delete={suppress_delete}")
     
         await generate_random(hass, serial_number)
 
@@ -393,6 +395,7 @@ async def async_setup(hass: HomeAssistant, config):
             return
 
         orientation_value = int(call.data.get("orientation"))
+        force = call.data.get("force", None)
 
         # device registry lookup
         serial_number = hass.data[const.DOMAIN]["device_id_map"][device_id].get("serial_number")
@@ -400,9 +403,9 @@ async def async_setup(hass: HomeAssistant, config):
             _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
             return
 
-        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, orientation={orientation_value}")
+        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, orientation={orientation_value}, force={force}")
 
-        await set_orientation(hass, serial_number, orientation_value)
+        await set_orientation(hass, serial_number, orientation_value, force)
 
     hass.services.async_register(const.DOMAIN, "set_orientation", handle_set_orientation)
 
@@ -589,6 +592,7 @@ async def async_setup(hass: HomeAssistant, config):
         offset_hours = call.data.get("offset")
         digit_size = call.data.get("digit_size")
         rotation = call.data.get("rotation", None)
+        am_pm = call.data.get("am_pm", None)
 
         # device registry lookup
         serial_number = hass.data[const.DOMAIN]["device_id_map"][device_id].get("serial_number")
@@ -596,9 +600,9 @@ async def async_setup(hass: HomeAssistant, config):
             _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
             return
 
-        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, xs={xs}, ys={ys}, background-color={bg_color}, digit-color={d_color}, offset={offset_hours}, digit-size={digit_size},  rotation={rotation}")
+        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, xs={xs}, ys={ys}, background-color={bg_color}, digit-color={d_color}, offset={offset_hours}, digit-size={digit_size},  rotation={rotation}, am-pm={am_pm}")
 
-        await start_digital_clock(hass, serial_number, xs = xs, ys = ys, bg_color = bg_color, d_color = d_color, cf_color = cf_color, cf_width = cf_width, offset_hours = offset_hours, digit_size = digit_size, rotation = rotation)
+        await start_digital_clock(hass, serial_number, xs = xs, ys = ys, bg_color = bg_color, d_color = d_color, cf_color = cf_color, cf_width = cf_width, offset_hours = offset_hours, digit_size = digit_size, rotation = rotation, am_pm = am_pm)
 
     hass.services.async_register(const.DOMAIN, "start_digital_clock", handle_start_digital_clock)
 
@@ -640,10 +644,10 @@ async def async_setup(hass: HomeAssistant, config):
             return
 
         i_name = call.data.get("icon_name")
-        i_color = call.data.get("icon_color")
         xs = call.data.get("xs")
         ys = call.data.get("ys")
         i_size = call.data.get("icon_size")
+        i_color = call.data.get("icon_color")
         rotation = call.data.get("rotation")
 
         # device registry lookup
@@ -654,7 +658,7 @@ async def async_setup(hass: HomeAssistant, config):
 
         _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, icon-name={i_name}, icon-color={i_color}, x-start={xs}, y-start={ys}, size={i_size}, rotation={rotation}")
 
-        await show_icon(hass, serial_number, i_name = i_name, i_color = i_color, xs = xs, ys = ys, i_size = i_size, rotation = rotation)
+        await show_icon(hass, serial_number, i_name = i_name, xs = xs, ys = ys, i_size = i_size, i_color = i_color, rotation = rotation)
 
     hass.services.async_register(const.DOMAIN, "show_icon", handle_show_icon)
 
@@ -673,10 +677,10 @@ async def async_setup(hass: HomeAssistant, config):
         xp = call.data.get("x_position")
         yp = call.data.get("y_position")
         r = call.data.get("radius")
+        e = call.data.get("ellipse")
         c_color = call.data.get("c_color")
         f_color = call.data.get("f_color")
         cf_width = call.data.get("cf_width")
-        e = call.data.get("ellipse")
 
         # device registry lookup
         serial_number = hass.data[const.DOMAIN]["device_id_map"][device_id].get("serial_number")
@@ -684,9 +688,9 @@ async def async_setup(hass: HomeAssistant, config):
             _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
             return
 
-        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, X-pos={xp}, Y-pos={yp}, radius={r}, circle-color={c_color}, fill-color={f_color}, circle-frame-width={cf_width}, ellipse={e}")
+        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, X-pos={xp}, Y-pos={yp}, radius={r}, ellipse={e}, circle-color={c_color}, fill-color={f_color}, circle-frame-width={cf_width}")
 
-        await draw_circle(hass, serial_number, xp, yp, r, c_color, f_color, cf_width, e)
+        await draw_circle(hass, serial_number, xp, yp, r, e, c_color, f_color, cf_width)
 
     hass.services.async_register(const.DOMAIN, "draw_circle", handle_draw_circle)
 
@@ -772,8 +776,8 @@ async def async_setup(hass: HomeAssistant, config):
         ys = call.data.get("ys_position")
         xe = call.data.get("xe_position")
         ye = call.data.get("ye_position")
-        l_color = call.data.get("l_color")
-        l_width = call.data.get("l_width")
+        l_color = call.data.get("l_color", None)
+        l_width = call.data.get("l_width", None)
 
         # device registry lookup
         serial_number = hass.data[const.DOMAIN]["device_id_map"][device_id].get("serial_number")
@@ -812,6 +816,7 @@ async def async_setup(hass: HomeAssistant, config):
         bg_color = call.data.get("bg_color", None)
         rotation = call.data.get("rotation", None)
         show_value = call.data.get("show_value", None)
+        val_appendix = call.data.get("val_appendix", None)
 
         # device registry lookup
         serial_number = hass.data[const.DOMAIN]["device_id_map"][device_id].get("serial_number")
@@ -819,9 +824,9 @@ async def async_setup(hass: HomeAssistant, config):
             _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
             return
 
-        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, x-start={xs}, y-start={ys}, x-end={xe}, y-end={ye}, bar-min={bar_min}, bar-value={bar_value}, bar-max={bar_max}, bar-frame-width={bf_width}, bar-frame-color={bf_color}, bar-color={b_color}, background-color={bg_color}, rotation={rotation}, show_value={show_value}")
+        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, x-start={xs}, y-start={ys}, x-end={xe}, y-end={ye}, bar-min={bar_min}, bar-value={bar_value}, bar-max={bar_max}, bar-frame-width={bf_width}, bar-frame-color={bf_color}, bar-color={b_color}, background-color={bg_color}, rotation={rotation}, show_value={show_value}, val-appendix={val_appendix}")
 
-        await draw_progress_bar(hass, serial_number, xs, ys, xe, ye, min_value=bar_min, bar_value=bar_value, max_value=bar_max, bf_width=bf_width, b_color=b_color, bf_color=bf_color, bg_color=bg_color, rotation=rotation, show_value=show_value)
+        await draw_progress_bar(hass, serial_number, xs, ys, xe, ye, min_value=bar_min, bar_value=bar_value, max_value=bar_max, bf_width=bf_width, b_color=b_color, bf_color=bf_color, bg_color=bg_color, rotation=rotation, show_value=show_value, val_appendix=val_appendix)
 
     hass.services.async_register(const.DOMAIN, "draw_progress_bar", handle_draw_progress_bar)
 
@@ -976,9 +981,9 @@ async def async_setup(hass: HomeAssistant, config):
         line_width = call.data.get("line_width", None)
         line_color = call.data.get("line_color", None)
         axis_color = call.data.get("axis_color", None)
-        bg_color = call.data.get("bg_color", None)
+        workspace_color = call.data.get("workspace_color", None)
         mark_points = call.data.get("mark_points", None)
-        show_axis = call.data.get("show_axis", None)
+        clear_workspace = call.data.get("clear_workspace", None)
         ground_to_zero = call.data.get("ground_to_zero", None)
 
         # device registry lookup
@@ -987,9 +992,9 @@ async def async_setup(hass: HomeAssistant, config):
             _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
             return
 
-        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, x-start={xs}, y-start={ys}, x-end={xe}, y-end={ye}, line-values={line_values}, line-width={line_width}, line-color={line_color}, axis-color={axis_color}, background-color={bg_color}, mark-points={mark_points}, show-axis={show_axis}, ground-to-zero={ground_to_zero}")
+        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, x-start={xs}, y-start={ys}, x-end={xe}, y-end={ye}, line-values={line_values}, line-width={line_width}, line-color={line_color}, axis-color={axis_color}, workspace-color={workspace_color}, mark-points={mark_points}, clear-workspace={clear_workspace}, ground-to-zero={ground_to_zero}")
 
-        await draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values=line_values, line_width=line_width, line_color=line_color, axis_color=axis_color, bg_color=bg_color, mark_points=mark_points, show_axis=show_axis, ground_to_zero=ground_to_zero)
+        await draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values=line_values, line_width=line_width, line_color=line_color, axis_color=axis_color, workspace_color=workspace_color, mark_points=mark_points, clear_workspace=clear_workspace, ground_to_zero=ground_to_zero)
 
     hass.services.async_register(const.DOMAIN, "draw_line_chart", handle_draw_line_chart)
 

@@ -139,6 +139,11 @@ draw_progress_bar:
       default: false
       selector:
         boolean: {}
+    val_appendix:
+      name: Appendix
+      default: "%"
+      selector:
+        text: {}
     x_start:
       name: X-start
       example: 0
@@ -548,54 +553,6 @@ draw_triangle:
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "pixels"
 
-send_bitmap_raw:
-  name: raw RGB888 data
-  description: "does not work but later should transfer a picture on the WeAct Display"
-  fields:
-    display:
-      name: Display
-      required: true
-      selector:
-        device:
-          filter:
-            - integration: weact_display
-    B64:
-      description: "Bilddaten als BASE64"
-      example: "/"
-    xpos:
-      description: "X-Positionierung"
-      example: 0
-    ypos:
-      description: "Y-Positionierung"
-      example: 0
-    bgcolor:
-      description: "Hintergrundfarbe [R,G,B]"
-      example: [0, 0, 0]
-
-send_bitmap_file:
-  name: transfer Bitmap
-  description: "does not work but later should transfer an image from a file in the WeAct Display"
-  fields:
-    display:
-      name: Display
-      required: true
-      selector:
-        device:
-          filter:
-            - integration: weact_display
-    file:
-      description: "Pfad zum Bild"
-      example: "/"
-    xpos:
-      description: "X-Positionierung"
-      example: 0
-    ypos:
-      description: "Y-Positionierung"
-      example: 0
-    bgcolor:
-      description: "Hintergrundfarbe [R,G,B]"
-      example: [0, 0, 0]
- 
 stop_clock:
   name: Stop the clock
   description: "stops any running clock (Analog|Digital|Rheinturm)"
@@ -619,6 +576,12 @@ show_random:
         device:
           filter:
             - integration: weact_display
+    suppress_delete:
+      name: supress delete
+      description: supresses background-screen at the end
+      default: False
+      selector:
+        boolean: {}
 
 start_digital_clock:
   name: Digital Clock
@@ -635,7 +598,7 @@ start_digital_clock:
       name: Start X-Position
       example: 0
       default: 0
-      required: true
+      required: false
       selector:
         number:
           min: 0
@@ -646,7 +609,7 @@ start_digital_clock:
       name: Start Y-Position
       example: 0
       default: 0
-      required: true
+      required: false
       selector:
         number:
           min: 0
@@ -715,6 +678,12 @@ start_digital_clock:
           step: 90
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "degree"
+    am_pm:
+      name: AM/PM
+      description: enable to display 12 hours format
+      default: False
+      selector:
+        boolean: {}
 
 start_analog_clock:
   name: Analog Clock
@@ -1211,11 +1180,13 @@ draw_line_chart:
         color_rgb: {}
     axis_color:
       name: Axis color
+      description: Axis is shown only if the color is given
       default: [255, 255, 255]
       selector:
         color_rgb: {}
-    bg_color:
-      name: Background color
+    workspace_color:
+      name: Workspace color
+      required: false
       default: [0, 0, 0]
       selector:
         color_rgb: {}
@@ -1224,13 +1195,15 @@ draw_line_chart:
       default: false
       selector:
         boolean: {}
-    show_axis:
-      name: Show x and y axis in chart?
-      default: false
+    clear_workspace:
+      name: Clear Workspace?
+      description: disable to draw several charts into one diagram
+      default: true
       selector:
         boolean: {}
     ground_to_zero:
-      name: Ground the diagram to zero?
+      name: Ground diagram to zero?
+      description: if enabled, there is no automatic range calculation
       default: false
       selector:
         boolean: {}
