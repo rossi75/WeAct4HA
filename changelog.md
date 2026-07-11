@@ -1,0 +1,252 @@
+# changelog
+
+## V0.x.x - 2026
+~ fix startup message complaining non-unique ID  
+~ respond to unplug if possible or to exit from serial_reader()  
+~ move screencare into screencare.py  
+~ move serial communication from __init__.py and commands.py into serial.py  
+~ add service to display a bar chart  
+~ speed-up serial communication  
+~ order alignment all the same in services > init > commands  
+~ digital clock (background) colors should also be "None"  
+
+## V0.6.4 - 12.06.-11.07.2026
+- all options available in .py are now reachable also via services
+- line chart could not show axis, as the colors were not normalized
+- added option for line chart to clear the workspace before drawing (enabled by default). So you can, if disabled, display several diagrams into one chart
+- improved stability for line chart values, accepted formats: 15;12;14;17;... or 15,12,14,17,... or [15,12,14,17,...] or (15,12,14,17,...)
+- removed background-color, added new option for workspace color. If no workspace color is given, but workspace should be cleared, displays background-color will be taken
+- removed unneccessary services "send bitmap raw" and "send bitmap"
+
+## V0.6.3 - 31.05.-02.06.2026
+- added service to display a QR code, uses the devices background-color if no value given
+- added service to change the background-color into persistent storage, with an option to replace pixels with old_color to new_color and update screen immediately
+- added service to display a line chart
+- HA popup only pops up if a first device is connected. All other devices need to be set up via "add entry" within the integration
+- improved serial initialization, skipping initial STTY-setup
+- prepared fastlz option (but need to find the correct fastlz algorithm and chunk-size),
+  would not (!) speed up the display itself, only the transmission, which results in less busy-time
+- disabled serial-port check for all non-direct commands
+- removed loading sensor from async_setup
+
+## V0.6.2 - 08.-15.05.2026
+- improved Config Flow dialog texts
+- if screencare is enabled, screencare-switch entity now has an extra-attribute named "next_screencare", no more "dbg_next_screencare"
+- Config Flow settings for all settings but the device itself are no longer marked as mandatory
+- added german language for UI setup (config flow, cache reload necessary)
+- screencare-trigger was never set due to race condition (HA startup was done before finish trigger was reached to set screencare trigger)
+- corrected orientation_values at startup [0|2] to [2|3] for landscape detection in async_setup_entry
+- to get clock into idle state, call clock handle with background colors, so any custom call will also be recognized to clean up its fields properly
+- orientation options in small letters, no capitals
+- icon and logo (HomeAssistant 2026.3 or later needed)
+- corrected orientation_map once again...
+
+## V0.6.1 - 01.05.-07.05.2026
+- ! maybe the display needs to be deleted and re-added to work with orientation and/or brightness (because of renaming persistent entries)
+- improved message if not connected when trying to send
+- added hidden D/T attribute and version attribute for when and with which version the module was set up, only seeable in debug mode
+- write screencare option back into persistent storage if changed from UI
+- renamed startup_orientation_value to orientation_value
+- renamed startup_brightness_value to brightness_value
+- corrected serial_map
+- filtering for devices needed new mapping for device_id, otherwise the services won't work anymore
+- set_orientation with optional force parameter, overrides the check for actual vs new orientation
+- option for screencare draws some random pixels at 03:37:xx every night
+  (Siemens Gigaset restart time, see also https://www.chrischmi.de/2009/12/siemens-gigaset-sx353-um-337-uhr/)
+- generate_random() with optional parameter to supress previous screen blanking
+- if debug is enabled, dbg_next_screencare is available as attribute for the screencare sensor
+- renamed brightness_value to brightness
+- write brightness directly back into persistent storage
+- all routines use background-color from device if no other background-color is given
+- startup finishes with its displays' background-color (from display-selftest)
+- save background-color directly as tupel (x, y, z) at setup
+- write orientation directly back into persistent storage
+
+## V0.6.0 - 15.04.-30.04.2026
+- changed from hass.data[DOMAIN][serial] to hass.data[DOMAIN]["devices"][serial] for runtime data
+- added hass.data[DOMAIN]["entries"][entry_id] for persistent config (and serial lookup)
+- added default brightness in config-flow
+- changed internal path variable from port to device_path
+- corrected orientation_map
+- removed attribute "device_id"
+- added option for screencare in config-flow (actually without logic behind)
+- fully (?) config-flow compatible:
+  if no display is being recognized at startup, the integration does not crash
+  as soon as display is plugged in, a ha-popup reminds to administer the new display
+
+## V0.5.5 - 05.-12.04.2026
+- added counterclockwise rotation if orientation is changed, see also table in internal_struct.md
+- services.yaml: filter for devices instead of entities
+- using entry_id instead of serial_number while initializing at startup
+- added default orientation and default background color in config-flow
+- removed attribute "source"
+
+## V0.5.4 - 18.03.-04.04.2026
+- fixed analog clock from entity select
+- fixed digital clock from entity select
+- auto-sizing for digital clock if no value is given (was fixed to 30 px)
+- recalculate digital clock size
+- added check for clock mode while drawing clock, because if there are multiple fast clock mode changes the logic struggles at any point
+
+## V0.5.3 - 23.-28.02.2026
+- triangle working
+- fixed analog clock from service call without parameters (shift, offset and rotation)
+- testbild working, calling send_bmp() without filename
+- send_picture from file (pos, ...), if filepath is given, check and draw this. if no filename is given, send testbild.
+- if clock is being disabled, last timestamp will be drawn once again, but in black color, so it disappears...
+- improved handling for clock_mode-entity, will now be also reflected if started from service
+- corrected unplug notification
+- new display will be discovered in devices and needs to be configured once
+
+## V0.5.2 - 17.-22.02.2026
+- attribute shows correct clock mode, but clock mode entity stays in idle state. fixed !
+- reading the new brightness from display was too fast after sending the new value, so the old value was
+  given by the display and stored into the structure/attribute. As it fades, now polling up to 15 seconds
+  waiting for finishing the adjustment
+- removed unloading button platform
+! upon reading from serial, new brightness value being stored into the attribute of the main entity but
+  not into the brightness entity (seems to be stored into entity, but not shown in developer tools). fixed !
+
+## V0.5.1 - 26.12.2025 - 17.02.2026
+- improved code for humidity and temperature sensors, rounding to no digits
+- moved un-rounded humiture attributes into debug-section. The rounded ones are available as separate entities if supported
+- if any device needs to be added manually, checking if it is used by another integration
+- unload for reload etc
+- usb-plugin/-plugout
+- slider for display brightness in UI
+- display brightness in entity
+- request for display brightness after setting
+- extended parser for display brightness
+- added DEFAULT_BRIGHTNESS in const.py, set to 7
+
+## V0.5.0 - 20.-26.12.2025
+- Config Flow for UI, provides firmware version (into software version field) and orientation and clock mode
+- registration as device, thanks to Config Flow
+- auto-discovery at startup
+- serial_number is the unique ID
+- RX message parser more general and sets values directly into the instances attributes
+- added who_am_i and firmware_version as data attributes, only available as entity attributes if debug is on
+- changed several _LOGGER.warning into _LOGGER.info
+- removed temperature_unit from instance attribute, as it is a static "°C" anyways
+- disabled humiture sensor attribute for normal usage, only available as entity attributes if debug is on
+- all entity attributes that are available only in debug-mode, have the prefix dgb_*
+- removed mapped text-orientation from integration attribute, will be mapped instantly when read out into entitys sensor attribute
+- new select entities for orientation and clock mode, as only separated entities can be shown in action elements
+- action elements for orientation and clock mode in device details. Firmware details in device details
+- new sensor entities for temperature and humidity, as only separated entities can be shown in sensor elements
+- sensor elements for temperature and humidity in device details. only if device supports humiture sensor
+- improved digital-clock startup from Config Flow UI
+- first publish on github
+
+## V0.4.3 - 15.12.2025
+- fixed icon with native code, no external lib
+- fixed services.yaml to allow x- and y-values to 479
+- display lock activated immediately before while sending, avoids collisions while sending
+! CPU load +25% due to serial RX if FS V1 is connected, since previous release
+- serial read without CPU blocking, -25% CPU load
+- enabled logrotate for SVG, 100 files in CONST.PY, destination is ../icons/
+
+## V0.4.2 - 30.11.-08.12.2025
+- start humiture report after startup for reporting every 60 seconds, only if model supports it, native Bytes can
+  be seen in debug, calculated values in logs, reflecting values into sensors attributes
+- corrected orientation values
+- moved initial display communication to post_startup(), integration startup now takes 0.05 seconds instead of ~5-8 seconds
+- added attribute temperature_unit into sensor
+- clock is now synchronized to 0 seconds of the minute
+- offset hours for analog and digital clock
+- icon works, but is a bit scrappy.... will be fixed soon
+- stabilized rectangle function
+
+## V0.4.1 - 27.11.2025
+- corrected analog clock (the dot was the issue)
+- corrected progress bar (missing last lines as big as the frame-width), no value, no rotation
+- digital clock working, no rotation
+- disabled hard-coded landscape mode [2], set as default at startup
+- enabled logrotate for BMP, 100 files in CONST.PY, destination is ../bmp/
+- brightness is set at startup (to 10)
+- enabled temperature and humidity reading
+
+## V0.4.0 - 20.-25.11.2025
+- multiple display support, need to mandatory select the display entity for every command
+- display entity ends now with serial number
+- serial_number is the unique entity id
+- display name is now with model and serial_number
+- new structure for ONE sensor for each display with all attributes
+- internal shadow picture in RGB888 for each display
+- every time anything is drawn and the complete picture is being sent, the picture is being stored in ../bmp/[serial]_[time].bmp
+- rectangle working
+- circle working
+- line working
+- brightness working
+- orientation not tested
+- random bitmap working
+- text partially working, no rotation
+- progress bar partially working. no value, no rotate
+- analog clock....... nope !
+- digital clock not working
+- QR code not working
+- triangle not working
+- icon not working
+- testbild not working
+- bitmap not working
+
+## V0.3.0 - 16.11.2025
+- repaired clock
+
+## V0.2.9 - 14.11.2025
+- progress bar works 
+- more details in attributes (humiture/width/height), preparations for multiple displays and rotate
+- clock state now in attribute, not anymore as an additional entity. Reason is, if you have multiple displays,
+  the will named *_2, *_3, etc, but the clock_state would have started its counting from the 1st you start the clock...
+
+## V0.2.8 - 08.11.2025
+- rectangle is now without the line, found the issue for the line (double xe)
+- prepared call for progress bar
+- if no Y-End line is given for text, we will take the font-size
+- text with a rotation of 90 or 270 degree is now displayed. But there is one more issue with the alignment then...
+- all draw routines are saving (only !) its BMP to ../bmp/*
+
+## V0.2.7 - 07.11.2025
+- rectangle is now with frame, but why the heck is there a line in?
+- text is now scalable
+- text is now visible
+- text with 90 or 270 degrees rotated results in a scramled image
+- image save routine corrected
+- global variable for IMAGE_PATH and CLOCK_REMOVE_HANDLE
+
+## V0.2.6 - 06.11.2025
+- preparations for progress bar
+- all draw routines should save the image now as BMP, JPG and PNG
+
+## V0.2.5 - 05.11.2025
+- drawing a rectangle works, but no frame.... :(
+
+## V0.2.4 - 04.11.2025
+- analog clock is working fine, moving every minute
+- stop service to stop any clocks
+- drawing circle and elipse
+- all clock related routines outsourced into clock.py
+- all services now with a well actions UI in Home Assistant
+
+## V0.2.1 - 31.10.2025
+- clock is done. how to loop? How to deactivate (servicecommand or any action?)
+
+## V0.2.0 - 30.10.2025
+- hello world is being displayed fine: RGB565 / landscape
+- show icon (size, colour, bg_colour, x, y, rotation) (does not work actually)
+- parts of the analog clock even working
+
+
+## V0.1.8 - 28.10.2025
+- brightness can be set via slider
+
+## V0.1.5 - 26.10.2025
+- send random-coloured picture
+
+## V0.1.2 - 25.10.2025
+- reset display
+- show init screen
+
+## V0.1.0 - 24.10.2025
+- communication for full size one color is working
+
