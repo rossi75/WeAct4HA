@@ -8,7 +8,7 @@
  [7. Examples](#7-examples)  
  [8. Worthy Notes](#8-worthy-notes)  
 
-{Bild}
+![image info](./example.bmp)
 
 ---
 ## 1. What is it?
@@ -55,6 +55,8 @@ If you take a look at the displays entities (developer tools/states/sensor.weact
 For testing and a one-shot i recommend using the actions in the developer tools. As Home Assistant only reports back the internal device ID, we need this for every operation to read out the database
 then simply start using the display in any automation. Scribble some text, draw a diagram, anything you need... Examples below
 
+Everytime an update is being sent to the display, a replica is taken into your ../custom_components/weact_display/bmp/ directory. Only the last 20 images are being kept. You can copy the replica with WinSCP if you are fast enough
+
 ---
 ## 6. all services explained
 Well, this will be a long list. I will try to abbreviate it as much as possible
@@ -62,7 +64,7 @@ Well, this will be a long list. I will try to abbreviate it as much as possible
 ---
 ## 7. Examples
 a) First of all I have the clock. Here I created an automation that runs 10 minutes after startup and enables the analog clock:
-
+```
 alias: display clock at startup
 triggers:
   - trigger: event
@@ -80,9 +82,11 @@ actions:
     data:
       display: 433e5e413e13f7960ba789988b4e21b3
 mode: single
+```
+b) Next is my DSL. As this sometimes starts flattering, I wanted to have an optical message for this, a red icon appears.  
+As soon as the connection is back in town, the icon is painted green and after 10 minutes of a stable connection, the icon gets black (as my background color):
 
-b) Next is my DSL. As this sometimes starts flattering, I wanted to have an optical message for this. As soon as the connection is back in town, the icon is painted green and after 10 minutes of a stable connection, the icon gets black (as my background color):
-
+```
 alias: DSL Verfügbarkeit
 triggers:
   - entity_id:
@@ -156,10 +160,12 @@ actions:
               display: 433e5e413e13f7960ba789988b4e21b3
         alias: " verbunden ==> Displayicon verbergen"
 mode: restart
+```
 
 c) display the CPU load, the last values are stored into a helper text variable (input_text.cpu_history),
 which stores the data semikolon-seperated ("8;7;7;9;8;8;7;8;8;8;9;8;11;8;9;10;12;13;14;14;14;11;8;8;8;8;7;8;10;7;8"). A text-field can be up to 255 characters, so I can store about 83 entries, which is about 8 hours backwards.
 
+```
 alias: CPU load
 description: >-
   erfasst alle 5 Minuten die CPU-Temperatur und schickt die neue Liste ans
@@ -234,6 +240,7 @@ actions:
       y_end: 213
       display: 433e5e413e13f7960ba789988b4e21b3
 mode: single
+```
 
 ---
 ## 8. Worthy Notes
