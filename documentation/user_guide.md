@@ -181,12 +181,11 @@ actions:
       entity_id: input_text.cpu_history
     data:
       value: >
-        {% set current = states('input_text.cpu_history') %} {% set history =
-        current.split(';')
-             if current not in ['unknown','unavailable','']
+        {% set current = states('input_text.cpu_history') %}
+        {% set history = current.split(';') if current not in ['unknown','unavailable','']
              else [] %}
-        {% set value = states('sensor.processor_use') | int %} {{ ([value] +
-        history[:83]) | join(';') }}
+        {% set value = states('sensor.processor_use') | int %}
+        {{ (history[-83:] + [value]) | join(';') }}
     alias: Aktuelle CPU-Last lesen und speichern
   - action: weact_display.write_text
     alias: Überschrift malen
