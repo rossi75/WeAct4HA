@@ -95,6 +95,12 @@ write_text:
           step: 90
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "degree"
+    clear_workspace:
+      name: Clear Workspace?
+      description: disable to write any overlapping text
+      default: true
+      selector:
+        boolean: {}
 
 draw_progress_bar:
   name: Progress Bar
@@ -363,6 +369,7 @@ draw_rectangle:
       description: "how fat should the rectangle be?"
       example: 1
       default: 1
+      required: true
       selector:
         number:
           min: 1
@@ -374,11 +381,11 @@ draw_rectangle:
       name: Frame color
       example: [255, 0, 255]
       default: [255, 0, 255]                         # lila
+      required: true
       selector:
         color_rgb: {}
     f_color:
       name: Fill color
-      description: "same as frame color if not given"
       example: [0, 255, 255]
       default: [0, 255, 255]                         # gelb
       selector:
@@ -634,6 +641,7 @@ start_digital_clock:
         color_rgb: {}
     bg_color:
       name: Background Color
+      required: false
       example: [0, 0, 0]
       default: [0, 0, 0]
       selector:
@@ -1079,6 +1087,22 @@ change_screencare_option:
       selector:
         boolean: {}
 
+change_fastlz_option:
+  name: Enable/Disable FastLZ Option
+  fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        device:
+          filter:
+            - integration: weact_display
+    fastlz_option:
+      name: FastLZ enabled?
+      default: true
+      selector:
+        boolean: {}
+
 set_background_color:
   name: Set New Background Color
   fields:
@@ -1184,6 +1208,12 @@ draw_line_chart:
       default: [255, 255, 255]
       selector:
         color_rgb: {}
+    fill_color:
+      name: Fill color
+      description: Paint the space between diagram and axis if the color is given
+      default: [255, 255, 255]
+      selector:
+        color_rgb: {}
     workspace_color:
       name: Workspace color
       required: false
@@ -1205,5 +1235,100 @@ draw_line_chart:
       name: Ground diagram to zero?
       description: if enabled, there is no automatic range calculation
       default: false
+      selector:
+        boolean: {}
+
+draw_bar_chart:
+  name: Bar chart
+  description: "draw a bar chart on the WeAct Display"
+  fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        device:
+          filter:
+            - integration: weact_display
+    x_start:
+      name: X-start
+      required: true
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 479
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    y_start:
+      name: Y-start
+      required: true
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 479
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    x_end:
+      name: X-end
+      required: true
+      example: 10
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 479
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    y_end:
+      name: Y-end
+      required: true
+      example: 10
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 479
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    bar_values:
+      name: Bar values
+      required: true
+      default: [15, 18, 12, 5, 9, 25, 14]
+      selector:
+        text: {}
+    bar_width:
+      name: Bar Width
+      default: 1
+      selector:
+        number:
+          min: 0
+          max: 1000
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "px"
+    bar_color:
+      name: Bar color
+      default: [255, 255, 255]
+      selector:
+        color_rgb: {}
+    axis_color:
+      name: Axis color
+      description: Axis is shown only if the color is given
+      default: [255, 255, 255]
+      selector:
+        color_rgb: {}
+    workspace_color:
+      name: Workspace color
+      required: false
+      default: [0, 0, 0]
+      selector:
+        color_rgb: {}
+    clear_workspace:
+      name: Clear Workspace?
+      description: disable to draw several charts into one diagram
+      default: true
       selector:
         boolean: {}

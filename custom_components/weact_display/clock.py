@@ -315,7 +315,7 @@ async def show_analog_clock(hass, serial_number, sc_color = None, h_color = None
 # o: offset-hours
 # o: am/pm
 #************************************************************************
-async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = None, rotation = None, d_color = (0, 255, 255), bg_color = (0, 0, 0), cf_color = (0, 255, 255), cf_width = None, offset_hours = None, am_pm = False):
+async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = None, rotation = None, d_color = None, bg_color = None, cf_color = None, cf_width = None, offset_hours = None, am_pm = False):
     _LOGGER.debug(f"digital clock for serial {serial_number}...")
 
     from .commands import normalize_color, send_screen
@@ -323,22 +323,33 @@ async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_si
 
     clock_mode = device.get("clock_mode")
     if clock_mode != "digital":
-        _LOGGER.warning(f"Why to show clock for {serial_number} if not running? Seems I struggled in fast changes...! actual mode is {clock_mode}, stopping for safety")
+        _LOGGER.warning(f"Why to show digital clock for {serial_number} if not running? Seems I struggled in fast changes...! actual mode is {clock_mode}, stopping for safety")
         await stop_clock(hass, serial_number)
         return
     else:
         _LOGGER.debug(f"verified running the same clock-mode we are updating the display {serial_number} for: {clock_mode}")
    
-
     d_width  = device.get("width")
     d_height = device.get("height")
+    _LOGGER.debug(f"read displays width {d_width} and height {d_height} from device")
     # check rotation
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
-    d_color  = normalize_color(d_color)
-    cf_color = normalize_color(cf_color)
-    bg_color = normalize_color(bg_color)
-
+    if d_color is None:
+        d_color = (0, 255, 255)
+        _LOGGER.debug(f"set digit-color to {d_color} as no parameter is given")
+    else:
+        d_color = normalize_color(d_color)
+    if cf_color is None:
+        cf_color = device.get("background_color")
+        _LOGGER.debug(f"set clock-frame-color to displays' default background-color {cf_color} as no parameter is given")
+    else:
+        cf_color = normalize_color(cf_color)
+    if bg_color is None:
+        bg_color = device.get("background_color")
+        _LOGGER.debug(f"set background-color to displays' default background-color {bg_color} as no parameter is given")
+    else:
+        bg_color = normalize_color(bg_color)
     _LOGGER.debug(f"colors after normalize: digits={d_color}, clock-frame-color={cf_color}, background={bg_color}")
 
     # check positions

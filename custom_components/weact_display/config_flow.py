@@ -89,7 +89,7 @@ class WeActDisplayConfigFlow(config_entries.ConfigFlow, domain=const.DOMAIN):
                 vol.Optional("brightness", default=const.DEFAULT_BRIGHTNESS): selector.NumberSelector(selector.NumberSelectorConfig(min=0, max=255, mode="slider")),
                 vol.Optional("background_color", default=[0, 0, 0]): selector.ColorRGBSelector(),
                 vol.Optional("screencare", default=True): selector.BooleanSelector(),
-                #vol.Optional("fastlz", default=False): selector.BooleanSelector(),
+                vol.Optional("fastlz", default=False): selector.BooleanSelector(),
             }
         )
 
@@ -100,8 +100,7 @@ class WeActDisplayConfigFlow(config_entries.ConfigFlow, domain=const.DOMAIN):
             brightness                = user_input["brightness"]
             background_color          = user_input["background_color"]
             screencare                = user_input["screencare"]
-            #fastlz                    = user_input["fastlz"]
-            fastlz                    = False
+            fastlz                    = user_input["fastlz"]
             orientation_text          = user_input["orientation_text"]
             orientation_value         = const.ORIENTATION_MAP[orientation_text]
 

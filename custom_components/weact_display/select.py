@@ -26,6 +26,7 @@ class Select_Orientation(SelectEntity):
     _LOGGER.debug(f"found {len(_attr_options)} orientation options: {list(_attr_options)}")
 
     def __init__(self, hass, serial_number):
+        device = hass.data[const.DOMAIN]["devices"][serial_number]
         self.hass = hass
         self.serial_number = serial_number
         self._attr_unique_id = f"weact_{serial_number}_orientation"
@@ -33,7 +34,7 @@ class Select_Orientation(SelectEntity):
 
         _LOGGER.debug(f"reading actual orientation")
 
-        value = hass.data[const.DOMAIN]["devices"][serial_number].get("orientation_value")
+        value = device.get("orientation_value")
         if not isinstance(value, int) or value not in const.ORIENTATION_MAP_INV:
             value = 2  # Default: Landscape
         self._value = value
@@ -44,7 +45,7 @@ class Select_Orientation(SelectEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(const.DOMAIN, serial_number)},
             manufacturer="WeAct Studio",
-            model = f"Display {hass.data[const.DOMAIN]["devices"][serial_number].get("model")}",
+            model = f"Display {device.get("model")}",
         )
 
     async def async_select_option(self, option: str):
@@ -65,13 +66,14 @@ class Select_ClockMode(SelectEntity):
     _attr_options = ["idle", "digital", "analog"]
 
     def __init__(self, hass, serial_number):
+        device = hass.data[const.DOMAIN]["devices"][serial_number]
         self.serial_number = serial_number
         self._attr_unique_id = f"weact_{serial_number}_clock"
         self._attr_name = "Clock Mode"
         self._attr_device_info = DeviceInfo(
             identifiers={(const.DOMAIN, serial_number)},
             manufacturer="WeAct Studio",
-            model = f"Display {hass.data[const.DOMAIN]["devices"][serial_number].get("model")}",
+            model = f"Display {device.get("model")}",
         )
 
     async def async_select_option(self, option: str):

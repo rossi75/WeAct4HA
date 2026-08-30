@@ -147,6 +147,7 @@ class WeActDisplaySensor(SensorEntity):
             "height"           : data.get("height"),
             "orientation"      : const.ORIENTATION_MAP_INV[data.get("orientation_value", 2)],
             "screencare"       : data.get("screencare"),
+            "fastlz"           : data.get("fastlz"),
             "clock_mode"       : data.get("clock_mode"),
             "background_color" : data.get("background_color")
         }
@@ -162,7 +163,6 @@ class WeActDisplaySensor(SensorEntity):
             attr["dbg_firmware_version"]     = data.get("firmware_version")
             attr["dbg_orientation_value"]    = data.get("orientation_value")
             attr["dbg_humiture"]             = data.get("humiture")
-            attr["dbg_fastlz"]               = data.get("fastlz")
             attr["dbg_entry_id"]             = data.get("entry_id")
             attr["dbg_device_id"]            = data.get("device_id")
             attr["dbg_start_time"]           = data.get("start_time")

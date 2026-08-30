@@ -54,9 +54,7 @@ import custom_components.weact_display.const as const
 from .models import DISPLAY_MODELS
 from .clock import start_analog_clock, start_digital_clock, stop_clock
 from .commands import normalize_color
-#from .clock import stop_clock, start_analog_clock, start_digital_clock, start_rheinturm
-from .commands import display_selftest, draw_circle, draw_line, draw_line_chart, draw_rectangle, draw_triangle, draw_progress_bar, enable_humiture_reports, generate_random, generate_qr, open_serial, parse_packet, read_firmware_version, read_who_am_i, replace_bg_color, send_full_color, send_screen, set_brightness, set_orientation, show_bmp, show_icon, show_init_screen, write_text
-#from .draws import write_text, show_icon, draw_circle, draw_line, draw_rectangle, draw_triangle, draw_progress_bar, generate_qr
+from .commands import display_selftest, draw_circle, draw_line, draw_line_chart, draw_bar_chart, draw_rectangle, draw_triangle, draw_progress_bar, enable_humiture_reports, generate_random, generate_qr, open_serial, parse_packet, read_firmware_version, read_who_am_i, replace_bg_color, send_full_color, send_screen, set_brightness, set_orientation, show_bmp, show_icon, show_init_screen, write_text
 
 # ------------------------------------------------------------
 # Initialisierung
@@ -187,9 +185,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug(f"new device-id-map={device_id_map}")
 
     # === ENTITY MAPPING ===
-#    _LOGGER.debug(f"adding serial-mapping for {serial_number} to lookup via entry.entry-id")
-#    serial_map[entry.entry_id] = serial_number
-#    _LOGGER.debug(f"serial-map={serial_map}")
+    #_LOGGER.debug(f"adding serial-mapping for {serial_number} to lookup via entry.entry-id")
+    #serial_map[entry.entry_id] = serial_number
+    #_LOGGER.debug(f"serial-map={serial_map}")
 
     # Plattformen laden
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "select", "number", "switch"])
@@ -215,6 +213,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[const.DOMAIN]["devices"].pop(serial_number, None)
 
     return unload_ok
+
+async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEntry, device_entry: dr.DeviceEntry,) -> bool:
+    serial_number = entry.data.get("serial_number")
+
+    _LOGGER.info(f"removing WeAct Display config entry for serial {serial_number}")
+    _LOGGER.debug(f"remove_config_entry_device: Device removal requested for config_entry={config_entry.entry_id}, device={device_entry.id}, identifiers={device_entry.identifiers}")
+
+    return True
 
 
 async def async_setup(hass: HomeAssistant, config):
@@ -272,6 +278,7 @@ async def async_setup(hass: HomeAssistant, config):
         t_color = call.data.get("t_color", None)
         bg_color = call.data.get("bg_color", None)
         rotation = call.data.get("rotation", None)
+        clear_workspace = call.data.get("clear_workspace", None)
 
         # device registry lookup
         serial_number = hass.data[const.DOMAIN]["device_id_map"][device_id].get("serial_number")
@@ -279,9 +286,9 @@ async def async_setup(hass: HomeAssistant, config):
             _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
             return
 
-        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, text={text}, xs={xs}, ys={ys}, xe={xe}, ye={ye}, font-size={font_size}, t-color={t_color}, bg-color={bg_color}, rotation={rotation}")
+        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, text={text}, xs={xs}, ys={ys}, xe={xe}, ye={ye}, font-size={font_size}, t-color={t_color}, bg-color={bg_color}, rotation={rotation}, clear-workspace={clear_workspace}")
 
-        await write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = font_size, t_color = t_color, bg_color = bg_color, rotation = rotation)
+        await write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = font_size, t_color = t_color, bg_color = bg_color, rotation = rotation,  clear_workspace = clear_workspace)
 
     hass.services.async_register(const.DOMAIN, "write_text", handle_send_text)
 
@@ -583,14 +590,14 @@ async def async_setup(hass: HomeAssistant, config):
             _LOGGER.error("missing mandatory device id")
             return
 
-        xs = call.data.get("xs")
-        ys = call.data.get("ys")
-        d_color = call.data.get("d_color")
-        bg_color = call.data.get("bg_color")
-        cf_color = call.data.get("cf_color")
-        cf_width = call.data.get("cf_width")
-        offset_hours = call.data.get("offset")
-        digit_size = call.data.get("digit_size")
+        xs = call.data.get("xs", None)
+        ys = call.data.get("ys", None)
+        d_color = call.data.get("d_color", None)
+        bg_color = call.data.get("bg_color", None)
+        cf_color = call.data.get("cf_color", None)
+        cf_width = call.data.get("cf_width", None)
+        offset_hours = call.data.get("offset", None)
+        digit_size = call.data.get("digit_size", None)
         rotation = call.data.get("rotation", None)
         am_pm = call.data.get("am_pm", None)
 
@@ -864,15 +871,58 @@ async def async_setup(hass: HomeAssistant, config):
         # Config + runtime aktualisieren
         new_options = {
             **entry.options,
-            "screencare": value,
+            "screencare": screencare_option,
         }
         hass.config_entries.async_update_entry(entry, options=new_options)
-        device["screencare"] = value
+        device["screencare"] = screencare_option
 
         _LOGGER.debug(f"values given: device-id={device_id}, serial-number={serial_number}, screencare={screencare_option}")
 
     hass.services.async_register(const.DOMAIN, "change_screencare_option", handle_change_screencare_option)
 
+
+    # --------------------------------------------------------
+    # Service: change fastlz option
+    # --------------------------------------------------------
+    async def handle_change_fastlz_option(call: ServiceCall):
+        _LOGGER.debug("called service to change fastlz option")
+ 
+        device_id = call.data.get("display", None)
+        if device_id is None:
+            _LOGGER.error("missing mandatory device id")
+            return
+
+        fastlz_option = call.data.get("fastlz_option", None)
+        if fastlz_option is None:
+            _LOGGER.error("missing mandatory fastlz option")
+            return
+
+        # device registry lookup
+        serial_number = hass.data[const.DOMAIN]["device_id_map"][device_id].get("serial_number")
+        if not serial_number:
+            _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
+            return
+
+        device = hass.data[const.DOMAIN]["devices"][serial_number]
+
+        # entry-data lookup
+        entry_id = device.get("entry_id")
+        entry = hass.config_entries.async_get_entry(entry_id)
+        if not entry:
+            _LOGGER.error(f"no config entry found for serial {serial_number}")
+            return
+
+        # Config + runtime aktualisieren
+        new_options = {
+            **entry.options,
+            "fastlz": fastlz_option,
+        }
+        hass.config_entries.async_update_entry(entry, options=new_options)
+        device["fastlz"] = fastlz_option
+
+        _LOGGER.debug(f"values given: device-id={device_id}, serial-number={serial_number}, fastlz={fastlz_option}")
+
+    hass.services.async_register(const.DOMAIN, "change_fastlz_option", handle_change_fastlz_option)
 
     # --------------------------------------------------------
     # Service: generate qr code
@@ -981,6 +1031,7 @@ async def async_setup(hass: HomeAssistant, config):
         line_width = call.data.get("line_width", None)
         line_color = call.data.get("line_color", None)
         axis_color = call.data.get("axis_color", None)
+        fill_color = call.data.get("fill_color", None)
         workspace_color = call.data.get("workspace_color", None)
         mark_points = call.data.get("mark_points", None)
         clear_workspace = call.data.get("clear_workspace", None)
@@ -992,12 +1043,45 @@ async def async_setup(hass: HomeAssistant, config):
             _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
             return
 
-        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, x-start={xs}, y-start={ys}, x-end={xe}, y-end={ye}, line-values={line_values}, line-width={line_width}, line-color={line_color}, axis-color={axis_color}, workspace-color={workspace_color}, mark-points={mark_points}, clear-workspace={clear_workspace}, ground-to-zero={ground_to_zero}")
+        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, x-start={xs}, y-start={ys}, x-end={xe}, y-end={ye}, line-values={line_values}, line-width={line_width}, line-color={line_color}, axis-color={axis_color}, fill-color={fill_color}, workspace-color={workspace_color}, mark-points={mark_points}, clear-workspace={clear_workspace}, ground-to-zero={ground_to_zero}")
 
-        await draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values=line_values, line_width=line_width, line_color=line_color, axis_color=axis_color, workspace_color=workspace_color, mark_points=mark_points, clear_workspace=clear_workspace, ground_to_zero=ground_to_zero)
+        await draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values=line_values, line_width=line_width, line_color=line_color, axis_color=axis_color, fill_color=fill_color, workspace_color=workspace_color, mark_points=mark_points, clear_workspace=clear_workspace, ground_to_zero=ground_to_zero)
 
     hass.services.async_register(const.DOMAIN, "draw_line_chart", handle_draw_line_chart)
 
+    # --------------------------------------------------------
+    # Service: draw bar chart
+    # --------------------------------------------------------
+    async def handle_draw_bar_chart(call: ServiceCall):
+        _LOGGER.debug("called service to draw a bar chart")
+ 
+        device_id = call.data.get("display", None)
+        if device_id is None:
+            _LOGGER.error("missing mandatory device id")
+            return
+
+        xs = call.data.get("x_start")
+        ys = call.data.get("y_start")
+        xe = call.data.get("x_end")
+        ye = call.data.get("y_end")
+        bar_values = call.data.get("bar_values")
+        bar_width = call.data.get("bar_width", None)
+        bar_color = call.data.get("bar_color", None)
+        axis_color = call.data.get("axis_color", None)
+        workspace_color = call.data.get("workspace_color", None)
+        clear_workspace = call.data.get("clear_workspace", None)
+
+        # device registry lookup
+        serial_number = hass.data[const.DOMAIN]["device_id_map"][device_id].get("serial_number")
+        if not serial_number:
+            _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
+            return
+
+        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, x-start={xs}, y-start={ys}, x-end={xe}, y-end={ye}, bar-values={bar_values}, bar-width={bar_width}, bar-color={bar_color}, axis-color={axis_color}, workspace-color={workspace_color}, clear-workspace={clear_workspace}")
+
+        await draw_bar_chart(hass, serial_number, xs, ys, xe, ye, bar_values=bar_values, bar_width=bar_width, bar_color=bar_color, axis_color=axis_color, workspace_color=workspace_color, clear_workspace=clear_workspace)
+
+    hass.services.async_register(const.DOMAIN, "draw_bar_chart", handle_draw_bar_chart)
 
     # --------------------------------------------------------
     #   T H E   E N D  !

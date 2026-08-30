@@ -26,6 +26,7 @@ from homeassistant.helpers.event import async_track_time_interval
 from pathlib import Path
 from .iconutils import load_icon
 from .models import DISPLAY_MODELS
+from .fastlz_l2 import build_display_chunks
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -563,14 +564,12 @@ async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
-    #fastlz = device.get("fastlz", False)
-    #fastlz = True
-    fastlz = False              # mandatory NO !
-
     serial_port = device.get("serial_port")           # check needed due to direct command
     if not serial_port:
         _LOGGER.warning(f"Display {serial_number} not connected")
         return
+    fastlz = device.get("fastlz", False)
+    _LOGGER.debug(f"using fastLZ: {fastlz}")
 
     width = xe - xs
     height = ye - ys
@@ -594,23 +593,25 @@ async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
         data_565.append(rgb565 & 0xFF)
         data_565.append((rgb565 >> 8) & 0xFF)
 
+    hex_str = " ".join(f"{b:02X}" for b in data_565[:40])
+    _LOGGER.debug(f"now having {len(data_565)} bitmap bytes as RGB565 for {serial_number}: {hex_str} [...]")
+
     if fastlz is True:
         command = const.CMD_SET_BITMAP_FASTLZ
-        CHUNK_SIZE = width * 4
-        _LOGGER.debug(f"using FASTLZ for serial communication")
+        chunks = build_display_chunks(bytes(data_565))
+        #_LOGGER.debug(f"FastLZ generated {len(chunks)} chunks, sizes: {[len(c) for c in chunks]}")                # enable only for VERY_DETAILLED_VERBOSE
+        _LOGGER.debug(f"FastLZ generated {len(chunks)} chunks")
     else:
         command = const.CMD_SET_BITMAP
+        payload = bytes(data_565)
+        hex_str = " ".join(f"{b:02X}" for b in payload[:40])
+        _LOGGER.debug(f"preparing classic data transmission speed for serial communication with {len(data_565)} Bytes as payload: {hex_str} [...]")
         CHUNK_SIZE = width * 2  # empirisch aus USB-Sniffing
-        _LOGGER.debug(f"using classic data transmission speed for serial communication")
-
-    _LOGGER.debug(f"chunk size is {CHUNK_SIZE} bytes per write")
+        _LOGGER.debug(f"chunk size is {CHUNK_SIZE} bytes per write")
 
     header = struct.pack("<BHHHHB", command, xs, ys, xe-1, ye-1, 0x0A)
-
     hex_str = " ".join(f"{b:02X}" for b in header)
     _LOGGER.debug(f"need to send {len(header)} header bytes for {serial_number}: {hex_str}")
-    hex_str = " ".join(f"{b:02X}" for b in data_565[:40])
-    _LOGGER.debug(f"... and {len(data_565)} bitmap bytes as RGB565 for {serial_number}: {hex_str} [...]")
 
     if not await _wait_for_display(hass, serial_number):                 # Display sperren
         _LOGGER.error(f"seems that display {serial_number} is permanently blocked. Please restart integration")
@@ -623,55 +624,58 @@ async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
 
     # Nun die Bilddaten in Blöcken senden
     await asyncio.sleep(0.05)
-    j = 1
     if fastlz is True:
-        compressed_len = 0
-        for i in range(0, len(data_565), CHUNK_SIZE):
-            chunk = data_565[i:i + CHUNK_SIZE]
-            compressed_chunk  = zlib.compress(chunk)
-            compressed_len   += len(compressed_chunk)
-            chunk_with_header = struct.pack("<HH", len(chunk), len(compressed_chunk[4:])) + compressed_chunk[4:]
-            await hass.async_add_executor_job(serial_port.write, chunk_with_header)
-            j += 1
-        _LOGGER.debug(f"Sent {compressed_len} bytes in {j} chunks of {CHUNK_SIZE} bytes")
+        for chunk in chunks:
+            #_LOGGER.debug(f"Chunk #{j}, chunk-len={len(chunk)} bytes, chunk={chunk[:40]}")     # enable only for VERY_DETAILLED_VERBOSE
+            await hass.async_add_executor_job(serial_port.write, chunk)
+            await hass.async_add_executor_job(serial_port.flush)
+            await asyncio.sleep(0.001)  # kleine Pause zwischen den Chunks
+        sizes = [len(c) for c in chunks]
+        total = sum(sizes)
+        if len(sizes) <= 6:
+            breakdown = " + ".join(str(s) for s in sizes)
+            _LOGGER.debug(f"FastLZ: {breakdown} = {total} bytes ({len(sizes)} chunks)")
+        else:
+            _LOGGER.debug(f"FastLZ: {len(sizes)} chunks, {total} bytes total, min={min(sizes)}, max={max(sizes)}, avg={total/len(sizes):.0f}")
     else:
-        for i in range(0, len(data_565), CHUNK_SIZE):
-            chunk = data_565[i:i + CHUNK_SIZE]
+        j = 0
+        for i in range(0, len(payload), CHUNK_SIZE):
+            chunk = payload[i:i + CHUNK_SIZE]
             await hass.async_add_executor_job(serial_port.write, chunk)
             await hass.async_add_executor_job(serial_port.flush)
             await asyncio.sleep(0.001)  # kleine Pause zwischen den Chunks
             j += 1
-        _LOGGER.debug(f"Sent {len(data_565)} bytes in {j} chunks of {CHUNK_SIZE} bytes")
+        _LOGGER.debug(f"Sent {len(payload)} bytes in {j} chunks of {CHUNK_SIZE} bytes")
 
     await _release_display(hass, serial_number)               # Display wieder freigeben
 
 
 async def _wait_for_display(hass, serial_number, timeout=5.0):
-    dev = hass.data[const.DOMAIN]["devices"][serial_number]
-    lock = dev["lock"]
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    lock = device["lock"]
 
     try:
         await asyncio.wait_for(lock.acquire(), timeout=timeout)
-        dev["state"] = "busy"
+        device["state"] = "busy"
         _LOGGER.debug(f"locked display {serial_number}")
     except asyncio.TimeoutError:
-        dev["state"] = "timeout error"
+        device["state"] = "timeout error"
         _LOGGER.error(f"{serial_number}: display busy timeout → switching to ERROR")
         return False
 
     # erfolgreich gelockt → Busy setzen
-    dev["state"] = "busy"
+    device["state"] = "busy"
     return True
 
 async def _release_display(hass, serial_number):
-    dev = hass.data[const.DOMAIN]["devices"][serial_number]
-    lock = dev["lock"]
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+    lock = device["lock"]
 
     if lock.locked():
         lock.release()
         _LOGGER.debug(f"released display {serial_number}")
 
-    dev["state"] = "ready"
+    device["state"] = "ready"
 
 
 #************************************************************************
@@ -688,7 +692,8 @@ async def _release_display(hass, serial_number):
 # reads a BMP-file and sends it out to the WeAct Display
 #************************************************************************
 async def show_bmp(hass, serial_number, xs = None, ys = None, filepath = None):
-    _LOGGER.debug("show a bmp file...")
+    _LOGGER.info("show a bmp file...")
+    _LOGGER.debug(f"given values: xs={xs}, ys={ys}, filepath={filepath}")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
@@ -765,7 +770,8 @@ async def show_bmp(hass, serial_number, xs = None, ys = None, filepath = None):
 # m: color
 #************************************************************************
 async def send_full_color(hass, serial_number, color):
-    _LOGGER.debug("filling display with one-color...")
+    _LOGGER.info("filling display with one-color...")
+    _LOGGER.debug(f"given values: color={color}")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
@@ -809,7 +815,8 @@ async def send_full_color(hass, serial_number, color):
 # m: old_color
 #************************************************************************
 async def replace_bg_color(hass, serial_number, old_color):
-    _LOGGER.debug("Replacing background")
+    _LOGGER.info("Replacing background")
+    _LOGGER.debug(f"given values: old-color={old_color}")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
@@ -870,7 +877,6 @@ async def display_selftest(hass, serial_number: str):
 # o: suppress_delete
 #************************************************************************
 async def generate_random(hass, serial_number, suppress_delete=False):
-#def generate_random(hass, serial_number):
     _LOGGER.debug("raising random bitmap")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
@@ -899,6 +905,12 @@ async def generate_random(hass, serial_number, suppress_delete=False):
         await send_bitmap(hass, serial_number, 0, 0, width, height, bytes(buf))
     except Exception as e:
         _LOGGER.error(f"[{const.DOMAIN}] error while sending (or generating?) the image: {e}")
+
+    if device.get("fastlz") is True:
+        device["fastlz"] = False
+    else:
+        device["fastlz"] = True
+    _LOGGER.debug(f"swapped fastlz option to {device.get("fastlz")}")
 
 
 #************************************************************************
@@ -950,8 +962,10 @@ async def show_init_screen(hass, serial_number):
 #************************************************************************
 # rotate from: https://stackoverflow.com/questions/45179820/draw-text-on-an-angle-rotated-in-python
 #************************************************************************
-async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_color = (255, 255, 255), rotation = 0):
-    _LOGGER.debug("show icon...")
+#async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_color = (255, 255, 255), rotation = 0):
+async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = None, i_color = None, rotation = None):
+    _LOGGER.info("show icon...")
+    _LOGGER.debug(f"values given: icon-name={i_name}, xs={xs}, ys={ys}, icon-size={i_size}, icon-color={i_color}, rotation={rotation}")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
@@ -962,6 +976,12 @@ async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_col
     else:
         i_color = normalize_color(i_color)
     _LOGGER.debug(f"colors after normalize: icon-color={i_color}")
+    if i_size is None:
+        i_size = 32
+        _LOGGER.debug(f"set icon-size to {i_size} as no parameter is given")
+    if rotation is None:
+        rotation = 0
+        _LOGGER.debug(f"set rotation to {rotation} as no parameter is given")
 
     icon = await load_icon(hass, i_name = i_name, i_size = i_size, i_color = i_color, rotation = rotation)
     icon = icon.convert("RGBA")
@@ -995,6 +1015,7 @@ async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_col
 #************************************************************************
 async def draw_line(hass, serial_number, xs, ys, xe, ye, l_color = (255, 255, 255), l_width = 1):
     _LOGGER.info("draw a line ...")
+    _LOGGER.debug(f"values given: xs={xs}, ys={ys}, xe={xe}, ye={xe}, line-color={l_color}, line-width={l_width}")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
@@ -1027,10 +1048,11 @@ async def draw_line(hass, serial_number, xs, ys, xe, ye, l_color = (255, 255, 25
 # o: ellipse, set to radius if not given
 # o: circle-color, default = white (255, 255, 255)
 # o: fill-color, default = red (255, 0, 0)
-# o: circle-frame width, default = 1
+# o: circle-frame-width, default = 1
 #************************************************************************
-async def draw_circle(hass, serial_number, xp, yp, r, e = None, c_color = (255, 255, 255), f_color = (255, 0, 0), cf_width = 0):
+async def draw_circle(hass, serial_number, xp, yp, r, e = None, c_color = (255, 255, 255), f_color = (255, 0, 0), cf_width = None):
     _LOGGER.info("draw a circle ...")
+    _LOGGER.debug(f"given values: xp={xp}, yp={yp}, r={r}, e={e}, circle-color={c_color}, fill-color={f_color}, circle-frame-width={cf_width}")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
@@ -1083,19 +1105,20 @@ async def draw_circle(hass, serial_number, xp, yp, r, e = None, c_color = (255, 
 # m: Y start
 # m: X end
 # m: Y end
-# o: rectangle-frame width, default = 1
-# o: rectangle-frame-color, default = white (255, 255, 255)
-# o: fill-color, default = None, if no value given, same as the frame color
+# o: rectangle-frame width, default = None
+# o: rectangle-frame-color, default = None
+# o: fill-color, default = None
 #************************************************************************
-async def draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width = 1, rf_color = (255, 255, 255), f_color = None):
+async def draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width = None, rf_color = None, f_color = None):
     _LOGGER.info("draw a rectangle ...")
+    _LOGGER.debug(f"values given: xs={xs}, ys={ys}, xe={xe}, ye={xe}, rectangle-frame-width={rf_width}, rectangle-frame-color={rf_color}, fill-color={f_color}")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     if rf_width is None:
-        _LOGGER.debug(f"set rectangle-frame-width to {rf_width} as no parameter is given")
         rf_width = 1
+        _LOGGER.debug(f"set rectangle-frame-width to {rf_width} as no parameter is given")
     if rf_color is None:
         rf_color = (255, 255, 255)
         _LOGGER.debug(f"set rectangle-frame-color to {rf_color} as no parameter is given")
@@ -1103,7 +1126,6 @@ async def draw_rectangle(hass, serial_number, xs, ys, xe, ye, rf_width = 1, rf_c
         rf_color = normalize_color(rf_color)
     if f_color is not None:
         f_color = normalize_color(f_color)
-
     _LOGGER.debug(f"colors after normalize: rectangle-frame-color={rf_color}, fill-color={f_color}")
 
     # Schattenbild abholen
@@ -1193,13 +1215,18 @@ async def draw_triangle(hass, serial_number, xa, ya, xb, yb, xc, yc, t_color = N
 # o: background-color
 # o: text-color, default = white (255, 255, 255)
 # o: rotation
+# o: clear_workspace, default = True
 #************************************************************************
-async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, t_color = None, bg_color = None, rotation = 0):
-    _LOGGER.debug(f"writing some text with values given: serial-number={serial_number}, text={text}, xs={xs}, ys={ys}, xe={xe}, ye={ye}, font-size={font_size}, text-color={t_color}, background-color={bg_color}, rotation={rotation}")
+async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, t_color = None, bg_color = None, rotation = 0, clear_workspace = None):
+    _LOGGER.info(f"writing some text")
+    _LOGGER.debug(f"given values: serial-number={serial_number}, text={text}, xs={xs}, ys={ys}, xe={xe}, ye={ye}, font-size={font_size}, text-color={t_color}, background-color={bg_color}, rotation={rotation}, clear-workspace={clear_workspace}")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
+    if clear_workspace is None:
+        clear_workspace = True
+        _LOGGER.debug(f"set clear-workspace to {clear_workspace} as no parameter is given")
     if t_color is None:
         t_color = (255, 255, 255)
         _LOGGER.debug(f"set text-color to {t_color} as no parameter is given")
@@ -1241,12 +1268,14 @@ async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, 
 
     img = device.get("shadow")
     draw = ImageDraw.Draw(img)
-
     _LOGGER.debug("fetched image from instance")
+
+    if clear_workspace is True:
+        draw.rectangle((xs, ys, xe, ye), fill = bg_color)
+        _LOGGER.debug(f"cleared workspace xs={xs}, ys={ys}, xe={xe}, ye={ye} with color={bg_color}")
 
     # Text
     font = ImageFont.load_default(size = font_size)
-    draw.rectangle((xs, ys, xe, ye), fill = bg_color)
     draw.text((xs, ys), text, fill = t_color, font = font)
     _LOGGER.debug("wrote text into the image")
 
@@ -1279,7 +1308,8 @@ async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, 
 # o: rotation, default = 90
 #************************************************************************
 async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None, min_value=0, max_value=100, bf_width=1, bf_color=None, b_color=(255, 255, 255), bg_color=None, rotation = 90, show_value=False, val_appendix=""):
-    _LOGGER.debug(f"doing a progress with the values given: xs={xs}, ys={ys}, xe={xe}, ye={ye}, bar-value={bar_value}, min-value={min_value}, max-value={max_value}, bar-frame-width={bf_width}, bar-color={b_color}, bar-frame-color={bf_color}, background-color={bg_color}, rotation={rotation}, show-value={show_value}, value-appendix={val_appendix}")
+    _LOGGER.info(f"drawing a progress bar")
+    _LOGGER.debug(f"given values: xs={xs}, ys={ys}, xe={xe}, ye={ye}, bar-value={bar_value}, min-value={min_value}, max-value={max_value}, bar-frame-width={bf_width}, bar-color={b_color}, bar-frame-color={bf_color}, background-color={bg_color}, rotation={rotation}, show-value={show_value}, value-appendix={val_appendix}")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
@@ -1456,15 +1486,16 @@ async def generate_qr(hass, serial_number, data, xs, ys, size=None, qr_color=Non
 # m: line_values
 # m: line_width
 # o: line_color
+# o: fill_color
 # o: axis_color
 # o: workspace_color
 # o: mark_points
 # o: clear_workspace
 # o: ground_to_min_val
 #************************************************************************
-async def draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values, line_width=None, line_color=None, axis_color=None, workspace_color=None, mark_points=None, clear_workspace=None, ground_to_zero=None):
+async def draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values, line_width=None, line_color=None, axis_color=None, workspace_color=None, fill_color=None, mark_points=None, clear_workspace=None, ground_to_zero=None):
     _LOGGER.info(f"drawing a line chart")
-    _LOGGER.debug(f"given values: xs={xs}, ys={ys}, xe={xe}, ye={ye}, line-values={line_values}, line-width={line_width}, line-color={line_color}, axis-color={axis_color}, workspace-color={workspace_color}, mark-points={mark_points}, clear-workspace={clear_workspace}, ground-to-zero={ground_to_zero}")
+    _LOGGER.debug(f"given values: xs={xs}, ys={ys}, xe={xe}, ye={ye}, line-values={line_values}, line-width={line_width}, line-color={line_color}, axis-color={axis_color}, workspace-color={workspace_color}, fill-color={fill_color}, mark-points={mark_points}, clear-workspace={clear_workspace}, ground-to-zero={ground_to_zero}")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
@@ -1493,7 +1524,9 @@ async def draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values, line
     workspace_color = normalize_color(workspace_color)
     if axis_color is not None:                       # Farbwerte für Achse wurden übermittelt, also sollen die Achsen angezeigt werden
         axis_color = normalize_color(axis_color)
-    _LOGGER.debug(f"colors after normalize: line-color={line_color}, workspace-color={workspace_color}, axis-color={axis_color}")
+    if fill_color is not None:                       # Farbwerte für Füllung wurden übermittelt, also soll die Fläche zwischen Diagramm und Achse gefüllt werden
+        fill_color = normalize_color(fill_color)
+    _LOGGER.debug(f"colors after normalize: line-color={line_color}, workspace-color={workspace_color}, axis-color={axis_color}, fill-color={fill_color}")
 
     # Konvertiere mögliche Line_value-Strings in Line_value-Tupel
     _LOGGER.debug(f"BEFORE normalize: line-values={line_values!r}, type={type(line_values)}")
@@ -1531,7 +1564,7 @@ async def draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values, line
 
     step_size = (xe - xs) / (len(line_values) - 1)
     chart_height = ye - ys
-    _LOGGER.debug(f"calculated step-size to {step_size} and chart-height to {chart_height}")
+    _LOGGER.debug(f"calculated step-size to {step_size} px and chart-height to {chart_height} px")
 
     line_chart_points = []
     for idx, value in enumerate(line_values):
@@ -1545,11 +1578,17 @@ async def draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values, line
     draw = ImageDraw.Draw(img)
     _LOGGER.debug("fetched image from instance")
 
-    if clear_workspace is True:
+    if clear_workspace is True:                         # optional Arbeitsbereich leeren
         draw.rectangle((xs, ys, xe, ye), fill = workspace_color)
         _LOGGER.debug(f"cleared workspace xs={xs}, ys={ys}, xe={xe}, ye={ye} with workspace-color={workspace_color}")
 
-    draw.line(line_chart_points, fill=line_color, width=line_width)
+    if fill_color is not None:                     # wenn nach unten ausgefüllt werden soll, müssen wir das VORHER machen
+        y_zero = ye - ((0 - values_min) / (values_max - values_min) * chart_height)
+        fill_points = [(line_chart_points[0][0], y_zero), *line_chart_points, (line_chart_points[-1][0], y_zero)]
+        draw.polygon(fill_points, fill=fill_color)
+        _LOGGER.debug(f"filled everything below the chart with color {fill_color}")
+
+    draw.line(line_chart_points, fill=line_color, width=line_width)         # erst dann das Diagramm itself malen
     _LOGGER.debug(f"drew line chart points")
 
     if mark_points is True:
@@ -1561,6 +1600,115 @@ async def draw_line_chart(hass, serial_number, xs, ys, xe, ye, line_values, line
         draw.line((xs, ys, xs, ye), fill=axis_color)           # Y-Axis
         draw.line((xs, ye, xe, ye), fill=axis_color)           # X-Axis
         _LOGGER.debug(f"drew both axis with color {axis_color}")
+
+    await send_screen(hass, serial_number)
+
+#************************************************************************
+#        D R A W  A  B A R  C H A R T
+#************************************************************************
+# draws a bar chart
+#************************************************************************
+# m: hass
+# m: serial_number
+# m: data
+# m: xs
+# m: ys
+# m: xe
+# m: ye
+# m: bar_values
+# o: bar_width
+# o: bar_color
+# o: axis_color
+# o: workspace_color
+# o: clear_workspace
+#************************************************************************
+async def draw_bar_chart(hass, serial_number, xs, ys, xe, ye, bar_values, bar_width=None, bar_color=None, axis_color=None, workspace_color=None, clear_workspace=None):
+    _LOGGER.info(f"drawing a bar chart")
+    _LOGGER.debug(f"given values: xs={xs}, ys={ys}, xe={xe}, ye={ye}, bar-values={bar_values}, bar-width={bar_width}, bar-color={bar_color}, axis-color={axis_color}, workspace-color={workspace_color}, clear-workspace={clear_workspace}")
+
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+
+    if bar_color is None:
+        bar_color = (255, 255, 255)
+        _LOGGER.debug(f"set bar-color to {bar_color} as no parameter is given")
+    if workspace_color is None:
+        workspace_color = device.get("background_color")
+        _LOGGER.debug(f"set workspace-color to displays' default bg-color {workspace_color} as no parameter is given")
+    if clear_workspace is None:
+        clear_workspace = True
+        _LOGGER.debug(f"set clear-workspace to {clear_workspace} as no parameter is given")
+
+    # Konvertiere mögliche Stringfarben in RGB-Tupel
+    bar_color = normalize_color(bar_color)
+    workspace_color = normalize_color(workspace_color)
+    if axis_color is not None:                       # Farbwerte für Achse wurden übermittelt, also sollen die Achsen angezeigt werden
+        axis_color = normalize_color(axis_color)
+    _LOGGER.debug(f"colors after normalize: bar-color={bar_color}, workspace-color={workspace_color}, axis-color={axis_color}")
+
+    # Konvertiere mögliche Line_value-Strings in Line_value-Tupel
+    _LOGGER.debug(f"BEFORE normalize: bar-values={bar_values!r}, type={type(bar_values)}")
+    if isinstance(bar_values, str):
+        bar_values = bar_values.strip()
+        if ";" in bar_values:                        # CSV aus Helper
+            _LOGGER.debug("found csv data in bar-values")
+            bar_values = [
+                float(v)
+                for v in bar_values.split(";")
+                if v.strip()
+            ]
+        else:                                         # Python-Liste oder Tupel
+            try:
+                bar_values = ast.literal_eval(line_values)
+            except Exception:
+                bar_values = [
+                    float(v)
+                    for v in bar_values.split(",")
+                    if v.strip()
+                ]
+    _LOGGER.debug(f"AFTER normalize: bar-values={bar_values!r}, type={type(bar_values)}")
+
+    # Konvertiere mögliche bar_value-Strings in bar_value-Tupel
+    values_min = min(0, min(bar_values))
+    values_max = max(1, max(bar_values))
+    _LOGGER.debug(f"value-boundaries: min={values_min}, max={values_max}")
+    if values_min == values_max:
+        values_max += 1
+        _LOGGER.debug(f"min and max are the same, adding 1 to max-value: {values_max}")
+
+    # Schattenbild abholen
+    img = device.get("shadow")
+    draw = ImageDraw.Draw(img)
+    _LOGGER.debug("fetched image from instance")
+
+    if clear_workspace is True:                         # optional Arbeitsbereich leeren
+        draw.rectangle((xs, ys, xe, ye), fill = workspace_color)
+        _LOGGER.debug(f"cleared workspace xs={xs}, ys={ys}, xe={xe}, ye={ye} with workspace-color={workspace_color}")
+
+    chart_height = ye - ys
+    chart_width = xe - xs
+    bar_count = len(bar_values)                 # Anzahl der Balken
+    step_size = chart_width / bar_count         # Tatsächlicher Abstand/Mittelpunkt der Balken
+    if bar_width is None:                       # Abstand zwischen den Balken., wenn keine Breite vorgegeben wurde, wird der verfügbare Platz gleichmäßig auf die Balken verteilt.
+        bar_width = max(1, step_size * 0.7)
+        _LOGGER.debug(f"self-calculated bar-width to {bar_width} as no parameter is given")
+    _LOGGER.debug(f"bar-chart parameters: chart-height={chart_height}, chart-width={chart_width}, bar-count={bar_count}, step-size={step_size}, bar-width={bar_width}")
+
+    for idx, value in enumerate(bar_values):
+        # linke und rechte X-Koordinate des Balkens
+        center_x = xs + (idx + 0.5) * step_size
+        bar_xs = center_x - bar_width / 2
+        bar_xe = center_x + bar_width / 2
+
+        # Y-Koordinate der Balkenspitze
+        bar_ys = ye - ((value - values_min) / (values_max - values_min) * chart_height)
+
+        # Balken zeichnen
+        draw.rectangle([(bar_xs, bar_ys), (bar_xe, ye)], fill=bar_color)
+        _LOGGER.debug(f"drew bar-chart for value #{idx} with value {value} at center-x={center_x}, xs={bar_xs}, ys={bar_ys}, xe={bar_xe}, ye={ye}")
+
+    if axis_color is not None:                       # Achse soll nur angezeigt werden, wenn eine Farbe dafür übergeben wurde
+        draw.line((xs, ye, xe, ye), fill=axis_color)           # X-Axis
+        _LOGGER.debug(f"drew X-Axis with color {axis_color}")
 
     await send_screen(hass, serial_number)
 
