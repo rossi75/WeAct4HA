@@ -1,33 +1,51 @@
 # changelog
 
 ## V0.x.x - 2026
-~ fix startup message complaining non-unique ID  
 ~ respond to unplug if possible or to exit from serial_reader()  
-~ move screencare into screencare.py  
+~ move screencare into screencare.py or tools.py or commands.py  
 ~ move serial communication from __init__.py and commands.py into serial.py  
-~ add service to display a bar chart  
-~ speed-up serial communication  
 ~ order alignment all the same in services > init > commands  
-~ digital clock (background) colors should also be "None"  
+~ try to re-establish the connection once after 5/10 seconds of loss
+
+## V0.6.5 - 13.07.-30.08.2026
+- clear_workspace option for send_text service, needs to be set manually to false, as it is enabled by default
+- updated description for rectangle service (deleted filling hint in services.yaml)
+- added option in line_chart service to fill the "space" between the diagram and the axis with a fill_color
+- added service to display a bar_chart, initial parts forked from line_chart
+- digital_clock now accepts all layout parameters with None except the hardware parameter
+- added small info messages (in dev-options/actions) for draw_text, show_bmp, replace_background_color,
+  full_color, show_icon, draw_line and draw_line_chart
+- improved services stability in draw_circle, show_icon and draw_rectangle (accepts options as None)
+- added async_remove_config_entry_device() in init.py to remove the device properly via kontext menu
+- reverse engineered fastLZ protocol (level 2) and activated option for fastLZ transmission in config-flow. Because it ~may~ will
+  result in higher CPU load while calculating, it needs to be enabled separately. Default is off=false=disabled
+- added new switch to change fastLZ protocol in UI
+- added new service to set fastLZ protocol via yaml
+- added fastlz attribute in displays' sensor
+- option for screencare (and fastlz) was not written to internal data struct (runtime), only to homeassistants entity
+  storage, which is being read after reloading
 
 ## V0.6.4 - 12.06.-11.07.2026
 - all options available in .py are now reachable also via services
 - line chart could not show axis, as the colors were not normalized
-- added option for line chart to clear the workspace before drawing (enabled by default). So you can, if disabled, display several diagrams into one chart
+- added option for line chart to clear the workspace before drawing (enabled by default). So you can,
+  if manually disabled via option, display several diagrams into one chart
 - improved stability for line chart values, accepted formats: 15;12;14;17;... or 15,12,14,17,... or [15,12,14,17,...] or (15,12,14,17,...)
-- removed background-color, added new option for workspace color. If no workspace color is given, but workspace should be cleared, displays background-color will be taken
+- line chart: removed background-color, added new option for workspace color. If no workspace color is given,
+  but workspace should be cleared, displays background-color will be taken
 - removed unneccessary services "send bitmap raw" and "send bitmap"
 
 ## V0.6.3 - 31.05.-02.06.2026
 - added service to display a QR code, uses the devices background-color if no value given
-- added service to change the background-color into persistent storage, with an option to replace pixels with old_color to new_color and update screen immediately
+- added service to change the background-color into persistent storage, with an option to replace pixels
+  with old_color to new_color and update screen immediately
 - added service to display a line chart
 - HA popup only pops up if a first device is connected. All other devices need to be set up via "add entry" within the integration
 - improved serial initialization, skipping initial STTY-setup
 - prepared fastlz option (but need to find the correct fastlz algorithm and chunk-size),
   would not (!) speed up the display itself, only the transmission, which results in less busy-time
 - disabled serial-port check for all non-direct commands
-- removed loading sensor from async_setup
+- removed loading sensor from async_setup, which fixed the startup-message complaining the non-uniqe ID
 
 ## V0.6.2 - 08.-15.05.2026
 - improved Config Flow dialog texts
@@ -235,7 +253,6 @@
 - hello world is being displayed fine: RGB565 / landscape
 - show icon (size, colour, bg_colour, x, y, rotation) (does not work actually)
 - parts of the analog clock even working
-
 
 ## V0.1.8 - 28.10.2025
 - brightness can be set via slider
