@@ -3,13 +3,19 @@ provides an integration in home assistant for the Display FS 0.96 Inch and FS V1
 
 ## Overview
 provides a simple interface for the WeAct Display FS V1 and FS 0.96 Inch with various routines to access the display. If more displays will come up, we can simply add a new model into models.py. The display itself needs to be connected directly via USB to the host PC. Not tested on virtual machines.
+It seems that other displays will work too, but due to lack of hardware I cannot confirm this:
+https://github.com/mathoudebine/turing-smart-screen-python
+
+![image info](./example.bmp)
 
 ## features
 - registers as device
-- auto-discovery at startup (nope, due to config-flow, not anymore possible since 0.6.0)
-- Integration entity available with sensors and some little options (clock, brightness, orientation, background color)
-- color test on startup/script init, finishes with background color
+- config-flow compatible
+- automatic detection (pop-up) if plugged in in runtime, no further crash if no display is plugged in at startup
+- Integration entity available with sensors and some little options (clock, brightness, orientation, screensaver)
 - display initialization
+- reads temperature and humidity from displays supported
+- color test on startup/script init, finishes with background color
 - service for manual color test, finishes with black screen
 - service for random pixels
 - service for orientation
@@ -22,23 +28,23 @@ provides a simple interface for the WeAct Display FS V1 and FS 0.96 Inch with va
 - service to show an analog clock
 - service to show a digital clock
 - service to draw an icon
-- reads temperature and humidity from displays supported
-- entity to set brightness via slider, writing back to persistent store since 0.6.1
-- entity to set clock-mode via selector
-- entity to set orientation via selector, writing back to persistent store since 0.6.1
-- service to draw a triangle
-- service to draw a bmp onto the screen, including downsizing
-- config-flow compatible
-- entity to set background color via rgb-selector, writing back to persistent store since 0.6.1
-- entity to set screencare via switch, writing back to persistent store since 0.6.1
-- automatic detection (pop-up) if plugged in in runtime, no further crash if no display is plugged in at startup
 - service to draw a QR code
 - service to draw a line chart
+- service to draw a bar chart
+- service to draw a triangle
+- service to draw a bmp onto the screen, including downsizing
+- service to set background color via rgb-selector, writing back to persistent store since 0.6.1
+- entity to set clock-mode via selector
+- entity to set brightness via slider, writing back to persistent store since 0.6.1
+- entity to set orientation via selector, writing back to persistent store since 0.6.1
+- entity to set screencare via switch, writing back to persistent store since 0.6.1
+- entity to set fastlz via switch, writing back to persistent store since 0.6.3
 
 ## restrictions
 - any draw/write actions only overwrite the specified area, they do not delete the whole screen. To clear the screen
   or area, draw a rectangle with the desired background color on the whole screen
 - display uses RGB565 ! ALWAYS use RGB888, as we calculate it ourself to RGB565
+- changing background color not possible via GUI after 1st administration. Either use or service/action or delete and re-add the display
 
 ## known issues
 - digital clock in portrait orientation uses wrong coordinates (!! need to fix !!) --> __init__.py, bei set_orientation() muss das Bild neu definiert und gezeichnet werden
@@ -46,11 +52,6 @@ provides a simple interface for the WeAct Display FS V1 and FS 0.96 Inch with va
 - if display is newly connected, HA needs a restart to reflect the clock-mode accurate (need to fix)
 - cannot change clock-mode immediately once after once, need to await the next minute cycle before any further change
   (maybe I will fix it anytime)
-- change background color not possible via GUI after 1st administration. Either use or service/action or delete and re-add the display
-
-- does not save the orientation for each display (need to enhance it anytime) -> fixed in v0.6.1 !
-- display is being recognized only if plugged in at HA startup (maybe I will fix it anytime -> v0.6.0)
-- integration does not start up if NO display is being recognized (maybe I will fix it anytime -> v0.6.0)
 
 
 ## see also:
