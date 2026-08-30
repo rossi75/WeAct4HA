@@ -30,6 +30,7 @@ you have the initial screen where you can set some things like the device itself
 - set the standard brightness after startup. You can set this also later directly in the device options
 - choose the background color. Later, you cannot change this setting via the device options, only via the actions/services in the developer menu. This is due to the fact that there is no property that gives me the possibility to ONLY have a color picker
 - for normal operation, the display shows in 24 hours nearly always the same. So I added a screencare option. With this option enabled, the display is filled with many random pixels. Every day at 03:37:00 to 03:37:59. 03:37 is the standard Gigaset reset time. If you don't want this because you need the display at 03:37 in the night, please disable this option
+- there is an option for fast transmission. this uses fastlz level2 for transmitting data. due to the extra load, this feature needs to be enabled manually
 - click OK, done !
 
 ---
@@ -42,13 +43,13 @@ Here I will explain the few GUI options.
   in digital mode, a digital clock is being displayed in the center of the display with standard colors
   in analog mode, an analog clock is being displayed with standard colors
   If you need any customization on a clock, you need to call the service manually and customize the settings
+- FastLZ - as explained in #3
 - Orientation - as explained in #3
 - Screencare - as explained in #3
 
 If the display is equipped with a humiture sensor, those values are reported in the Sensors section. Humidity and Temperature is shown here.
 
 If you take a look at the displays entities (developer tools/states/sensor.weact_display_*), you will notice some attributes. Turn on the developer options to see much more of them...
-
 
 ---
 ## 5. How to use?
@@ -59,11 +60,18 @@ Everytime an update is being sent to the display, a replica is taken into your .
 
 ---
 ## 6. all services explained
-Well, this will be a long list. I will try to abbreviate it as much as possible
+Well, this will be a long list. I will try to abbreviate it as much as possible and as detailled as needed. This will be enhanced from time to time
+
+h) Draw an Icon
+   - choose an icon from your preference which you want to show.
+   - mandatory parameters are the location (xs, ys)
+   - if no size is given, we assume 32 pixels
+   - if no color is given, we assume white
 
 ---
 ## 7. Examples
 a) First of all I have the clock. Here I created an automation that runs 10 minutes after startup and enables the analog clock:
+
 ```
 alias: display clock at startup
 triggers:
@@ -83,6 +91,7 @@ actions:
       display: 433e5e413e13f7960ba789988b4e21b3
 mode: single
 ```
+
 b) Next is my DSL. As this sometimes starts flattering, I wanted to have an optical message for this, a red icon appears.  
 As soon as the connection is back in town, the icon is painted green and after 10 minutes of a stable connection, the icon gets black (as my background color):
 
@@ -181,11 +190,12 @@ actions:
       entity_id: input_text.cpu_history
     data:
       value: >
-        {% set current = states('input_text.cpu_history') %}
-        {% set history = current.split(';') if current not in ['unknown','unavailable','']
+        {% set current = states('input_text.cpu_history') %} {% set history =
+        current.split(';')
+             if current not in ['unknown','unavailable','']
              else [] %}
-        {% set value = states('sensor.processor_use') | int %}
-        {{ (history[-83:] + [value]) | join(';') }}
+        {% set value = states('sensor.processor_use') | int %} {{ ([value] +
+        history[-83:]) | join(';') }}
     alias: Aktuelle CPU-Last lesen und speichern
   - action: weact_display.write_text
     alias: Überschrift malen

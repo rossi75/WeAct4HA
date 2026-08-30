@@ -55,7 +55,7 @@ hass.data[weact_display]["devices"][serial_number]
 | screencare_target         | DateTime   | None          | next_screencare          | only if screencare is enabled                              |
 | background_color          | Tupel      | [0, 0, 0]     | background_color*        |                                                            |
 | humidity                  | Integer    | None          | humidity**               |                                                            |
-| fastlz                    | Boolean    | False         | dbg_fastlz***            |                                                            |
+| fastlz                    | Boolean    | False         | fastlz                   | FastLZ level2 for picture transmission                     |
 | temperature               | Integer    | None          | temperature**            |                                                            |
 |                           | String     | °C            | temperature_unit**       |                                                            |
 | device_path               | String     |               | dbg_dev_path***          | friendly name from serial port                             |
@@ -63,10 +63,10 @@ hass.data[weact_display]["devices"][serial_number]
 | who_am_i                  | String     | None          | dbg_who_am_i***          |                                                            |
 | firmware_version          | String     | None          | dbg_firmware_version***  |                                                            |
 | humiture                  | Boolean    | False         | dbg_humiture***          | Humiture Sensor available? [False\|True]                   |
-| entry_id                  | String     | None          | dbg_entry_id***          |                                                            |
-| device_id                 | String     | None          | dbg_device_id***         |                                                            |
+| entry_id                  | String     | None          | dbg_entry_id***          | Homeassistants internal entry_id                           |
+| device_id                 | String     | None          | dbg_device_id***         | Homeassistants internal device_id                          |
 | lock                      | Function   | function      |                          | used for while an image is being send, avoids collisions   |
-| shadow                    | Image Data | 0x000000...   |                          | width * height * 3, the BMP itself                         |
+| shadow                    | Image Data | 0x000000...   |                          | width * height * 3, the BMP itself as RGB888               |
 
 \* also available as seperate entity
 ** only available as separate entity if humiture sensor is also available
@@ -97,14 +97,14 @@ entry.data.
 
 
 entry.options.
-| Tupel             | since version | Data Type | Default   | Description                     |
-|-------------------|---------------|-----------|-----------|---------------------------------|
-| entry_id          | 0.6.0         | String    |           |                                 |
-| orientation_value | 0.5.5         | String    | 2         |                                 |
-| background_color  | 0.5.5         | Tupel     | (0, 0, 0) |                                 |
-| brightness        | 0.6.0         | String    | 7         |                                 |
-| screencare        | 0.6.0         | Boolean   | True      | [True/False]                    |
-| fastlz            | 0.6.3         | Boolean   | False     | [True/False] actually unused    |
+| Tupel             | since version | Data Type | Default   | Description  |
+|-------------------|---------------|-----------|-----------|--------------|
+| entry_id          | 0.6.0         | String    |           |              |
+| orientation_value | 0.5.5         | String    | 2         |              |
+| background_color  | 0.5.5         | Tupel     | (0, 0, 0) |              |
+| brightness        | 0.6.0         | String    | 7         |              |
+| screencare        | 0.6.0         | Boolean   | True      | [True/False] |
+| fastlz            | 0.6.3         | Boolean   | False     | [True/False] |
 
 
 ### Orientation Settings:
@@ -153,5 +153,13 @@ ich glaube das hier ist falsch, 0.6.0 bis 0.6.1:
  [2,0,1,3],
  [1,3,0,2],
  [3,1,2,0]]
+
+
+### Bytesizes
+
+| Display         |  X  x  Y  | Pixel  | RGB888 | RGB565 | FastLZ |
+|-----------------|-----------|--------|--------|--------|--------|
+| FS V1           | 320 x 480 | 153600 | 460800 | 307200 | <10000 |
+| FS V1 0.96 Inch |  80 x 160 |  12800 |  38400 |  25600 |  ~2500 |
 
 
