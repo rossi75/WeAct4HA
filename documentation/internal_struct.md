@@ -55,7 +55,7 @@ hass.data[weact_display]["devices"][serial_number]
 | screencare_target         | DateTime   | None          | next_screencare          | only if screencare is enabled                              |
 | background_color          | Tupel      | [0, 0, 0]     | background_color*        |                                                            |
 | humidity                  | Integer    | None          | humidity**               |                                                            |
-| fastlz                    | Boolean    | False         | fastlz                   | FastLZ level2 for picture transmission                     |
+| fastlz                    | Boolean    | False         | fastlz*                  | FastLZ level2 for picture transmission                     |
 | temperature               | Integer    | None          | temperature**            |                                                            |
 |                           | String     | °C            | temperature_unit**       |                                                            |
 | device_path               | String     |               | dbg_dev_path***          | friendly name from serial port                             |
