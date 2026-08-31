@@ -7,6 +7,9 @@
 ~ order alignment all the same in services > init > commands  
 ~ try to re-establish the connection once after 5/10 seconds of loss
 
+## V0.6.6 - 31.08.2026
+- oops, display_random still contained some developer code to swap fastlz option
+
 ## V0.6.5 - 13.07.-30.08.2026
 - clear_workspace option for send_text service, needs to be set manually to false, as it is enabled by default
 - updated description for rectangle service (deleted filling hint in services.yaml)
