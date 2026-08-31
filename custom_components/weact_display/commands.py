@@ -906,12 +906,6 @@ async def generate_random(hass, serial_number, suppress_delete=False):
     except Exception as e:
         _LOGGER.error(f"[{const.DOMAIN}] error while sending (or generating?) the image: {e}")
 
-    if device.get("fastlz") is True:
-        device["fastlz"] = False
-    else:
-        device["fastlz"] = True
-    _LOGGER.debug(f"swapped fastlz option to {device.get("fastlz")}")
-
 
 #************************************************************************
 #        I N I T  S C R E E N
