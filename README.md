@@ -8,7 +8,7 @@ https://github.com/mathoudebine/turing-smart-screen-python
 
 ![image info](./documentation/example.bmp)
 
-## features
+## Features
 - registers as device
 - config-flow compatible
 - automatic detection (pop-up) if plugged in in runtime, no further crash if no display is plugged in at startup
@@ -40,13 +40,13 @@ https://github.com/mathoudebine/turing-smart-screen-python
 - entity to set screencare via switch, writing back to persistent store since 0.6.1
 - entity to set fastlz via switch, writing back to persistent store since 0.6.3
 
-## restrictions
+## Restrictions
 - any draw/write actions only overwrite the specified area, they do not delete the whole screen. To clear the screen
   or area, draw a rectangle with the desired background color on the whole screen
 - display uses RGB565 ! ALWAYS use RGB888, as we calculate it ourself to RGB565
 - changing background color not possible via GUI after 1st administration. Either use or service/action or delete and re-add the display
 
-## known issues
+## Known Issues
 - digital clock in portrait orientation uses wrong coordinates (!! need to fix !!) --> __init__.py, bei set_orientation() muss das Bild neu definiert und gezeichnet werden
 - analog clock in portrait orientation results in shit (!! need to fix !!) --> same as before
 - if display is newly connected, HA needs a restart to reflect the clock-mode accurate (need to fix)
@@ -54,11 +54,10 @@ https://github.com/mathoudebine/turing-smart-screen-python
   (maybe I will fix it anytime)
 
 
-## see also:
-- changelog: https://github.com/rossi75/WeAct4HA/blob/main/documentation/changelog.md
-- next steps: https://github.com/rossi75/WeAct4HA/blob/main/documentation/ToDo.md
-- internal struct: https://github.com/rossi75/WeAct4HA/blob/main/documentation/internal_struct.md
-- next steps: https://github.com/rossi75/WeAct4HA/blob/main/documentation/notes.md
-
-
+## See also:
+- User Guide: https://github.com/rossi75/WeAct4HA/blob/main/documentation/user_guide.md
+- Changelog: https://github.com/rossi75/WeAct4HA/blob/main/documentation/changelog.md
+- Next Steps: https://github.com/rossi75/WeAct4HA/blob/main/documentation/ToDo.md
+- Internal Struct: https://github.com/rossi75/WeAct4HA/blob/main/documentation/internal_struct.md
+- Notes: https://github.com/rossi75/WeAct4HA/blob/main/documentation/notes.md
 
