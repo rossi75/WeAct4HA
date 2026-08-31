@@ -6,7 +6,7 @@ provides a simple interface for the WeAct Display FS V1 and FS 0.96 Inch with va
 It seems that other displays will work too, but due to lack of hardware I cannot confirm this:
 https://github.com/mathoudebine/turing-smart-screen-python
 
-![image info](./example.bmp)
+![image info](./documentation/example.bmp)
 
 ## features
 - registers as device
