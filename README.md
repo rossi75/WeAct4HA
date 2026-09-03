@@ -1,5 +1,11 @@
 # WeAct4HA
-provides an integration in home assistant for the Display FS 0.96 Inch and FS V1
+provides an integration in Home Assistant for the WeAct Display FS 0.96 Inch and  WeAct Display FS V1
+
+> [!WARNING]
+> 
+> This project is **not affiliated, associated, authorized, endorsed by, or in any way officially connected with WeAct**, or any of theirs subsidiaries, affiliates, manufacturers or sellers of their products. All product and company names are the registered trademarks of their original owners.
+> 
+> This project is an open-source alternative software for Home Assistant, this is NOT the original software provided for the smart screens. **Please do not open issues for USBMonitor.exe or for the smart screens hardware here**.
 
 ## Overview
 provides a simple interface for the WeAct Display FS V1 and FS 0.96 Inch with various routines to access the display. If more displays will come up, we can simply add a new model into models.py. The display itself needs to be connected directly via USB to the host PC. Not tested on virtual machines.
