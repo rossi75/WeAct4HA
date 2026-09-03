@@ -124,7 +124,7 @@ entry.options.
  +--------------------+    
 ```
 | Orientation        | Value | Rot. |
-|--------------------|-------|------|
+|:-------------------|:-----:|-----:|
 | PORTRAIT           | 0     |    0 |
 | PORTRAIT_REVERSE   | 1     | -180 |
 | LANDSCAPE          | 2     |  -90 |
@@ -133,26 +133,48 @@ entry.options.
 
 
 ### vorhandenes Bild anhand der alten und der neuen Orientierung mehrmals um -90° drehen:
+<table>
+<tr>
+<td valign="top">
 
- old |  90 | 270 |  0  | 180        old | 0 | 1 | 2 | 3
- new ------------------------       new ----------------
-  90 |  -  |  2  |  3  |  1           0 | - | 2 | 3 | 1
- 270 |  2  |  -  |  1  |  3           1 | 2 | - | 1 | 3
-   0 |  1  |  3  |  -  |  2           2 | 1 | 3 | - | 2
- 180 |  3  |  1  |  2  |  -           3 | 3 | 1 | 2 | -
+### <br>Degrees
+| old <br> new  |  90 | 270 |  0  | 180 |
+|----:|:---:|:---:|:---:|:---:|
+|  90 |  -  |  2  |  3  |  1  |
+| 270 |  2  |  -  |  1  |  3  |
+|   0 |  1  |  3  |  -  |  2  |
+| 180 |  3  |  1  |  2  |  -  |
 
-resulting array-table since 0.6.2
-ORIENTATION_CONVERSION_MAP[old][new]:
-[[0,2,1,3],
- [2,0,3,1],
- [3,1,0,2],
- [1,3,2,0]]
+</td>
+<td valign="top">
 
-ich glaube das hier ist falsch, 0.6.0 bis 0.6.1:
-[[0,2,3,1],
- [2,0,1,3],
- [1,3,0,2],
- [3,1,2,0]]
+### number of<br>-90° rotations
+old <br> new  | 0 | 1 | 2 | 3 |  
+|----:|:---:|:---:|:---:|:---:|
+| 0 | - | 2 | 3 | 1 |  
+| 1 | 2 | - | 1 | 3 |  
+| 2 | 1 | 3 | - | 2 |  
+| 3 | 3 | 1 | 2 | - |  
+</td>
+</tr>
+</table>
+
+--> resulting array-table since 0.6.2
+ORIENTATION_CONVERSION_MAP[old][new]:  
+```
+[[0,2,1,3],  
+ [2,0,3,1],  
+ [3,1,0,2],  
+ [1,3,2,0]]  
+```
+
+old incorrect array table, v0.6.0 to v0.6.1:  
+```
+[[0,2,3,1],  
+ [2,0,1,3],  
+ [1,3,0,2],  
+ [3,1,2,0]]  
+```
 
 
 ### Bytesizes
