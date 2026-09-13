@@ -5,7 +5,7 @@
  [4. GUI Options explained](#4-gui-options-explained)  
  [5. How to use?](#5-how-to-use)  
  [6. all services explained](#6-all-services-explained)  
-     [6.1 scribble some text](#6-1-scribble-some-text)  
+     [6.1 scribble some text](#61-scribble-some-text)  
      [6.10 draw an icon](#6-10-draw-an-icon)  
      [6.14 draw a circle diagram](#6-10-draw-a-cicrcle-diagram)  
  [7. Examples](#7-examples)  
