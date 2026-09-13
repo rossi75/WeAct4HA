@@ -5,9 +5,9 @@
  [4. GUI Options explained](#4-gui-options-explained)  
  [5. How to use?](#5-how-to-use)  
  [6. all services explained](#6-all-services-explained)  
-     [6.1 write some text](#6-1-write-some-text)
-     [6.10 draw an icon](#6-10-draw-an-icon)
-     [6.14 draw a circle diagram](#6-10-draw-a-cicrcle-diagram)
+     [6.1 scribble some text](#6-1-scribble-some-text)  
+     [6.10 draw an icon](#6-10-draw-an-icon)  
+     [6.14 draw a circle diagram](#6-10-draw-a-cicrcle-diagram)  
  [7. Examples](#7-examples)  
  [8. Worthy Notes](#8-worthy-notes)  
 
@@ -65,19 +65,25 @@ Everytime an update is being sent to the display, a replica is taken into your .
 ## 6. all services explained
 Well, this will be a long list. I will try to abbreviate it as much as possible and as detailled as needed. This will be enhanced from time to time
 
-### 1. Scribble some text
+### 6.1 Scribble some text
+---
 
-### 2. Draw a line
+### 6.2 Draw a line
+---
 
-### 3. Draw a rectangle
+### 6.3 Draw a rectangle
+---
 
-### 4. Draw a circle
+### 6.4 Draw a circle
+---
 
-### 5. Draw a triangle
+### 6.5 Draw a triangle
+---
 
-### 6. Draw a progress bar
+### 6.6 Draw a progress bar
+---
 
-### 7. Draw a circle diagram
+### 6.7 Draw a circle diagram
 - options that are mandatory are the device ID, the X-Point, Y-Point, the radius of the circle and a value we can show. If circle-color is given, we set it to white (255, 255, 255)
 - You can enter multiple values to display. If the sum exceeds 100%, the sum will be measured down proportional. See the example below for the notation
 - each value can have its own color. If you specify less colors than values, each forgotten value will be shown in white (255, 255, 255)
@@ -87,8 +93,6 @@ Well, this will be a long list. I will try to abbreviate it as much as possible 
 - direction for drawing can either be clockwise or anti-clockwise. if not set, we are using clockwise direction
 - The start-degree is normally at 12:00 which is my 0°. Counting is clockwise. If you want to start it from the bottom, you need to set it to 180°
 - with center_to_start enabled you can define the middle-angle for the whole sum of percents to the start. So all values will be drawn to the left and to the right of the start degree  
-
----
 
 ```
 action: weact_display.draw_circle_diagram
@@ -122,41 +126,60 @@ an example which shows the disk usage
   progress_percent: "{{ states('sensor.disk_use_percent') }}"
 ```
 
-### 8. Draw a line chart
+---
 
-### 9. Draw a bar chart
+### 6.8 Draw a line chart
+---
 
-### 10. Show random pixels
+### 6.9 Draw a bar chart
+---
 
-### 11. start digital clock
+### 6.10 Show random pixels
+---
 
-### 12. start analog clock
+### 6.11 start digital clock
+---
 
-### 13. stop clock
+### 6.12 start analog clock
+---
 
-### 14. generate a QR code
+### 6.13 stop clock
+---
 
-### 15. set full color
+### 6.14 generate a QR code
+---
 
-### 16. set orientation
+### 6.15 set full color
+---
 
-### 17. set brightness
+### 6.16 set orientation
+---
 
-### 18. restart display
+### 6.17 set brightness
+---
 
-### 19. show init screen
+### 6.18 restart display
+---
 
-### 20. start self-test
+### 6.19 show init screen
+---
 
-### 21. show bmp (or a testbild)
+### 6.20 start self-test
+---
 
-### 22. change screencare option
+### 6.21 show bmp (or a testbild)
+---
 
-### 23. change fastlz option
+### 6.22 change screencare option
+---
 
-### 24. set background color
+### 6.23 change fastlz option
+---
 
-### 25. Draw an Icon
+### 6.24 set background color
+---
+
+### 6.25 Draw an Icon
 - choose an icon from your preference which you want to show.  
 - mandatory parameter is the upper left starting point of drawing (xs, ys)  
 - if no size is given, we assume 32 pixels  
