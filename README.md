@@ -1,5 +1,5 @@
 # WeAct4HA
-provides an integration in Home Assistant for the WeAct Display FS 0.96 Inch and  WeAct Display FS V1
+provides an integration in home assistant for the Display FS 0.96 Inch and FS V1
 
 > [!WARNING]
 > 
@@ -57,7 +57,7 @@ https://github.com/mathoudebine/turing-smart-screen-python
 - analog clock in portrait orientation results in shit (!! need to fix !!) --> same as before
 - if display is newly connected, HA needs a restart to reflect the clock-mode accurate (need to fix)
 - cannot change clock-mode immediately once after once, need to await the next minute cycle before any further change
-  (maybe I will fix it anytime)
+  (fixed with 0.6.7)
 
 
 ## See also:
@@ -66,4 +66,5 @@ https://github.com/mathoudebine/turing-smart-screen-python
 - Next Steps: https://github.com/rossi75/WeAct4HA/blob/main/documentation/ToDo.md
 - Internal Struct: https://github.com/rossi75/WeAct4HA/blob/main/documentation/internal_struct.md
 - Notes: https://github.com/rossi75/WeAct4HA/blob/main/documentation/notes.md
+
 

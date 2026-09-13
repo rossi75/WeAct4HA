@@ -1,14 +1,28 @@
 # changelog
 
 ## V0.x.x - 2026
-~ respond to unplug if possible or to exit from serial_reader()  
-~ move screencare into screencare.py or tools.py or commands.py  
 ~ move serial communication from __init__.py and commands.py into serial.py  
 ~ order alignment all the same in services > init > commands  
-~ try to re-establish the connection once after 5/10 seconds of loss
+~ Rheinturm  
+~ busy/release for orientation and brightness  
+
+## V0.6.7 - 04.-13.09.2026
+- added circle diagram, provide value(s) and color(s) to draw some slices of pizza
+- display_restart was available as a service, but not as a function
+- after reload, the main sensor was not available anymore (unavailable). New tupels reader_thread and reader_stop_event, tupel "online"=true is set now only if serial_reader succeeded. Also the serial-port will be shutdown correctly now
+- moved screencare() into screencare.py
+- standardized all private extensions in self.* from self._zzz to self.zzz
+- added rotation for text command
+- all display commands and the parser now use the const.CMD_*, not anymore its native values with 0x..
+- respond properly to exit from serial_reader_thread, setting all associated sensor entities to "unavailable"
+- respond properly to re-plug, doing self-test, enabling all entities back again
+- connection re-establishing attempt all 15 seconds if not connected
+- clock-mode can now be changed immediately once after once, no need to await the next minute cycle before any further change
+- progress bar improvements, now with value, appendix and rotation
 
 ## V0.6.6 - 31.08.2026
-- oops, display_random still contained some developer code to swap fastlz option
+- oops, display_random() still contained some developer code to swap fastlz option
+- corrected image path for example.bmp in README.md
 
 ## V0.6.5 - 13.07.-30.08.2026
 - clear_workspace option for send_text service, needs to be set manually to false, as it is enabled by default
@@ -59,7 +73,7 @@
 - corrected orientation_values at startup [0|2] to [2|3] for landscape detection in async_setup_entry
 - to get clock into idle state, call clock handle with background colors, so any custom call will also be recognized to clean up its fields properly
 - orientation options in small letters, no capitals
-- icon and logo (HomeAssistant 2026.3 or later needed)
+- icon and logo (HomeAssistant 2026.3 or later required to see them)
 - corrected orientation_map once again...
 
 ## V0.6.1 - 01.05.-07.05.2026
