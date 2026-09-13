@@ -2,6 +2,7 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.helpers.entity import DeviceInfo
 from .commands import set_orientation
 from .clock import stop_clock, start_analog_clock, start_digital_clock
+from .entity import WeActAvailabilityMixin
 import custom_components.weact_display.const as const
 import logging
 
@@ -14,7 +15,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     _LOGGER.debug(f"adding clock mode select for serial {serial_number}")
     async_add_entities([Select_ClockMode(hass, serial_number)])
 
-class Select_Orientation(SelectEntity):
+class Select_Orientation(WeActAvailabilityMixin, SelectEntity):
     _attr_has_entity_name = True
     _attr_name = "Orientation"
     _attr_options = [
@@ -37,10 +38,10 @@ class Select_Orientation(SelectEntity):
         value = device.get("orientation_value")
         if not isinstance(value, int) or value not in const.ORIENTATION_MAP_INV:
             value = 2  # Default: Landscape
-        self._value = value
+        self.value = value
         self._attr_current_option = const.ORIENTATION_MAP_INV[value]
 
-        _LOGGER.debug(f"init-orientation for serial {self.serial_number} set to {self._attr_current_option} [{self._value}]")
+        _LOGGER.debug(f"init-orientation for serial {self.serial_number} set to {self._attr_current_option} [{self.value}]")
 
         self._attr_device_info = DeviceInfo(
             identifiers={(const.DOMAIN, serial_number)},
@@ -56,11 +57,11 @@ class Select_Orientation(SelectEntity):
 
         await set_orientation(self.hass, self.serial_number, value)
 
-        self._attr_current_option = const.ORIENTATION_MAP_INV[self.hass.data[const.DOMAIN]["devices"][self.serial_number].get("orientation_value")]
+        self._attr_current_option = const.ORIENTATION_MAP_INV[device.get("orientation_value")]
         self.async_write_ha_state()
 
 
-class Select_ClockMode(SelectEntity):
+class Select_ClockMode(WeActAvailabilityMixin, SelectEntity):
     _attr_has_entity_name = True
     _attr_name = "Clock Mode"
     _attr_options = ["idle", "digital", "analog"]
@@ -90,11 +91,13 @@ class Select_ClockMode(SelectEntity):
         self.async_write_ha_state()
 
     async def async_added_to_hass(self):
-        self.hass.data[const.DOMAIN]["devices"][self.serial_number]["clock_select_entity"] = self
+        device = self.hass.data[const.DOMAIN]["devices"][self.serial_number]
+        device["clock_select_entity"] = self
 
     @property
     def current_option(self):
-        return self.hass.data[const.DOMAIN]["devices"][self.serial_number].get("clock_mode")
+        device = self.hass.data[const.DOMAIN]["devices"][self.serial_number]
+        return device.get("clock_mode")
 
     # für um Updates auch zu erhalten wenn es vom Service gesetzt wird
     def refresh_from_data(self):

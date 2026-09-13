@@ -31,17 +31,23 @@ async def stop_clock(hass, serial_number):
     _LOGGER.debug(f"actually running clock-mode is {clock_mode}")
 
     if clock_handle is not None:
-        if device["clock_mode"] == "analog":
+        clock_handle.cancel()
+        try:
+            await clock_handle
+        except asyncio.CancelledError:
+            pass
+        device["clock_handle"] = None
+
+        if clock_mode == "analog":
             await show_analog_clock(hass, serial_number, sc_color = bg_color, h_color = bg_color, m_color = bg_color, scf_color = bg_color)
             _LOGGER.debug(f"deleted last analog drawing")
-        if device["clock_mode"] == "digital":
+        if clock_mode == "digital":
             await show_digital_clock(hass, serial_number, xs = None, ys = None, digit_size = None, rotation = 0, d_color = bg_color, bg_color = bg_color, cf_color = bg_color, cf_width = 0, offset_hours = None, am_pm = False)
             _LOGGER.debug(f"deleted last digital drawing")
-        if device["clock_mode"] == "rheinturm":
+        if clock_mode == "rheinturm":
             await delete_rheinturm(hass, serial_number)
             _LOGGER.debug(f"deleted last rheinturm drawing")
-        clock_handle()
-        device["clock_handle"] = None
+
         device["clock_mode"] = "idle"
         _LOGGER.debug(f"deleted clock_handle")
 
@@ -77,13 +83,22 @@ async def start_analog_clock(hass, serial_number, **kwargs):
 
     await show_analog_clock(hass, serial_number, **kwargs)
 
-    async def _task():
-        seconds_to_wait = 60 - datetime.now().second
-        _LOGGER.debug(f"need to wait {seconds_to_wait} seconds for the next minute")
-        await asyncio.sleep(seconds_to_wait)
-        await show_analog_clock(hass, serial_number, **kwargs)
-        device["clock_handle"] = async_track_time_interval(hass, _update_analog, timedelta(minutes=1))
-    asyncio.create_task(_task())
+    def _seconds_to_next_minute():
+        now = datetime.now()
+        return 60 - now.second - now.microsecond / 1_000_000
+
+    async def _clock_loop():
+        try:
+            while True:
+                wait = _seconds_to_next_minute()
+                _LOGGER.debug(f"need to wait {wait:.3f} seconds for the next minute")
+                await asyncio.sleep(wait)
+                await show_analog_clock(hass, serial_number, **kwargs)
+        except asyncio.CancelledError:
+            _LOGGER.debug(f"analog clock loop for {serial_number} cancelled")
+            raise
+
+    device["clock_handle"] = asyncio.create_task(_clock_loop())
 
     _LOGGER.debug(f"set clock-mode from {clock_mode} to {device["clock_mode"]}")
     _LOGGER.info("Analog clock update scheduled every minute")
@@ -117,41 +132,71 @@ async def start_digital_clock(hass, serial_number, **kwargs):
 
     await show_digital_clock(hass, serial_number, **kwargs)
 
-    async def _task():
-        seconds_to_wait = 60 - datetime.now().second
-        _LOGGER.debug(f"need to wait {seconds_to_wait} seconds for the next minute")
-        await asyncio.sleep(seconds_to_wait)
-        await show_digital_clock(hass, serial_number, **kwargs)
-        device["clock_handle"] = async_track_time_interval(hass, _update_digital, timedelta(minutes=1))
-    asyncio.create_task(_task())
+    def _seconds_to_next_minute():
+        now = datetime.now()
+        return 60 - now.second - now.microsecond / 1_000_000
+
+    async def _clock_loop():
+        try:
+            while True:
+                wait = _seconds_to_next_minute()
+                _LOGGER.debug(f"need to wait {wait:.3f} seconds for the next minute")
+                await asyncio.sleep(wait)
+                await show_digital_clock(hass, serial_number, **kwargs)
+        except asyncio.CancelledError:
+            _LOGGER.debug(f"digital clock loop for {serial_number} cancelled")
+            raise
+
+    device["clock_handle"] = asyncio.create_task(_clock_loop())
 
     _LOGGER.debug(f"set clock-mode from {clock_mode} to {device["clock_mode"]}")
     _LOGGER.info("Digital clock update scheduled every minute")
 
+#************************************************************************
+#        S T A R T  R H E I N T U R M  C L O C K
+#************************************************************************
+# starts rheinturm clock
+#************************************************************************
+# m: hass
+# m: serial_number
+# m: kwargs
+#************************************************************************
 async def _start_rheinturm_clock(hass, serial_number, **kwargs):
 
     async def _update_rheinturm(now):
         await show_rheinturm(hass, serial_number, **kwargs)
 
-    clock_mode = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_mode")
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+
+    clock_mode = device.get("clock_mode")
     if clock_mode != "idle":
         _LOGGER.debug(f"Clock for {serial_number} already running: {clock_mode}, stopping first")
         await stop_clock(hass, serial_number)
 
-    hass.data[const.DOMAIN]["devices"][serial_number]["clock_mode"] = "rheinturm"
-    entity = hass.data[const.DOMAIN]["devices"][serial_number].get("clock_select_entity")
+    device["clock_mode"] = "rheinturm"
+    entity = device.get("clock_select_entity")
     if entity:
         entity.refresh_from_data()
 
     await show_rheinturm(hass, serial_number, **kwargs)
 
-    async def _task():
-        seconds_to_wait = 60 - datetime.now().second
-        _LOGGER.debug(f"need to wait {seconds_to_wait} seconds for the next minute")
-        await asyncio.sleep(seconds_to_wait)
-        await show_rheinturm(hass, serial_number, **kwargs)
-        hass.data[const.DOMAIN]["devices"][serial_number]["clock_handle"] = async_track_time_interval(hass, _update_rheinturm, timedelta(minutes=1))
-    asyncio.create_task(_task())
+    def _seconds_to_next_minute():
+        now = datetime.now()
+        return 60 - now.second - now.microsecond / 1_000_000
+
+    async def _clock_loop():
+        try:
+            while True:
+                wait = _seconds_to_next_minute()
+                _LOGGER.debug(f"need to wait {wait:.3f} seconds for the next minute")
+                await asyncio.sleep(wait)
+                await show_digital_clock(hass, serial_number, **kwargs)
+        except asyncio.CancelledError:
+            _LOGGER.debug(f"rheinturm clock loop for {serial_number} cancelled")
+            raise
+
+    device["clock_handle"] = asyncio.create_task(_clock_loop())
+
 
     _LOGGER.debug(f"set clock-mode from {clock_mode} to {hass.data[const.DOMAIN]["devices"][serial_number]["clock_mode"]}")
     _LOGGER.info("Rheinturm update scheduled every second")
@@ -430,7 +475,7 @@ async def show_digital_clock(hass, serial_number, xs = None, ys = None, digit_si
 
     await send_screen(hass, serial_number)
 
-async def show_rheinturm(hass, serial_port, rotation = 0):
+async def show_rheinturm(hass, serial_port):
     _LOGGER.debug(f"rheinturm for serial {serial_number}...")
 
     from .commands import set_orientation, normalize_color, send_bitmap

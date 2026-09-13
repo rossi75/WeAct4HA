@@ -38,7 +38,7 @@ _LOGGER = logging.getLogger(__name__)
 # m: port
 #************************************************************************
 def open_serial(device_path: str):
-    _LOGGER.debug(f"initializing serial port {device_path} ...")
+    _LOGGER.debug(f"(re-)initializing serial port {device_path} ...")
 
     if not os.path.exists(device_path):
         _LOGGER.error(f"serial-port {device_path} does not exist")
@@ -204,7 +204,7 @@ async def set_brightness(hass, serial_number, target_brightness):
 
     packet = struct.pack(
         "<BBHB",
-        0x03, target_brightness, 0x3500, 0x0A
+        const.CMD_SET_BRIGHTNESS, target_brightness, 0x3500, const.CMD_TERMINATOR
     )
 
     # das hier nachher in send_data verschieben
@@ -214,7 +214,7 @@ async def set_brightness(hass, serial_number, target_brightness):
 
     await hass.async_add_executor_job(serial_port.write, packet)
 
-    packet = struct.pack("<BB", 0x83, 0x0A)                   # Brightness Request
+    packet = struct.pack("<BB", const.CMD_READ_BRIGHTNESS, const.CMD_TERMINATOR)                   # Brightness Request
     hex_str = " ".join(f"{b:02X}" for b in packet)
 
     _LOGGER.debug(f"prepared polling with {len(packet)} Bytes for {serial_number}: {hex_str}")
@@ -312,7 +312,7 @@ async def set_orientation(hass, serial_number, orientation_value, force = False)
 
     packet = struct.pack(
         "<BBB",
-        0x02, orientation_value, 0x0A
+        const.CMD_SET_ORIENTATION, orientation_value, const.CMD_TERMINATOR
     )
 
     # das hier nachher in send_data verschieben
@@ -352,7 +352,7 @@ async def enable_humiture_reports(hass, serial_number, time_interval = None):
 
     packet = struct.pack(
         "<BHB",
-        0x06, time_interval, 0x0A                             # alle 60 Sekunden
+        const.CMD_ENABLE_HUMITURE_REPORT, time_interval, const.CMD_TERMINATOR                             # alle 60 Sekunden
     )
 
     # das hier nachher in send_data verschieben
@@ -386,7 +386,7 @@ async def read_firmware_version(hass, serial_number):
 
     packet = struct.pack(
         "<BB",
-        0xC2, 0x0A
+        const.CMD_READ_FIRMWARE_VERSION, const.CMD_TERMINATOR
     )
 
     # das hier nachher in send_data verschieben
@@ -417,7 +417,7 @@ async def read_who_am_i(hass, serial_number):
 
     packet = struct.pack(
         "<BB",
-        0x81, 0x0A
+        const.CMD_WHO_AM_I, const.CMD_TERMINATOR
     )
 
     # das hier nachher in send_data verschieben
@@ -443,7 +443,7 @@ def parse_packet(hass, serial_number, packet: bytes):
         return False
 
     # Endbyte prüfen
-    if packet[-1] != 0x0A:
+    if packet[-1] != const.CMD_TERMINATOR:
         _LOGGER.info(f"Last byte is not 0x0A, so the end of the packet cannot be determined and all bytes received from serial {serial_number} must be discarded")
         return False
 
@@ -452,9 +452,10 @@ def parse_packet(hass, serial_number, packet: bytes):
     try:
         # -----------------------------
         # PARSE HUMITURE REPORT (0x86)
+        # CMD_HUMITURE_REPORT        = 0x86
         # [0x86] [T_low] [T_high] [H_low] [H_high] [0A]
         # -----------------------------
-        if cmd == 0x86:
+        if cmd == const.CMD_HUMITURE_REPORT:
             if len(packet) != 6:
                 return False
 
@@ -473,14 +474,15 @@ def parse_packet(hass, serial_number, packet: bytes):
             if entity:
                 hass.loop.call_soon_threadsafe(entity.async_write_ha_state)
     
-            _LOGGER.info(f"received humiture values for serial {serial_number}: {device["temperature"]:.2f} °C, {device["humidity"]:.2f} %")
+            _LOGGER.info(f"received humiture values for serial {serial_number}: {device["temperature"]:.2f} °C, {device["humidity"]:.2f} %rH")
 
             return True
 
         # -----------------------------
         # PARSE SYSTEM VERSION (0xC2)
+        # CMD_READ_FIRMWARE_VERSION  = 0xC2
         # -----------------------------
-        elif cmd == 0xC2:
+        elif cmd == const.CMD_READ_FIRMWARE_VERSION:
             firmware_version = packet[1:-1].decode(errors="ignore").strip()
             if not firmware_version:
                 return False
@@ -505,8 +507,9 @@ def parse_packet(hass, serial_number, packet: bytes):
 
         # -----------------------------
         # PARSE WHO AM I (0x81)
+        # CMD_WHO_AM_I               = 0x81
         # -----------------------------
-        elif cmd == 0x81:
+        elif cmd == const.CMD_WHO_AM_I:
             who_am_i = packet[1:-1].decode(errors="ignore").strip()
             if not who_am_i:
                 return False
@@ -519,8 +522,9 @@ def parse_packet(hass, serial_number, packet: bytes):
 
         # -----------------------------
         # PARSE BRIGHTNESS (0x83)
+        # CMD_READ_BRIGHTNESS        = 0x83
         # -----------------------------
-        elif cmd == 0x83:
+        elif cmd == const.CMD_READ_BRIGHTNESS:
             if len(packet) != 3:
                 return False
 
@@ -538,7 +542,7 @@ def parse_packet(hass, serial_number, packet: bytes):
         # PARSE UNKNOWN COMMAND
         # -----------------------------
         else:
-            _LOGGER.info(f"unrecognized answer from serial {serial_number}: {cmd.hex()}")
+            _LOGGER.info(f"unrecognized answer from serial {serial_number}: {cmd:#04x}")
             return False
 
     except Exception as e:
@@ -597,19 +601,19 @@ async def send_bitmap(hass, serial_number, xs, ys, xe, ye, data_888: bytes):
     _LOGGER.debug(f"now having {len(data_565)} bitmap bytes as RGB565 for {serial_number}: {hex_str} [...]")
 
     if fastlz is True:
-        command = const.CMD_SET_BITMAP_FASTLZ
+        command = const.CMD_SEND_BITMAP_FASTLZ
         chunks = build_display_chunks(bytes(data_565))
         #_LOGGER.debug(f"FastLZ generated {len(chunks)} chunks, sizes: {[len(c) for c in chunks]}")                # enable only for VERY_DETAILLED_VERBOSE
         _LOGGER.debug(f"FastLZ generated {len(chunks)} chunks")
     else:
-        command = const.CMD_SET_BITMAP
+        command = const.CMD_SEND_BITMAP
         payload = bytes(data_565)
         hex_str = " ".join(f"{b:02X}" for b in payload[:40])
         _LOGGER.debug(f"preparing classic data transmission speed for serial communication with {len(data_565)} Bytes as payload: {hex_str} [...]")
         CHUNK_SIZE = width * 2  # empirisch aus USB-Sniffing
         _LOGGER.debug(f"chunk size is {CHUNK_SIZE} bytes per write")
 
-    header = struct.pack("<BHHHHB", command, xs, ys, xe-1, ye-1, 0x0A)
+    header = struct.pack("<BHHHHB", command, xs, ys, xe-1, ye-1, const.CMD_TERMINATOR)
     hex_str = " ".join(f"{b:02X}" for b in header)
     _LOGGER.debug(f"need to send {len(header)} header bytes for {serial_number}: {hex_str}")
 
@@ -793,7 +797,7 @@ async def send_full_color(hass, serial_number, color):
 
     packet = struct.pack(
         "<BHHHHHB",
-        0x04, 0x0000, 0x0000, width - 1, height - 1, rgb565, 0x0A
+        const.CMD_FULL, 0x0000, 0x0000, width - 1, height - 1, rgb565, const.CMD_TERMINATOR
     )
 
     # das hier nachher in send_command verschieben
@@ -928,7 +932,7 @@ async def show_init_screen(hass, serial_number):
 
     packet = struct.pack(
         "<BB",
-        0x07, 0x0A
+        const.CMD_INIT_SCREEN, const.CMD_TERMINATOR
     )
 
     # das hier nachher in send_data verschieben
@@ -939,6 +943,38 @@ async def show_init_screen(hass, serial_number):
 
     _LOGGER.debug("initial screen done")
 
+
+#************************************************************************
+#        R E S T A R T  D I S P L A Y
+#************************************************************************
+# restarts the display
+#************************************************************************
+# m: hass
+# m: serial_number
+# after issuing the command, display does not respond for 1 second
+#************************************************************************
+async def restart_display(hass, serial_number):
+    _LOGGER.debug("restart the display")
+
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+
+    serial_port = device.get("serial_port")           # check needed due to direct command
+    if not serial_port:
+        _LOGGER.warning(f"Display {serial_number} not connected")
+        return
+
+    packet = struct.pack(
+        "<BB",
+        const.CMD_SYSTEM_RESET, const.CMD_TERMINATOR
+    )
+
+    # das hier nachher in send_data verschieben
+    hex_str = " ".join(f"{b:02X}" for b in packet)
+    _LOGGER.debug(f"having {len(packet)} Bytes for {serial_number}: {hex_str}")
+
+    await hass.async_add_executor_job(serial_port.write, packet)
+
+    _LOGGER.debug("restart display done")
 
 #************************************************************************
 #        I C O N
@@ -956,7 +992,6 @@ async def show_init_screen(hass, serial_number):
 #************************************************************************
 # rotate from: https://stackoverflow.com/questions/45179820/draw-text-on-an-angle-rotated-in-python
 #************************************************************************
-#async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = 32, i_color = (255, 255, 255), rotation = 0):
 async def show_icon(hass, serial_number, i_name: str, xs, ys, i_size = None, i_color = None, rotation = None):
     _LOGGER.info("show icon...")
     _LOGGER.debug(f"values given: icon-name={i_name}, xs={xs}, ys={ys}, icon-size={i_size}, icon-color={i_color}, rotation={rotation}")
@@ -1221,6 +1256,9 @@ async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, 
     if clear_workspace is None:
         clear_workspace = True
         _LOGGER.debug(f"set clear-workspace to {clear_workspace} as no parameter is given")
+    if rotation is None:
+        rotation = 0
+        _LOGGER.debug(f"set rotation to {rotation} as no parameter is given")
     if t_color is None:
         t_color = (255, 255, 255)
         _LOGGER.debug(f"set text-color to {t_color} as no parameter is given")
@@ -1234,32 +1272,7 @@ async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, 
 
     _LOGGER.debug(f"colors after normalize: background-color={bg_color}, text-color={t_color}")
 
-    # Textgröße berechnen
-#    lines = text.splitlines() or [text]
-#    line_heights = []
-#    max_width = 0
-#    for line in lines:
-#        w, h = draw.textsize(line, font=fnt)
-#        line_heights.append(h)
-#        max_width = max(max_width, w)
-
-#    total_height = sum(line_heights)
-#    y = (height - total_height) // 2 if align == "center" else 0
-
-#    for i, line in enumerate(lines):
-#        w, h = draw.textsize(line, font=fnt)
-#        if align == "right":
-#            x = width - w
-#        elif align == "center":
-#            x = (width - w) // 2
-#        else:
-#            x = 0
-#        draw.text((x, y), line, font=fnt, fill=color)
-#        y += h
-
-#    width = abs(xe - xs + 1)
-#    height = abs(ye - ys + 1)
-
+    font = ImageFont.load_default(size = font_size)
     img = device.get("shadow")
     draw = ImageDraw.Draw(img)
     _LOGGER.debug("fetched image from instance")
@@ -1268,14 +1281,28 @@ async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, 
         draw.rectangle((xs, ys, xe, ye), fill = bg_color)
         _LOGGER.debug(f"cleared workspace xs={xs}, ys={ys}, xe={xe}, ye={ye} with color={bg_color}")
 
-    # Text
-    font = ImageFont.load_default(size = font_size)
-    draw.text((xs, ys), text, fill = t_color, font = font)
-    _LOGGER.debug("wrote text into the image")
+    if rotation is None or rotation % 360 == 0:
+        draw.text((xs, ys), text, fill = t_color, font = font)
+        _LOGGER.debug("wrote text into the image")
+    else:
+        # Text zunaechst in ein eigenes, transparentes Bild zeichnen,
+        # damit sich nur der Text dreht - nicht der Rest des Screens
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+        text_img = Image.new("RGBA", (text_w, text_h), (0, 0, 0, 0))
+        text_draw = ImageDraw.Draw(text_img)
+        text_draw.text((-bbox[0], -bbox[1]), text, fill=t_color, font=font)
 
-    # bild ggf drehen
-#    img = img.rotate(rotation, expand=True)
-#    i_width, i_height = img.size
+        rotated = text_img.rotate(-rotation, expand=True)
+        _LOGGER.debug(f"rotated text '{text}' by {rotation} degrees, new size={rotated.size}")
+
+        # Mittelpunkt des unrotierten Textes bleibt an derselben Stelle erhalten
+        cx = xs + text_w // 2
+        cy = ys + text_h // 2
+        paste_x = cx - rotated.width // 2
+        paste_y = cy - rotated.height // 2
+        img.paste(rotated, (paste_x, paste_y), rotated)
 
     await send_screen(hass, serial_number)
 
@@ -1301,23 +1328,44 @@ async def write_text(hass, serial_number, text, xs, ys, xe, ye, font_size = 15, 
 # o: background-color
 # o: rotation, default = 90
 #************************************************************************
-async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None, min_value=0, max_value=100, bf_width=1, bf_color=None, b_color=(255, 255, 255), bg_color=None, rotation = 90, show_value=False, val_appendix=""):
+async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None, min_value=None, max_value=None, bf_width=None, bf_color=None, b_color=None, bg_color=None, rotation=None, show_value=False, val_appendix=None):
     _LOGGER.info(f"drawing a progress bar")
     _LOGGER.debug(f"given values: xs={xs}, ys={ys}, xe={xe}, ye={ye}, bar-value={bar_value}, min-value={min_value}, max-value={max_value}, bar-frame-width={bf_width}, bar-color={b_color}, bar-frame-color={bf_color}, background-color={bg_color}, rotation={rotation}, show-value={show_value}, value-appendix={val_appendix}")
 
     device = hass.data[const.DOMAIN]["devices"][serial_number]
 
+    if min_value is None:
+        min_value = 0
+        _LOGGER.debug(f"set min-value to {min_value} as no value is given")
+    if max_value is None:
+        max_value = 100
+        _LOGGER.debug(f"set max-value to {max_value} as no value is given")
+    if show_value is None:
+        show_value = False
+        _LOGGER.debug(f"set show-value to {show_value} as no value is given")
+    if rotation is None:
+        rotation = 0
+        _LOGGER.debug(f"set rotation to {rotation} as no value is given")
+    if b_color is None:
+        b_color = (255, 255, 255)
+        _LOGGER.debug(f"set bar-color to {b_color} as no value is given")
     if bf_color is None:
         bf_color = b_color
-        _LOGGER.debug("no value given for bar-frame-color, taking bar-color for frame")
+        _LOGGER.debug(f"no value given for bar-frame-color, taking bar-color {bf_color} for the frame")
+    if bf_width is None:
+        bf_width = 1
+        _LOGGER.debug(f"set border-frame-width to {bf_width} as no value is given")
     if bg_color is None:
         bg_color = normalize_color(device.get("background_color"))
         _LOGGER.debug(f"set background-color to displays' default bg-color {bg_color} as no parameter is given")
+    if val_appendix is None:
+        val_appendix = ""
+        _LOGGER.debug(f"set val-appendix to {val_appendix} as no value is given")
 
     # Konvertiere mögliche Stringfarben in RGB-Tupel
     b_color = normalize_color(b_color)
     bf_color = normalize_color(bf_color)
-    bg_color = normalize_color(bg_color)                     
+    bg_color = normalize_color(bg_color)
     _LOGGER.debug(f"colors after normalize: bar-color={b_color}, bar-frame-color={bf_color}, background-color={bg_color}")
 
     # check for dimensions out-of-range
@@ -1338,59 +1386,80 @@ async def draw_progress_bar(hass, serial_number, xs, ys, xe, ye, bar_value=None,
     fill_w = int(p_bar_w * fill_ratio)
     _LOGGER.debug(f"fill-ratio={fill_ratio}, fill-width={fill_w}")
 
-    # Bild aus der Instanz ziehen
-    img = device.get("shadow")
-    draw = ImageDraw.Draw(img)
-    _LOGGER.debug("fetched image from instance")
+    # ---------------------------------------------------------
+    # Balken lokal (0,0)-(bar_w,bar_h) in ein eigenes Bild zeichnen,
+    # damit er sich unabhaengig vom Rest des Shadow-Bilds rotieren laesst
+    # ---------------------------------------------------------
+    bar_img = Image.new("RGBA", (bar_w, bar_h), (0, 0, 0, 0))
+    bdraw = ImageDraw.Draw(bar_img)
+    _LOGGER.debug("created new bar image")
 
-    # Rahmen zeichnen
-    draw.rectangle((xs, ys, xs + bar_w, ys + bar_h), width = bf_width, outline = bf_color, fill = bg_color)
+    bdraw.rectangle((0, 0, bar_w - 1, bar_h - 1), width=bf_width, outline=bf_color, fill=bg_color)
+    bdraw.rectangle((bf_width, bf_width, bf_width + fill_w, bar_h - 1 - bf_width), fill=b_color)
     _LOGGER.debug(f"drew the frame")
 
-    # Füllung zeichnen
-    draw.rectangle((xs + bf_width, ys + bf_width, xs + bf_width + fill_w, ys + bar_h - bf_width), fill=b_color)
-    _LOGGER.debug(f"drew the bar")
-
-    # ggf Wert einzeichnen
     if show_value:
-#        value_str = f"{int(bar_value)}%" + val_appendix
         value_str = f"{int(bar_value)}" + val_appendix
-        font_size = int(bar_h - bf_width - bf_width - 2)
-        try:
-#            font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(bar_h * 0.5))                # warum hier ein Faktor von 0,5? Ich würde ja eher sagen -4, oder?
-#            font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(bar_h - bf_width - bf_width - 2))                # warum hier ein Faktor von 0,5? Ich würde ja eher sagen -4, oder?
-            font = ImageFont.truetype("DejaVuSans-Bold.ttf", font_size)                # warum hier ein Faktor von 0,5? Ich würde ja eher sagen -4, oder?
-        except Exception:
-            font = ImageFont.load_default()
+        max_font_size = max(6, int(bar_h - bf_width - bf_width - 2))
+        max_text_w = bar_w - bf_width - bf_width - 2  # etwas Rand zum Rahmen lassen
 
-        bbox = draw.textbbox((0, 0), value_str, font=font)
+        font_size = max_font_size
+        font = ImageFont.load_default(size=font_size)
+        bbox = bdraw.textbbox((0, 0), value_str, font=font)
         text_w = bbox[2] - bbox[0]
+
+        while text_w > max_text_w and font_size > 6:
+            font_size -= 1
+            font = ImageFont.load_default(size=font_size)
+            bbox = bdraw.textbbox((0, 0), value_str, font=font)
+            text_w = bbox[2] - bbox[0]
+
         text_h = bbox[3] - bbox[1]
-        tx = (bar_w - text_w) // 2
-        ty = (bar_h - text_h) // 2
+        tx = (bar_w - text_w) // 2 - bbox[0]
+        ty = (bar_h - text_h) // 2 - bbox[1]
+        _LOGGER.debug(f"show_value for '{value_str}': text-width={text_w}px, text-height={text_h}px, at x={tx}, y={ty} with font-size={font_size} (max_font_size={max_font_size})")
 
-        _LOGGER.debug(f"show_value for '{value_str}' is given: text-width={text_w} px, text-height={text_h} px, at x={tx}, y={ty}")
+        if fill_w <= 0:
+            # nichts gefuellt -> Text komplett in "unfilled"-Farbe
+            bdraw.text((tx, ty), value_str, font=font, fill=b_color)
+            _LOGGER.debug(f"scribbled text in normal color")
+        elif fill_w >= bar_w:
+            # komplett gefuellt -> Text komplett invertiert
+            bdraw.text((tx, ty), value_str, font=font, fill=bg_color)
+            _LOGGER.debug(f"scribbled text in inverted color")
+        else:
+            # teilweise gefuellt: erst normal zeichnen, dann den gefuellten
+            # Bereich (0..fill_w) mit dem invertierten Text ueberschreiben
+            bdraw.text((tx, ty), value_str, font=font, fill=b_color)
+            overlay = Image.new("RGBA", (bar_w, bar_h), (0, 0, 0, 0))
+            overlay_draw = ImageDraw.Draw(overlay)
+            overlay_draw.text((tx, ty), value_str, font=font, fill=bg_color)
+            bar_img.paste(overlay.crop((0, 0, fill_w, bar_h)), (0, 0), overlay.crop((0, 0, fill_w, bar_h)))
+            _LOGGER.debug(f"scribbled text in inverted and normal color")
 
-        # Overlay: Wir schreiben zwei Versionen — überlagert, getrennt
-        # Erst die invertierte (über gefülltem Teil)
-        if fill_w > 0:
-            mask_img = Image.new("L", (bar_w, bar_h), 0)
-            mask_draw = ImageDraw.Draw(mask_img)
-            mask_draw.rectangle([0, 0, fill_w, bar_h], fill=255)
-            draw.text((tx, ty), value_str, font=font, fill=bg_color)
-            _LOGGER.debug(f"drew the filled bar text")
-        # Dann der Rest (noch nicht gefüllt)
-        if fill_w < bar_w:
-            draw.text((tx, ty), value_str, font=font, fill=b_color)
-            _LOGGER.debug(f"drew the unfilled bar text")
+    # ---------------------------------------------------------
+    # Rotation, danach zentriert auf die urspruengliche Bounding-Box
+    # zurueck ins Shadow-Bild einfuegen
+    # ---------------------------------------------------------
+    if rotation % 360 != 0:
+        bar_img = bar_img.rotate(rotation, expand=True)
+        _LOGGER.debug(f"rotated the bar image by {rotation} degrees, new size={bar_img.size}")
 
-    # --- Rotation (optional) ---
-#    img = img.rotate(rotation, expand=True)
-#    i_width, i_height = img.size
+    # ---------------------------------------------------------
+    # Bild aus der Instanz ziehen
+    # ---------------------------------------------------------
+    img = device.get("shadow")
+    _LOGGER.debug("fetched image from instance")
 
-#    _LOGGER.debug(f"rotated the image for {rotation} degrees")
+    cx = (xs + xe) // 2
+    cy = (ys + ye) // 2
+    paste_x = cx - bar_img.width // 2
+    paste_y = cy - bar_img.height // 2
+    img.paste(bar_img, (paste_x, paste_y), bar_img)
 
     await send_screen(hass, serial_number)
+
+    return
 
 
 #************************************************************************
@@ -1704,6 +1773,200 @@ async def draw_bar_chart(hass, serial_number, xs, ys, xe, ye, bar_values, bar_wi
         draw.line((xs, ye, xe, ye), fill=axis_color)           # X-Axis
         _LOGGER.debug(f"drew X-Axis with color {axis_color}")
 
+    await send_screen(hass, serial_number)
+
+#************************************************************************
+#        D R A W  A  C I R C L E  D I A G R A M
+#************************************************************************
+# draws a circle diagram
+#************************************************************************
+# m: hass
+# m: serial_number
+# m: xp
+# m: yp
+# m: radius_outer_circle
+# m: progress_percent []
+# m: circle_color []
+# o: radius_inner_circle
+# o: inner_color
+# o: start_degree
+# o: direction
+# o: not_reached_color
+# o: clear_workspace
+# o: center_to_start
+#************************************************************************
+async def draw_circle_diagram(hass, serial_number, xp, yp, radius_outer_circle, progress_percent, circle_color, radius_inner_circle=None, inner_color=None, start_degree=None, direction=None, not_reached_color=None, clear_workspace=None, center_to_start=None):
+    _LOGGER.info(f"drawing a circle diagram")
+    _LOGGER.debug(f"given values: xp={xp}, yp={yp}, radius-outer-circle={radius_outer_circle}, progress-percent={progress_percent}, circle-color={circle_color}, radius-inner-circle={radius_inner_circle}, inner-color={inner_color}, start-degree={start_degree}, direction={direction}, not-reached-color={not_reached_color}, clear-workspace={clear_workspace}, center-to-start={center_to_start}")
+
+    device = hass.data[const.DOMAIN]["devices"][serial_number]
+
+    # ---------------------------------------------------------
+    # Optionen normalisieren
+    # ---------------------------------------------------------
+    percents = list(progress_percent) if isinstance(progress_percent, (list, tuple)) else [progress_percent]
+    if circle_color is None:
+        colors = [(255, 255, 255)] * len(percents)
+        _LOGGER.debug(f"set circle-colors to {colors} as no parameter is given")
+    elif isinstance(circle_color, (list, tuple)) and isinstance(circle_color[0], (list, tuple)):
+        colors = list(circle_color)
+        _LOGGER.debug(f"set circle-colors to {colors} (multi values)")
+    else:
+        colors = [circle_color]
+        _LOGGER.debug(f"set circle-color to {colors} (single value)")
+
+    if len(colors) == 1 and len(percents) > 1:           # check ob die anzahl der werte auch der anzahl der farben entspricht
+        colors = colors * len(percents)
+    elif len(colors) != len(percents):
+        _LOGGER.warning(f"number of colors ({len(colors)}) does not match the number of values ({len(percents)}) - filling missing colors with white, surplus colors are being removed")
+        colors = (colors + [(255, 255, 255)] * len(percents))[:len(percents)]
+
+    if center_to_start is None:
+        center_to_start = False
+        _LOGGER.debug(f"set center-to-start to {center_to_start} as no parameter is given")
+    if clear_workspace is None:
+        clear_workspace = True
+        _LOGGER.debug(f"set clear-workspace to {clear_workspace} as no parameter is given")
+    if clear_workspace is True:
+        workspace_color = device.get("background_color")
+        _LOGGER.debug(f"set workspace-color to displays' default bg-color {workspace_color}")
+    if direction is None:
+        direction = "clockwise"
+        _LOGGER.debug(f"set direction to {direction} as no parameter is given")
+    elif direction not in ("clockwise", "anti-clockwise"):
+        direction = "clockwise"
+        _LOGGER.debug(f"set direction to {direction} as invalid parameter is given")
+    if start_degree is None:
+        start_degree = 0
+        _LOGGER.debug(f"set start-degree to {start_degree} as no parameter is given")
+
+    # ---------------------------------------------------------
+    # Konvertiere mögliche Stringfarben in RGB-Tupel
+    # ---------------------------------------------------------
+    circle_colors = [normalize_color(color) for color in colors]
+    if inner_color is not None:
+        inner_color = normalize_color(inner_color)
+    if workspace_color is not None:
+        workspace_color = normalize_color(workspace_color)
+    if not_reached_color is not None:                       # Farbwerte für Achse wurden übermittelt, also sollen die Achsen angezeigt werden
+        not_reached_color = normalize_color(not_reached_color)
+    _LOGGER.debug(f"colors after normalize: circle-colors={circle_colors}, inner-color={inner_color}, workspace-color={workspace_color}, not-reached-color={not_reached_color}")
+
+    # ---------------------------------------------------------
+    # calculate values
+    # ---------------------------------------------------------
+    percents = [max(0.0, min(100.0, float(p))) for p in percents]
+    total_percent = sum(percents)
+    if total_percent > 100:
+        _LOGGER.warning(f"sum of values is {total_percent}% > 100% - scaling proportional")
+        scale = 100.0 / total_percent
+        percents = [p * scale for p in percents]
+        total_percent = 100.0
+        _LOGGER.debug(f"percent values after proportional scaling: {percents}")
+
+    xs = xp - radius_outer_circle
+    ys = yp - radius_outer_circle
+    xe = xp + radius_outer_circle
+    ye = yp + radius_outer_circle
+    _LOGGER.debug(f"bounding-box and workspace area: xs={xs}, ys={ys}, xe={xe}, ye={ye}")
+
+    if radius_inner_circle is not None:
+        radius_inner_circle = max(0, min(radius_inner_circle, radius_outer_circle - 1))
+        ring_width = radius_outer_circle - radius_inner_circle
+        _LOGGER.debug(f"checked if radius-inner-circle is not greater than the outer circle. Result: radius-inner-circle={radius_inner_circle}, radius-outer-circle={radius_outer_circle}, ring-width={ring_width}")
+    else:
+        ring_width = 0
+        _LOGGER.debug(f"no inner-circle given, setting ring-width to {ring_width}")
+
+    start_degree = (start_degree - 90) % 360                # 12:00 = 0° !
+    progress_angles = [360 * p / 100 for p in percents]
+    total_angle = sum(progress_angles)
+    _LOGGER.debug(f"start-degree={start_degree}, progress-angles={progress_angles}, total-angle={total_angle}")
+
+    # ---------------------------------------------------------
+    # Segmente der Reihe nach an den Kreis legen
+    # ---------------------------------------------------------
+    order = list(range(len(percents)))
+    segments = []  # Liste aus (seg_start, seg_end, color, percent)
+
+    if center_to_start:
+        if direction == "anti-clockwise":
+            order = list(reversed(order))
+        cursor = start_degree - total_angle / 2
+        for idx in order:
+            seg_end = cursor + progress_angles[idx]
+            segments.append((cursor, seg_end, circle_colors[idx], percents[idx]))
+            cursor = seg_end
+        not_reached_start = cursor
+        not_reached_end = (start_degree - total_angle / 2) + 360
+    else:
+        step_sign = 1 if direction == "clockwise" else -1
+        cursor = start_degree
+        for idx in order:
+            seg_end = cursor + step_sign * progress_angles[idx]
+            segments.append((cursor, seg_end, circle_colors[idx], percents[idx]))
+            cursor = seg_end
+        not_reached_start = cursor
+        not_reached_end = start_degree + 360 * step_sign
+    _LOGGER.debug(f"ordered segments={segments}")
+
+    # ---------------------------------------------------------
+    # Schattenbild abholen
+    # ---------------------------------------------------------
+    img = device.get("shadow")
+    draw = ImageDraw.Draw(img)
+    _LOGGER.debug("fetched image from instance")
+
+    # ---------------------------------------------------------
+    # Arbeitsbereich löschen
+    # ---------------------------------------------------------
+    if clear_workspace:
+        draw.ellipse((xs, ys, xe, ye), fill=workspace_color)
+        _LOGGER.debug(f"cleared workspace with workspace-color={workspace_color}")
+
+    # ---------------------------------------------------------
+    # Bounding Box, für Kreisanteile benötigt !
+    # ---------------------------------------------------------
+    bbox = (xs, ys, xe, ye)
+    _LOGGER.debug("set bounding box for pizza slice")
+
+    # ---------------------------------------------------------
+    # inner Circle filling
+    # ---------------------------------------------------------
+    if radius_inner_circle is not None and radius_inner_circle > 0 and inner_color is not None:
+        draw.ellipse((xs + ring_width, ys + ring_width, xe - ring_width, ye - ring_width), fill = inner_color)
+        _LOGGER.debug(f"drew the inner circle with {inner_color}")
+
+    # ---------------------------------------------------------
+    # not-reached area (Rest nach allen Segmenten)
+    # ---------------------------------------------------------
+    if not_reached_color is not None and total_percent < 100:
+        n_r_start, n_r_end = min(not_reached_start, not_reached_end), max(not_reached_start, not_reached_end)
+        if radius_inner_circle is None:            # Gefülltes Tortenstück
+            draw.pieslice(bbox, start=n_r_start, end=n_r_end, fill=not_reached_color)
+            _LOGGER.debug(f"drew a pizza slice for the not-reached part from {n_r_start}° to {n_r_end}° with cirlce-color {circle_color} (12:00 = 0°!)")
+        else:                                      # Ring
+            draw.arc(bbox, start=n_r_start, end=n_r_end, fill=not_reached_color, width=ring_width)
+            _LOGGER.debug(f"drew a arc for the not-reached part from {not_reached_start}° to {not_reached_end}° with cirlce-color={not_reached_color} and ring-width={ring_width}. (12:00 = 0°!)")
+
+    # ---------------------------------------------------------
+    # alle Segmente zeichnen
+    # ---------------------------------------------------------
+    for idx, (seg_start, seg_end, color, percent) in enumerate(segments):
+        if percent <= 0:
+            _LOGGER.debug(f"no valid value for [{idx}], skipping !")
+            continue
+        r_start, r_end = min(seg_start, seg_end), max(seg_start, seg_end)
+        if radius_inner_circle is None:
+            draw.pieslice(bbox, start=r_start, end=r_end, fill=color)
+            _LOGGER.debug(f"drew pizza slice [{idx}] for the reached part from {r_start}° to {r_end}° with circle-color={color} (12:00 = 0° !)")
+        else:
+            draw.arc(bbox, start=r_start, end=r_end, fill=color, width=ring_width)
+            _LOGGER.debug(f"drew arc [{idx}] for the reached part from {r_start}° to {r_end}° with cirlce-color={color} and ring-width={ring_width}. (12:00 = 0° !)")
+
+    # ---------------------------------------------------------
+    # Bild übertragen
+    # ---------------------------------------------------------
     await send_screen(hass, serial_number)
 
 

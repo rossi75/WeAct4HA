@@ -113,18 +113,19 @@ draw_progress_bar:
         device:
           filter:
             - integration: weact_display
-    bar_min:
-      name: Min value
-      default: 0
+    bar_value:
+      name: Bar value
+      default: 337                          # Grüße vom Gigaset-Reset
+      required: true
       selector:
         number:
           min: 0
           max: 65535
           step: 1
           mode: box  # alternativ 'box' für Eingabefeld
-    bar_value:
-      name: Bar value
-      default: 337                          # Grüße vom Gigaset-Reset
+    bar_min:
+      name: Min value
+      default: 0
       selector:
         number:
           min: 0
@@ -152,6 +153,7 @@ draw_progress_bar:
         text: {}
     x_start:
       name: X-start
+      required: true
       example: 0
       default: 0
       selector:
@@ -162,6 +164,7 @@ draw_progress_bar:
           mode: slider  # alternativ 'box' für Eingabefeld
     y_start:
       name: Y-start
+      required: true
       example: 0
       default: 0
       selector:
@@ -172,6 +175,7 @@ draw_progress_bar:
           mode: slider  # alternativ 'box' für Eingabefeld
     x_end:
       name: X-end
+      required: true
       example: 10
       default: 10
       selector:
@@ -182,6 +186,7 @@ draw_progress_bar:
           mode: slider  # alternativ 'box' für Eingabefeld
     y_end:
       name: Y-end
+      required: true
       example: 10
       default: 10
       selector:
@@ -192,7 +197,6 @@ draw_progress_bar:
           mode: slider  # alternativ 'box' für Eingabefeld
     rotation:
       name: Rotation angle
-      description: not mandatory
       example: 0
       default: 0
       selector:
@@ -202,17 +206,6 @@ draw_progress_bar:
           step: 90
           mode: slider  # alternativ 'box' für Eingabefeld
           unit_of_measurement: "degree"
-    bf_width:
-      name: Bar Frame Width
-      description: not mandatory
-      default: 2
-      selector:
-        number:
-          min: 0
-          max: 480
-          step: 1
-          mode: slider  # alternativ 'box' für Eingabefeld
-          unit_of_measurement: "px"
     b_color:
       name: Bar color
       default: [255, 255, 255]
@@ -223,6 +216,16 @@ draw_progress_bar:
       default: [255, 0, 0]
       selector:
         color_rgb: {}
+    bf_width:
+      name: Bar Frame Width
+      default: 2
+      selector:
+        number:
+          min: 0
+          max: 480
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "px"
     bg_color:
       name: Background color
       default: [0, 0, 0]
@@ -308,6 +311,133 @@ draw_circle:
       default: [255, 255, 255]                         # weiss
       selector:
         color_rgb: {}
+
+draw_circle_diagram:
+  name: Circle Diagram
+  description: "draw a circle diagram on the WeAct Display"
+  fields:
+    display:
+      name: Display
+      required: true
+      selector:
+        device:
+          filter:
+            - integration: weact_display
+    progress_percent:
+      name: Progress Percent
+      required: true
+      example: 75
+      default: 75
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "percent"
+    x_point:
+      name: Circles Center X-Point
+      required: true
+      example: 30
+      default: 30
+      selector:
+        number:
+          min: 0
+          max: 479
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    y_point:
+      name: Circles Center Y-Point
+      required: true
+      example: 40
+      default: 40
+      selector:
+        number:
+          min: 0
+          max: 479
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+    radius_outer_circle:
+      name: Circle Diagram outer radius
+      required: true
+      example: 20
+      default: 20
+      selector:
+        number:
+          min: 1
+          max: 479
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "pixels"
+    circle_color:
+      name: Circle color
+      required: true
+      example: [255, 255, 255]
+      default: [255, 255, 255]                         # weiss
+      selector:
+        color_rgb: {}
+    radius_inner_circle:
+      name: Circle Diagram inner radius
+      example: 20
+      default: 20
+      selector:
+        number:
+          min: 0
+          max: 479
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "pixels"
+    inner_color:
+      name: Inner color
+      example: [255, 255, 255]
+      default: [255, 255, 255]                         # weiss
+      selector:
+        color_rgb: {}
+    start_degree:
+      name: Start Degree
+      description: "Start at 12:00 = 0° or at another angle?"
+      required: false
+      example: 0
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 360
+          step: 1
+          mode: slider  # alternativ 'box' für Eingabefeld
+          unit_of_measurement: "degree"
+    direction:
+      name: Direction
+      required: false
+      default: clockwise
+      selector:
+        select:
+          options:
+            - label: Clockwise
+              value: clockwise
+            - label: Anti-clockwise
+              value: anti-clockwise
+          mode: dropdown
+    not_reached_color:
+      name: not-reached color
+      description: What color should be the rest of the circle?
+      example: [64, 64, 64]
+      default: [64, 64, 64]                         # grau
+      selector:
+        color_rgb: {}
+    center_to_start:
+      name: Center to start degree?
+      description: Shall the drawing be centered around the starting degree?
+      required: false
+      default: false
+      selector:
+        boolean: {}
+    clear_workspace:
+      name: Clear Workspace?
+      required: false
+      default: true
+      selector:
+        boolean: {}
 
 draw_rectangle:
   name: Rectangle

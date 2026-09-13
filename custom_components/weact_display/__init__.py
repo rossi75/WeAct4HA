@@ -30,23 +30,20 @@ import glob
 import logging
 import os
 import pathlib
-import random
 import re
 import serial
 import struct
 import threading
 import time
-import zoneinfo
 
 from PIL import Image
 from pathlib import Path
 from homeassistant.components import usb
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall, callback, EVENT_HOMEASSISTANT_STARTED
+from homeassistant.core import HomeAssistant, ServiceCall, EVENT_HOMEASSISTANT_STARTED
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.discovery import async_load_platform
-from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.helpers.typing import ConfigType
 from datetime import datetime, timedelta
 
@@ -54,7 +51,8 @@ import custom_components.weact_display.const as const
 from .models import DISPLAY_MODELS
 from .clock import start_analog_clock, start_digital_clock, stop_clock
 from .commands import normalize_color
-from .commands import display_selftest, draw_circle, draw_line, draw_line_chart, draw_bar_chart, draw_rectangle, draw_triangle, draw_progress_bar, enable_humiture_reports, generate_random, generate_qr, open_serial, parse_packet, read_firmware_version, read_who_am_i, replace_bg_color, send_full_color, send_screen, set_brightness, set_orientation, show_bmp, show_icon, show_init_screen, write_text
+from .commands import display_selftest, draw_bar_chart, draw_circle, draw_circle_diagram, draw_line, draw_line_chart, draw_rectangle, draw_triangle, draw_progress_bar, enable_humiture_reports, generate_qr, generate_random, open_serial, parse_packet, read_firmware_version, read_who_am_i, replace_bg_color, send_full_color, send_screen, set_brightness, set_orientation, show_bmp, show_icon, show_init_screen, write_text
+from .screencare import setup_screencare
 
 # ------------------------------------------------------------
 # Initialisierung
@@ -69,7 +67,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Fake Display manuell:
     # 2025-12-28 23:59:11.478 DEBUG (MainThread) [custom_components.weact_display] async_setup_entry called for weact_display, entry=<ConfigEntry entry_id=01KDKJZSZPNXN4CKQ03KYA1BEK version=1 domain=weact_display title=SMLIGHT SLZB-07p7 state=ConfigEntryState.SETUP_IN_PROGRESS unique_id=None>
     _LOGGER.debug(f"entry={entry}")
- 
+
     domain_data   = hass.data.setdefault(const.DOMAIN, {})
     devices       = domain_data.setdefault("devices", {})
     device_id_map = domain_data.setdefault("device_id_map", {})
@@ -192,27 +190,50 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Plattformen laden
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "select", "number", "switch"])
 
-    devices[serial_number]["online"] = True
-
     hass.loop.create_task(post_startup(hass, entry))            # serielle Schnittstelle(n) initialisieren
+
+    _LOGGER.debug("Aysnc_Setup_Entry done")
 
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     serial_number = entry.data.get("serial_number")
-
     _LOGGER.info(f"Unloading WeAct Display for serial {serial_number}")
+    device = hass.data[const.DOMAIN]["devices"].get(serial_number, {})
     
     # Uhr anhalten
     await stop_clock(hass, serial_number)
+
+    # Reader-Thread signalisieren und warten, bis er sich wirklich beendet hat
+    stop_event = device.get("reader_stop_event")
+    reader_thread = device.get("reader_thread")
+    if stop_event:
+        stop_event.set()
+    if reader_thread:
+        await hass.async_add_executor_job(reader_thread.join, 2.0)  # max. 2s warten
+        if reader_thread.is_alive():
+            _LOGGER.warning(f"reader thread for {serial_number} did not stop in time")
+
+    # Danach erst den Port wirklich schliessen
+    serial_port = device.get("serial_port")
+    if serial_port:
+        try:
+            serial_port.close()
+            _LOGGER.debug(f"closed serial port for {serial_number}")
+        except Exception as e:
+            _LOGGER.warning(f"error closing serial port for {serial_number}: {e}")
+
     # Plattformen entladen
     unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor", "select", "number", "switch"],)
 
     if unload_ok and serial_number:
         hass.data[const.DOMAIN]["devices"].pop(serial_number, None)
 
+    _LOGGER.debug("Aysnc_Unload_Entry done")
+
     return unload_ok
+
 
 async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEntry, device_entry: dr.DeviceEntry,) -> bool:
     serial_number = entry.data.get("serial_number")
@@ -1084,8 +1105,46 @@ async def async_setup(hass: HomeAssistant, config):
     hass.services.async_register(const.DOMAIN, "draw_bar_chart", handle_draw_bar_chart)
 
     # --------------------------------------------------------
+    # Service: circle diagram
+    # --------------------------------------------------------
+    async def handle_draw_circle_diagram(call: ServiceCall):
+        _LOGGER.debug("called service to draw a circle diagram")
+ 
+        device_id = call.data.get("display", None)
+        if device_id is None:
+            _LOGGER.error("missing mandatory device id")
+            return
+
+        xp = call.data.get("x_point")
+        yp = call.data.get("y_point")
+        radius_outer_circle = call.data.get("radius_outer_circle")
+        progress_percent = call.data.get("progress_percent")
+        circle_color = call.data.get("circle_color", None)
+        radius_inner_circle = call.data.get("radius_inner_circle", None)
+        inner_color = call.data.get("inner_color", None)
+        start_degree = call.data.get("start_degree", None)
+        direction = call.data.get("direction", None)
+        not_reached_color = call.data.get("not_reached_color", None)
+        clear_workspace = call.data.get("clear_workspace", None)
+        center_to_start = call.data.get("center_to_start", None)
+
+        # device registry lookup
+        serial_number = hass.data[const.DOMAIN]["device_id_map"][device_id].get("serial_number")
+        if not serial_number:
+            _LOGGER.error(f"no serial_number found in device mapping for device-id {device_id}")
+            return
+
+        _LOGGER.debug(f"values given: device={device_id}, serial-number={serial_number}, x-point={xp}, y-point={yp}, radius-outer-circle={radius_outer_circle}, progress-percent={progress_percent}, circle-color={circle_color}, radius-inner-circle={radius_inner_circle}, inner-color={inner_color}, start-degree={start_degree}, direction={direction}, not-reached-color={not_reached_color}, clear-workspace={clear_workspace}, center-to-start={center_to_start}")
+
+        await draw_circle_diagram(hass, serial_number, xp=xp, yp=yp, radius_outer_circle=radius_outer_circle, progress_percent=progress_percent, circle_color=circle_color, radius_inner_circle=radius_inner_circle, inner_color=inner_color, start_degree=start_degree, direction=direction, not_reached_color=not_reached_color, clear_workspace=clear_workspace, center_to_start=center_to_start)
+
+    hass.services.async_register(const.DOMAIN, "draw_circle_diagram", handle_draw_circle_diagram)
+
+    # --------------------------------------------------------
     #   T H E   E N D  !
     # --------------------------------------------------------
+    _LOGGER.debug("Aysnc_Setup done")
+
     return True
 
  
@@ -1100,44 +1159,12 @@ async def post_startup(hass: HomeAssistant, entry):
 
     _LOGGER.info(f"Initializing display {model} with serial {serial_number} on {device_path}")
 
-    try:
-        _LOGGER.debug(f"Opening display on port {device_path}")
-        serial_port = await hass.async_add_executor_job(open_serial, device_path)
-        if serial_port is None:
-            _LOGGER.error(f"serial port {port} could not be opened.")
-            hass.data[const.DOMAIN]["devices"][serial_number]["state"] = "port error"
-            return False
-
-        _LOGGER.debug(f"successfully opened serial-port {device_path}")
-
-        device["serial_port"] = serial_port
-        device["state"]       = "ready"
-
-        hass.bus.async_fire("weact_display", {"have fun with the new display at": hass.data[const.DOMAIN]["devices"][serial_number]["device_path"]})
-
-    except Exception as e:
-        _LOGGER.error(f"Error while initializing display: {e}")
-        return False
-
+    device["online"] = False
+    device["state"] = "initializing"
+    device["serial_port"] = None
     await start_serial_reader_thread(hass, serial_number)
-    await asyncio.sleep(0.1)  # kleinen Yield geben
-    await set_orientation(hass, serial_number, int(device.get("orientation_value")), force = True)
-    await set_brightness(hass, serial_number, int(device.get("brightness")))
-    await asyncio.sleep(0.1)                                         # nur mal kurz die Welt retten
-    if hass.data[const.DOMAIN]["devices"][serial_number]["humiture"]:
-        await enable_humiture_reports(hass, serial_number)
-    await read_who_am_i(hass, serial_number)
-    await read_firmware_version(hass, serial_number)
-    await display_selftest(hass, serial_number)
-    width  = device.get("width")
-    height = device.get("height")
-    background_color = device.get("background_color")
-    _LOGGER.debug(f"painting initial background ({background_color})")
-    await draw_rectangle(hass, serial_number, xs=0, ys=0, xe=width-1, ye=height-1, rf_width=0, rf_color=background_color, f_color=background_color)
-    await setup_screencare(hass, serial_number)
 
     _LOGGER.info(f"post-startup done for serial {serial_number} on {device_path}, WeAct Display {model} is now waiting for some commands")
-
 
 async def start_serial_reader_thread(hass, serial_number):
     _LOGGER.debug(f"starting serial-reader-thread for serial {serial_number}")
@@ -1145,101 +1172,132 @@ async def start_serial_reader_thread(hass, serial_number):
     _LOGGER.debug(f"device={device}")
     device_path = device["device_path"]
     serial_port = device["serial_port"]
-
     if device_path is None:
         _LOGGER.error(f"No device-path for {serial_number}")
         return
- 
+
+    stop_event = threading.Event()
+    device["reader_stop_event"] = stop_event
+
     def reader():
         _LOGGER.debug(f"enabling serial reader for serial-number {serial_number}")
+        was_connected = False
+        rx_buffer = bytearray()
 
-        while True:
+        while not stop_event.is_set():
+            serial_port = device.get("serial_port")
+            # --- Verbindung (wieder-)herstellen, falls aktuell keine offen ist ---
+            if serial_port is None:
+                rx_buffer.clear()  # alte Bruchstuecke einer vorherigen Verbindung verwerfen
+                try:
+                    serial_port = open_serial(device_path)
+                except Exception:
+                    serial_port = None
+
+                if serial_port is None:
+                    if stop_event.wait(const.RECONNECT_INTERVAL):
+                        _LOGGER.warning(f"logpoint A for {serial_number}")
+                        break  # Unload waehrend des Wartens angefordert
+                    continue
+
+                device["serial_port"] = serial_port
+                device["online"] = True
+                if was_connected:
+                    _LOGGER.warning(f"WeAct Display {serial_number} reconnected")
+                else:
+                    _LOGGER.debug(f"WeAct Display {serial_number} connected")
+                was_connected = True
+
+                future = asyncio.run_coroutine_threadsafe(_reinitialize_display(hass, serial_number), hass.loop)
+
+                # Workaround for any coroutine still waiting for any result that may only arrive if triggered from here (Henne-Ei-Problem)
+                def _log_reinit_result(fut):
+                    try:
+                        fut.result()
+                    except Exception as e:
+                        _LOGGER.error(f"error re-initializing display {serial_number} after (re)connect: {e}")
+
+                future.add_done_callback(_log_reinit_result)
+
             try:
                 data = serial_port.read(64)   # blockiert bis timeout oder Daten
                 if not data:
                     continue  # Timeout → ruhig weiter
+                rx_buffer.extend(data)
+                # Alle vollstaendigen Pakete (bis inkl. 0x0A) aus dem Puffer holen
+                while rx_buffer:
+                    cmd = rx_buffer[0]
+                    fixed_len = const.FIXED_PACKET_LENGTHS.get(cmd)
+                    if fixed_len is not None:
+                        if len(rx_buffer) < fixed_len:
+                            break  # noch nicht genug Bytes fuer dieses Kommando da
+                        packet = bytes(rx_buffer[:fixed_len])
+                        del rx_buffer[:fixed_len]
+                        if packet[-1] != 0x0A:
+                            _LOGGER.warning(f"expected terminator 0x0A at end of fixed-length packet for cmd {cmd:#04x}, got {packet[-1]:#04x} - packet={packet.hex(' ')}")
+                    else:
+                        terminator = rx_buffer.find(0x0A)
+                        if terminator == -1:
+                            break  # noch kein vollstaendiges Paket im Puffer
+                        packet = bytes(rx_buffer[:terminator + 1])
+                        del rx_buffer[:terminator + 1]
 
-                _LOGGER.debug(f"RX [{serial_number}]: {data.hex(' ')}")                       # Zeige rohe Daten an (Hex + ASCII)
-
-                if not parse_packet(hass, serial_number, packet=data):
-                    _LOGGER.warning(f"could not parse the packet {data.hex(' ')} from {device_path}")
+                    _LOGGER.debug(f"RX [{serial_number}]: {packet.hex(' ')}")
+                    if not parse_packet(hass, serial_number, packet=packet):
+                        _LOGGER.warning(f"could not parse the packet {packet.hex(' ')} from {device_path}")
 
             except serial.SerialException:
                 _LOGGER.warning(f"WeAct Display {serial_number} disconnected")
-                hass.data[const.DOMAIN]["devices"][serial_number]["online"] = False
-                hass.data[const.DOMAIN]["devices"][serial_number]["state"] = "port error"
-                break
+                try:
+                    serial_port.close()
+                except Exception:
+                    pass
+                device["serial_port"] = None
+                device["online"] = False
+                device["state"] = "port error"
+                # KEIN break mehr - die Schleife versucht oben automatisch neu zu verbinden
 
             except Exception as e:
                 _LOGGER.error(f"Thread error for serial-port {device_path}: {e}")
+                device["online"] = False
                 break
-
-        _LOGGER.warning(f"serial reader stopped for serial-port {device_path} (This should only be reached while unloading !!)")
+        device["online"] = False
+        serial_port = device.get("serial_port")
+        if serial_port:
+            try:
+                serial_port.close()
+            except Exception:
+                pass
+            device["serial_port"] = None
+        _LOGGER.debug(f"serial reader stopped for serial-port {device_path}, stop-event={stop_event.is_set}")
  
     t = threading.Thread(target=reader, daemon=True)
+    device["reader_thread"] = t
     t.start()
 
-
-async def setup_screencare(hass, serial_number):
+async def _reinitialize_display(hass, serial_number):
+    """Wird nach JEDEM erfolgreichen (Wieder-)Verbindungsaufbau aufgerufen."""
     device = hass.data[const.DOMAIN]["devices"][serial_number]
+    device["state"] = "ready"
+    hass.bus.async_fire("weact_display", {"have fun with the new display at": device["device_path"]})
+    await asyncio.sleep(0.1)                                         # nur mal kurz die Welt retten
+    await set_orientation(hass, serial_number, int(device.get("orientation_value")), force=True)
+    await asyncio.sleep(0.1)                                         # nur mal kurz die Welt retten
+    await set_brightness(hass, serial_number, int(device.get("brightness")))
+    await asyncio.sleep(0.1)                                         # nur mal kurz die Welt retten
+    if device["humiture"]:
+        await enable_humiture_reports(hass, serial_number)
+    await asyncio.sleep(0.1)                                         # nur mal kurz die Welt retten
+    await read_who_am_i(hass, serial_number)
+    await asyncio.sleep(0.1)                                         # nur mal kurz die Welt retten
+    await read_firmware_version(hass, serial_number)
+    await asyncio.sleep(0.1)                                         # nur mal kurz die Welt retten
+    await display_selftest(hass, serial_number)
+    width  = device.get("width")
+    height = device.get("height")
+    background_color = device.get("background_color")
+    _LOGGER.debug(f"painting initial background ({background_color})")
+    await asyncio.sleep(0.1)                                         # nur mal kurz die Welt retten
+    await draw_rectangle(hass, serial_number, xs=0, ys=0, xe=width-1, ye=height-1, rf_width=0, rf_color=background_color, f_color=background_color)
+    await setup_screencare(hass, serial_number)
 
-    @callback
-    async def _screencare_callback(now):
-        _LOGGER.debug(f"screencare triggered for {serial_number}")
-
-        entry_id = device.get("entry_id")
-        entry = hass.config_entries.async_get_entry(entry_id)
-        if not entry:
-            _LOGGER.error(f"no config entry for serial {serial_number}")
-            return
-
-        if not entry.options.get("screencare", False):
-            _LOGGER.debug(f"screencare not set for serial {serial_number}, aborting")
-            return
-        else:
-            _LOGGER.info(f"running screencare for serial {serial_number}")
-        
-        try:
-            hass.async_create_task(run_screencare(hass, serial_number))
-        except Exception as e:
-            _LOGGER.exception(f"screencare callback failed with {e}")
-        
-        await setup_screencare(hass, serial_number)              # direkt nächsten Tag planen
-
-    await asyncio.sleep(2)
-    now = datetime.now(zoneinfo.ZoneInfo("Europe/Berlin"))
-    #target = now.replace(hour=10, minute=19, second=2, microsecond=0)
-    target = now.replace(hour=3, minute=37, second=2, microsecond=0)
-
-    if target <= now:
-        target += timedelta(days=1)
-
-    offset_seconds = int(serial_number[-1:], 16)                  # Offset aus Seriennummer
-    target += timedelta(seconds=offset_seconds)
-
-    screencare_handle = async_track_point_in_time(hass, _screencare_callback, target)
-
-    device["screencare_target"] = target
-
-    _LOGGER.info(f"set next screencare trigger for serial {serial_number} to {target}")
-    _LOGGER.debug(f"screencare trigger configured with handle {screencare_handle}")
-
-async def run_screencare(hass, serial_number):
-    device = hass.data[const.DOMAIN]["devices"][serial_number]
-    entry_id = device.get("entry_id")
-    entry = hass.config_entries.async_get_entry(entry_id)
-
-    # backup ziehen
-    shadow = device.get("shadow")
-    backup = shadow.copy()
-
-    # screencare
-    for i in range(6):
-        await generate_random(hass, serial_number, suppress_delete=True)
-        await asyncio.sleep(6)
-
-    # restore
-    device["shadow"] = backup
-    await send_screen(hass, serial_number)
-
-    _LOGGER.debug(f"screencare finished for serial {serial_number}")
