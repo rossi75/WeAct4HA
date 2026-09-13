@@ -2,16 +2,16 @@
 
 ### ToDo
 - barcode
-+ qr code
++ qr code  
 - Rheinturm-Uhr
-+ do not crash at startup with no display detected
-~ fix startup message complaining unique ID
-+ more config flow compatible
-- function for send simple commands
-? parameter for supressing direct upload the whole memory for all draw functions
-- text rotation
-- progress bar value
++ do not crash at startup with no display detected  
++ fix startup message complaining unique ID  
++ more config flow compatible  
+- function for send simple commands directly to the display
+? parameter for supressing direct upload the whole memory for all draw functions  
++ text rotation
++ progress bar value
 - progress bar rotate
-+ set a background color for each display while setup
-+ change background color via service
-+ select.py auf serial_number umbauen
++ set a background color for each display while setup  
++ change background color via service  
++ select.py auf serial_number umbauen  

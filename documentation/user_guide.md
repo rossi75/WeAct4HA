@@ -5,6 +5,9 @@
  [4. GUI Options explained](#4-gui-options-explained)  
  [5. How to use?](#5-how-to-use)  
  [6. all services explained](#6-all-services-explained)  
+     [6.1 write some text](#6-1-write-some-text)
+     [6.10 draw an icon](#6-10-draw-an-icon)
+     [6.14 draw a circle diagram](#6-10-draw-a-cicrcle-diagram)
  [7. Examples](#7-examples)  
  [8. Worthy Notes](#8-worthy-notes)  
 
@@ -20,7 +23,7 @@ To get in touch wih the protocol, I needed to re-engineer some of the USB messag
 ## 2. How to install?
 In Home Assistant, go to HACS and add https://github.com/rossi75/WeAct4HA as an integration. Filter for WeAct, press the download button (lower right at the date of writing).
 Navigate to Settings/Devices. If you already have plugged in your device, a new device should be discovered on the top. If it is not recognized automatically, add the integration via the button (lower right at the date of writing)
-As soon as it is installed, the display shows the RGB colors and returns to a black screen. Now it's up to you to fill the display with some content
+As soon as it is installed, the display shows the RGB colors and returns to its blank screen with the defined background color. Now it's up to you to fill the display with some content
 
 ---
 ## 3. How to set up?
@@ -30,7 +33,7 @@ you have the initial screen where you can set some things like the device itself
 - set the standard brightness after startup. You can set this also later directly in the device options
 - choose the background color. Later, you cannot change this setting via the device options, only via the actions/services in the developer menu. This is due to the fact that there is no property that gives me the possibility to ONLY have a color picker
 - for normal operation, the display shows in 24 hours nearly always the same. So I added a screencare option. With this option enabled, the display is filled with many random pixels. Every day at 03:37:00 to 03:37:59. 03:37 is the standard Gigaset reset time. If you don't want this because you need the display at 03:37 in the night, please disable this option
-- there is an option for fast transmission. this uses fastlz level2 for transmitting data. due to the extra load, this feature needs to be enabled manually
+- there is an option for fast transmission. this uses fastlz level2 for transmitting data. due to the extra cpu load while transfering, this feature needs to be enabled manually
 - click OK, done !
 
 ---
@@ -53,8 +56,8 @@ If you take a look at the displays entities (developer tools/states/sensor.weact
 
 ---
 ## 5. How to use?
-For testing and a one-shot i recommend using the actions in the developer tools. As Home Assistant only reports back the internal device ID, we need this for every operation to read out the database
-then simply start using the display in any automation. Scribble some text, draw a diagram, anything you need... Examples below
+For testing and a one-shot, I recommend using the actions in the developer tools. As Home Assistant only reports back the internal device ID, we need this for every operation to read out the database
+Then simply start using the display in any automation. Scribble some text, draw a diagram, anything you need... Examples below
 
 Everytime an update is being sent to the display, a replica is taken into your ../custom_components/weact_display/bmp/ directory. Only the last 20 images are being kept. You can copy the replica with WinSCP if you are fast enough
 
@@ -62,12 +65,107 @@ Everytime an update is being sent to the display, a replica is taken into your .
 ## 6. all services explained
 Well, this will be a long list. I will try to abbreviate it as much as possible and as detailled as needed. This will be enhanced from time to time
 
-h) Draw an Icon
-   - choose an icon from your preference which you want to show.
-   - mandatory parameters are the location (xs, ys)
-   - if no size is given, we assume 32 pixels
-   - if no color is given, we assume white
+### 1. Scribble some text
 
+### 2. Draw a line
+
+### 3. Draw a rectangle
+
+### 4. Draw a circle
+
+### 5. Draw a triangle
+
+### 6. Draw a progress bar
+
+### 7. Draw a circle diagram
+- options that are mandatory are the device ID, the X-Point, Y-Point, the radius of the circle and a value we can show. If circle-color is given, we set it to white (255, 255, 255)
+- You can enter multiple values to display. If the sum exceeds 100%, the sum will be measured down proportional. See the example below for the notation
+- each value can have its own color. If you specify less colors than values, each forgotten value will be shown in white (255, 255, 255)
+- if you want to see the not-reached-area, just provide a color for not-reached-area option
+- if you want to have mulitple diagrams into one area, or have any other idea why to use it, you can disable the option to clear the workspace
+- maybe you want a spot in the middle to signal any state (like solar production excess), provide the option for the size of the inner-circle. If you do not provide the inner circle color, we assume black (0, 0, 0)
+- direction for drawing can either be clockwise or anti-clockwise. if not set, we are using clockwise direction
+- The start-degree is normally at 12:00 which is my 0°. Counting is clockwise. If you want to start it from the bottom, you need to set it to 180°
+- with center_to_start enabled you can define the middle-angle for the whole sum of percents to the start. So all values will be drawn to the left and to the right of the start degree  
+
+---
+
+```
+action: weact_display.draw_circle_diagram
+data:
+  display: 433e5e413e13f7960ba789988b4e21b3
+  x_point: 380
+  y_point: 270
+  radius_outer_circle: 60
+  progress_percent:
+    - 15
+    - 35
+  circle_color:
+    - - 255
+      - 128
+      - 0
+    - - 255
+      - 164
+      - 32
+  radius_inner_circle: 20
+  inner_color:
+    - 0
+    - 128
+    - 128
+  not_reached_color:
+    - 64
+    - 64
+    - 64
+```
+an example which shows the disk usage
+```
+  progress_percent: "{{ states('sensor.disk_use_percent') }}"
+```
+
+### 8. Draw a line chart
+
+### 9. Draw a bar chart
+
+### 10. Show random pixels
+
+### 11. start digital clock
+
+### 12. start analog clock
+
+### 13. stop clock
+
+### 14. generate a QR code
+
+### 15. set full color
+
+### 16. set orientation
+
+### 17. set brightness
+
+### 18. restart display
+
+### 19. show init screen
+
+### 20. start self-test
+
+### 21. show bmp (or a testbild)
+
+### 22. change screencare option
+
+### 23. change fastlz option
+
+### 24. set background color
+
+### 25. Draw an Icon
+- choose an icon from your preference which you want to show.  
+- mandatory parameter is the upper left starting point of drawing (xs, ys)  
+- if no size is given, we assume 32 pixels  
+- if no color is given, we assume white color  
+
+workspace will be cleared before drawing the new icon, there is no option to prevent this. To "clear" the symbol, just re-paint it with the displays background color:
+icon_color: "{{ state_attr('sensor.weact_display_abde230e698a', 'background_color') }}"
+
+  
 ---
 ## 7. Examples
 a) First of all I have the clock. Here I created an automation that runs 10 minutes after startup and enables the analog clock:
@@ -158,10 +256,7 @@ actions:
             metadata: {}
             data:
               icon_name: mdi:connection
-              icon_color:
-                - 0
-                - 0
-                - 0
+              icon_color: "{{ state_attr('sensor.weact_display_abde230e698a', 'background_color') }}"
               xs: 335
               ys: 8
               icon_size: 128
@@ -257,4 +352,5 @@ mode: single
 - ChatGPT helped me with explaining the Home Assistants architecture
 - you need to call every service with its device ID. Internally the integration works with the serial number
 - if you face any issue, report it to me
-
+- message from the cat:
+  ffrtgpolp0ayyxy

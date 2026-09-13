@@ -66,6 +66,8 @@ hass.data[weact_display]["devices"][serial_number]
 | entry_id                  | String     | None          | dbg_entry_id***          | Homeassistants internal entry_id                           |
 | device_id                 | String     | None          | dbg_device_id***         | Homeassistants internal device_id                          |
 | lock                      | Function   | function      |                          | used for while an image is being send, avoids collisions   |
+| reader_thread             | Function   | function      |                          | used for while the serial reader is up                     |
+| reader_stop_event         | Function   | function      |                          | used for stopping the serial reader from external          |
 | shadow                    | Image Data | 0x000000...   |                          | width * height * 3, the BMP itself as RGB888               |
 
 \* also available as seperate entity
@@ -159,7 +161,7 @@ old <br> new  | 0 | 1 | 2 | 3 |
 </tr>
 </table>
 
---> resulting array-table since 0.6.2
+resulting array-table since 0.6.2  
 ORIENTATION_CONVERSION_MAP[old][new]:  
 ```
 [[0,2,1,3],  
@@ -167,8 +169,8 @@ ORIENTATION_CONVERSION_MAP[old][new]:
  [3,1,0,2],  
  [1,3,2,0]]  
 ```
-
-old incorrect array table, v0.6.0 to v0.6.1:  
+ich glaube das hier ist falsch, 0.6.0 bis 0.6.1:  
+ORIENTATION_CONVERSION_MAP[old][new]:  
 ```
 [[0,2,3,1],  
  [2,0,1,3],  
@@ -176,12 +178,11 @@ old incorrect array table, v0.6.0 to v0.6.1:
  [3,1,2,0]]  
 ```
 
-
 ### Bytesizes
 
-| Display         |  X  x  Y  | Pixel  | RGB888 | RGB565 | FastLZ |
-|-----------------|-----------|--------|--------|--------|--------|
-| FS V1           | 320 x 480 | 153600 | 460800 | 307200 | <10000 |
-| FS V1 0.96 Inch |  80 x 160 |  12800 |  38400 |  25600 |  ~2500 |
+| Display      |  X  x  Y  | Pixel  | RGB888 | RGB565 | FastLZ |
+|--------------|-----------|--------|--------|--------|--------|
+| FS V1        | 320 x 480 | 153600 | 460800 | 307200 | <10000 |
+| FS 0.96 Inch |  80 x 160 |  12800 |  38400 |  25600 |  ~2500 |
 
 
