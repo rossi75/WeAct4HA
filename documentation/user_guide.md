@@ -186,7 +186,9 @@ an example which shows the disk usage
 - if no color is given, we assume white color  
 
 workspace will be cleared before drawing the new icon, there is no option to prevent this. To "clear" the symbol, just re-paint it with the displays background color:
+```
 icon_color: "{{ state_attr('sensor.weact_display_abde230e698a', 'background_color') }}"
+```
 
   
 ---
