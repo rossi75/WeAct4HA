@@ -29,6 +29,7 @@ https://github.com/mathoudebine/turing-smart-screen-python
 - service to draw lines
 - service to draw squares
 - service to draw circles
+- service to draw a circle diagram
 - service for brightness
 - service to draw a progress bar
 - service to show an analog clock
