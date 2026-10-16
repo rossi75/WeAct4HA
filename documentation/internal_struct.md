@@ -70,8 +70,8 @@ hass.data[weact_display]["devices"][serial_number]
 | reader_stop_event         | Function   | function      |                          | used for stopping the serial reader from external          |
 | shadow                    | Image Data | 0x000000...   |                          | width * height * 3, the BMP itself as RGB888               |
 
-\* also available as seperate entity
-** only available as separate entity if humiture sensor is also available
+\* also available as seperate entity  
+** only available as separate entity if humiture sensor is also available  
 *** only available if debug mode is set
 
 
