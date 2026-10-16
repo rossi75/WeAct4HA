@@ -56,7 +56,7 @@ If you take a look at the displays entities (developer tools/states/sensor.weact
 
 ---
 ## 5. How to use?
-For testing and a one-shot, I recommend using the actions in the developer tools. As Home Assistant only reports back the internal device ID, we need this for every operation to read out the database
+For testing and a one-shot, I recommend using the actions in the developer tools. As Home Assistant only reports back the internal device ID, we need this for every operation to read out the database.
 Then simply start using the display in any automation. Scribble some text, draw a diagram, anything you need... Examples below
 
 Everytime an update is being sent to the display, a replica is taken into your ../custom_components/weact_display/bmp/ directory. Only the last 20 images are being kept. You can copy the replica with WinSCP if you are fast enough
